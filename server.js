@@ -49,7 +49,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],  // inline styles needed for themes
-      imgSrc: ["'self'", "data:", "blob:", "https://media.tenor.com", "https:"],  // https: for link preview OG images
+      imgSrc: ["'self'", "data:", "blob:", "https:"],  // https: for link preview OG images + GIPHY
       connectSrc: ["'self'", "wss:"],            // Socket.IO (wss only — no plaintext ws:)
       mediaSrc: ["'self'", "blob:"],            // WebRTC audio
       fontSrc: ["'self'"],
@@ -268,15 +268,15 @@ app.post('/api/upload-file', uploadLimiter, (req, res) => {
   });
 });
 
-// ── GIF search proxy (Tenor API — keeps key server-side) ──
-function getTenorKey() {
+// ── GIF search proxy (GIPHY API — keeps key server-side) ──
+function getGiphyKey() {
   // Check database first (set via admin panel), fall back to .env
   try {
     const { getDb } = require('./src/database');
-    const row = getDb().prepare("SELECT value FROM server_settings WHERE key = 'tenor_api_key'").get();
+    const row = getDb().prepare("SELECT value FROM server_settings WHERE key = 'giphy_api_key'").get();
     if (row && row.value) return row.value;
   } catch { /* DB not ready yet or no key stored */ }
-  return process.env.TENOR_API_KEY || '';
+  return process.env.GIPHY_API_KEY || '';
 }
 
 // ── GIF endpoint rate limiting (per IP) ──────────────────
@@ -301,21 +301,21 @@ app.get('/api/gif/search', gifLimiter, (req, res) => {
   const user = token ? verifyToken(token) : null;
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const key = getTenorKey();
+  const key = getGiphyKey();
   if (!key) return res.status(501).json({ error: 'gif_not_configured' });
   const q = (req.query.q || '').trim().slice(0, 100);
   if (!q) return res.status(400).json({ error: 'Missing search query' });
   const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-  const url = `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}&key=${key}&client_key=haven&limit=${limit}&media_filter=tinygif,gif`;
+  const url = `https://api.giphy.com/v1/gifs/search?api_key=${encodeURIComponent(key)}&q=${encodeURIComponent(q)}&limit=${limit}&rating=r&lang=en`;
   fetch(url).then(r => r.json()).then(data => {
-    const results = (data.results || []).map(r => ({
-      id: r.id,
-      title: r.title || '',
-      tiny: r.media_formats?.tinygif?.url || '',
-      full: r.media_formats?.gif?.url || '',
+    const results = (data.data || []).map(g => ({
+      id: g.id,
+      title: g.title || '',
+      tiny: g.images?.fixed_height_small?.url || g.images?.fixed_height?.url || '',
+      full: g.images?.original?.url || '',
     }));
     res.json({ results });
-  }).catch(() => res.status(502).json({ error: 'Tenor API error' }));
+  }).catch(() => res.status(502).json({ error: 'GIPHY API error' }));
 });
 
 app.get('/api/gif/trending', gifLimiter, (req, res) => {
@@ -324,19 +324,19 @@ app.get('/api/gif/trending', gifLimiter, (req, res) => {
   const user = token ? verifyToken(token) : null;
   if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
-  const key = getTenorKey();
+  const key = getGiphyKey();
   if (!key) return res.status(501).json({ error: 'gif_not_configured' });
   const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-  const url = `https://tenor.googleapis.com/v2/featured?key=${key}&client_key=haven&limit=${limit}&media_filter=tinygif,gif`;
+  const url = `https://api.giphy.com/v1/gifs/trending?api_key=${encodeURIComponent(key)}&limit=${limit}&rating=r`;
   fetch(url).then(r => r.json()).then(data => {
-    const results = (data.results || []).map(r => ({
-      id: r.id,
-      title: r.title || '',
-      tiny: r.media_formats?.tinygif?.url || '',
-      full: r.media_formats?.gif?.url || '',
+    const results = (data.data || []).map(g => ({
+      id: g.id,
+      title: g.title || '',
+      tiny: g.images?.fixed_height_small?.url || g.images?.fixed_height?.url || '',
+      full: g.images?.original?.url || '',
     }));
     res.json({ results });
-  }).catch(() => res.status(502).json({ error: 'Tenor API error' }));
+  }).catch(() => res.status(502).json({ error: 'GIPHY API error' }));
 });
 
 // ── Link preview (Open Graph metadata) ──────────────────

@@ -1308,7 +1308,7 @@ function setupSocketHandlers(io, db) {
     socket.on('get-server-settings', () => {
       const rows = db.prepare('SELECT key, value FROM server_settings').all();
       const settings = {};
-      const sensitiveKeys = ['tenor_api_key'];
+      const sensitiveKeys = ['giphy_api_key'];
       rows.forEach(r => {
         if (sensitiveKeys.includes(r.key) && !socket.user.isAdmin) return;
         settings[r.key] = r.value;
@@ -1440,7 +1440,7 @@ function setupSocketHandlers(io, db) {
       const key = typeof data.key === 'string' ? data.key.trim() : '';
       const value = typeof data.value === 'string' ? data.value.trim() : '';
 
-      const allowedKeys = ['member_visibility', 'cleanup_enabled', 'cleanup_max_age_days', 'cleanup_max_size_mb', 'tenor_api_key'];
+      const allowedKeys = ['member_visibility', 'cleanup_enabled', 'cleanup_max_age_days', 'cleanup_max_size_mb', 'giphy_api_key'];
       if (!allowedKeys.includes(key)) return;
 
       if (key === 'member_visibility' && !['all', 'online', 'none'].includes(value)) return;
@@ -1453,7 +1453,7 @@ function setupSocketHandlers(io, db) {
         const n = parseInt(value);
         if (isNaN(n) || n < 0 || n > 100000) return;
       }
-      if (key === 'tenor_api_key') {
+      if (key === 'giphy_api_key') {
         // Allow empty value to clear the key, otherwise validate format
         if (value && (value.length < 10 || value.length > 100)) return;
       }
@@ -1649,11 +1649,18 @@ function setupSocketHandlers(io, db) {
       if (!socket.user) return; // safety guard
       console.log(`❌ ${socket.user.username} disconnected`);
 
-      // Remove from all channel online lists
+      // Remove from channel tracking
       for (const [code, users] of channelUsers) {
         if (users.has(socket.user.id)) {
           users.delete(socket.user.id);
-          emitOnlineUsers(code);
+        }
+      }
+
+      // Broadcast updated online list to ALL active channels
+      const rooms = io.of('/').adapter.rooms;
+      for (const [roomName] of rooms) {
+        if (roomName.startsWith('channel:')) {
+          emitOnlineUsers(roomName.slice(8));
         }
       }
 
@@ -1732,14 +1739,21 @@ function setupSocketHandlers(io, db) {
           statusText: statusMap[m.id]?.statusText || ''
         }));
       } else {
-        // 'online' — only currently online users
-        if (!room) return;
-        users = Array.from(room.values()).map(u => ({
-          id: u.id, username: u.username, online: true,
-          highScore: scores[u.id] || 0,
-          status: statusMap[u.id]?.status || 'online',
-          statusText: statusMap[u.id]?.statusText || ''
-        }));
+        // 'online' — all connected users across the server
+        const onlineMap = new Map();
+        for (const [, s] of io.of('/').sockets) {
+          if (s.user && !onlineMap.has(s.user.id)) {
+            onlineMap.set(s.user.id, {
+              id: s.user.id,
+              username: s.user.username,
+              online: true,
+              highScore: scores[s.user.id] || 0,
+              status: statusMap[s.user.id]?.status || 'online',
+              statusText: statusMap[s.user.id]?.statusText || ''
+            });
+          }
+        }
+        users = Array.from(onlineMap.values());
       }
 
       // Sort: online first, then alphabetical within each group

@@ -83,6 +83,12 @@
             <button class="theme-btn" data-theme="bloodborne" title="Bloodborne"><span class="theme-icon">🩸</span></button>
             <button class="theme-btn" data-theme="ice" title="Ice"><span class="theme-icon">🧊</span></button>
             <button class="theme-btn" data-theme="abyss" title="Abyss"><span class="theme-icon">🌊</span></button>
+            <button class="theme-btn" data-theme="custom" title="Custom"><span class="theme-icon" id="custom-theme-swatch">🎨</span></button>
+          </div>
+          <!-- Custom theme triangle picker (hidden until Custom is selected) -->
+          <div id="custom-theme-editor" style="display:none">
+            <canvas id="custom-hue-bar" width="206" height="18"></canvas>
+            <canvas id="custom-triangle" width="206" height="180"></canvas>
           </div>
           <button class="btn-game-sidebar" id="play-flappy-btn" title="Play Shippy Container">� Shippy Container</button>
         </div>

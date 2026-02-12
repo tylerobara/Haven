@@ -35,7 +35,7 @@ You launch it, your friends connect to your IP address, and you have a private g
 | **Screen Share** | Multi-stream screen sharing with tiled grid layout, per-user video tiles, one-click close |
 | **Formatting** | **Bold**, *italic*, ~~strikethrough~~, `code`, \|\|spoilers\|\|, auto-linked URLs, fenced code blocks with language labels, blockquotes |
 | **Link Previews** | Automatic OG metadata previews for shared URLs with title, description, and thumbnail |
-| **GIF Search** | Tenor-powered GIF picker — search and send GIFs inline (admin-configurable API key) |
+| **GIF Search** | GIPHY-powered GIF picker — search and send GIFs inline (admin-configurable API key) |
 | **Direct Messages** | Private 1-on-1 conversations — click 💬 on any user in the member list |
 | **User Status** | Online, Away, Do Not Disturb, Invisible — with custom status text and auto-away after 5 min idle |
 | **Channel Topics** | Admin-settable topic line below the channel header — click to edit |
@@ -281,32 +281,23 @@ Copy the entire folder somewhere safe to back up everything. The Haven code dire
 
 ---
 
-## GIF Search — Tenor API Setup
+## GIF Search — GIPHY API Setup
 
-Haven has a built-in GIF picker powered by **Tenor**. To enable it you need a free Google Cloud API key.
+Haven has a built-in GIF picker powered by **GIPHY**. To enable it you need a free API key.
 
-### 1. Create a Google Cloud Project
+### 1. Create a GIPHY Developer Account
 
-1. Go to [console.cloud.google.com](https://console.cloud.google.com/)
-2. Sign in with any Google account
-3. If you don't have a project yet, create one (any name is fine, e.g. "Haven GIFs")
+1. Go to [developers.giphy.com](https://developers.giphy.com/)
+2. Sign up for an account (or sign in)
 
-### 2. Enable the Tenor API
+### 2. Create an App
 
-1. In the Google Cloud Console, go to **APIs & Services → Library**
-2. Search for **"Tenor API"** (Tenor API v2)
-3. Click **Enable**
+1. Click **Create an App**
+2. Choose **API** (not SDK)
+3. Give it any name (e.g. "Haven Chat") and a short description
+4. Copy the **API Key** shown on the next page
 
-### 3. Create an API Key
-
-1. Go to **APIs & Services → Credentials**
-2. Click **+ Create Credentials → API Key**
-3. A key is generated — copy it
-4. *(Optional)* Click the key name to restrict it:
-   - **Application restrictions:** None (or Websites if you want to lock it to your domain)
-   - **API restrictions:** Restrict to **Tenor API** only
-
-### 4. Add the Key in Haven
+### 3. Add the Key in Haven
 
 1. Log into Haven as your **admin** account
 2. Click the **GIF button** (🎞️) in the message input area
@@ -315,7 +306,7 @@ Haven has a built-in GIF picker powered by **Tenor**. To enable it you need a fr
 
 That's it. All users can now search and send GIFs.
 
-> **Free tier:** Google gives you a generous free quota for Tenor API calls. For a private chat server you'll never come close to the limit.
+> **Free tier:** GIPHY's free tier allows plenty of requests for a private chat server — you'll never come close to the limit.
 
 ---
 

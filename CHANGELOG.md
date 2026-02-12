@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [1.3.3] — 2025-02-13
+
+### Fixed — Bug Fixes
+- **Upload error handling** — both image and file upload handlers now check HTTP status before parsing JSON, giving users clear error messages instead of cryptic "Not Found" toasts.
+- **Screen share X button** — clicking close now minimises the screen-share container instead of destroying all streams. A pulsing indicator button appears in the channel header so you can bring the view back. New incoming streams auto-restore the container.
+- **Online users visibility** — users are now visible across all channels as soon as they connect, not only in the specific channel they are currently viewing. Disconnect events broadcast to all active channels.
+- **DM button feedback** — clicking 💬 now shows a toast ("Opening DM with …"), disables the button during the request, scrolls the sidebar to the newly-opened DM channel, and re-enables after a timeout fallback.
+
+### Changed
+- **Tenor → GIPHY migration** — GIF search backend and client switched from Tenor (Google) to GIPHY. New admin setup guide, server proxy endpoints, and response parsing. All `media.tenor.com` URL patterns updated to `media*.giphy.com`. README updated with simpler GIPHY key setup instructions.
+
+### Added
+- **Custom theme with triangle picker** — new 🎨 "Custom" button in the theme selector. Opens an inline HSV triangle colour picker (canvas-based hue bar + SV triangle) that live-generates a full theme palette from a single accent colour. Custom HSV values persist in localStorage and apply instantly on page load (no flash).
+
+---
+
 ## [1.3.2] — 2026-02-12
 
 ### Fixed — Security Hardening II

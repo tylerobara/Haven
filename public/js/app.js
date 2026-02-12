@@ -284,6 +284,11 @@ class HavenApp {
         this._renderChannels();
       }
       this.switchChannel(data.code);
+      // Scroll the DM channel into view in the sidebar
+      const dmEl = document.querySelector(`.channel-item[data-code="${data.code}"]`);
+      if (dmEl) dmEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // Re-enable any disabled DM buttons
+      document.querySelectorAll('.user-dm-btn[disabled]').forEach(b => { b.disabled = false; b.style.opacity = ''; });
     });
 
     // ── Status updated ──────────────────────────────
@@ -1211,8 +1216,12 @@ class HavenApp {
         headers: { 'Authorization': `Bearer ${this.token}` },
         body: formData
       });
+      if (!res.ok) {
+        let errMsg = `Upload failed (${res.status})`;
+        try { const d = await res.json(); errMsg = d.error || errMsg; } catch {}
+        return this._showToast(errMsg, 'error');
+      }
       const data = await res.json();
-      if (!res.ok) return this._showToast(data.error || 'Upload failed', 'error');
 
       // Send the image URL as a message (prefix with img: to avoid slash-command parsing)
       this.socket.emit('send-message', {
@@ -1719,7 +1728,7 @@ class HavenApp {
       seen.add(url);
       // Skip image URLs (already rendered inline) and internal URLs
       if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) return;
-      if (/^https:\/\/media\.tenor\.com\//i.test(url)) return;
+      if (/^https:\/\/media\d*\.giphy\.com\//i.test(url)) return;
       if (url.startsWith(window.location.origin)) return;
 
       fetch(`/api/link-preview?url=${encodeURIComponent(url)}`, {
@@ -1828,7 +1837,14 @@ class HavenApp {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const targetId = parseInt(btn.dataset.dmUid);
+        if (isNaN(targetId)) return;
+        const targetName = btn.closest('.user-item')?.querySelector('.user-item-name')?.textContent || 'user';
+        this._showToast(`Opening DM with ${targetName}…`, 'info');
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
         this.socket.emit('start-dm', { targetUserId: targetId });
+        // Re-enable after a timeout in case no response
+        setTimeout(() => { btn.disabled = false; btn.style.opacity = ''; }, 5000);
       });
     });
   }
@@ -2077,7 +2093,10 @@ class HavenApp {
       const videoEl = tile.querySelector('video');
       videoEl.srcObject = stream;
       videoEl.play().catch(() => {}); // ensure autoplay isn't blocked
+      // Auto-show container (even if minimized) when new stream arrives
       container.style.display = 'flex';
+      this._screenShareMinimized = false;
+      this._removeScreenShareIndicator();
       const count = grid.children.length;
       label.textContent = `🖥️ ${count} stream${count > 1 ? 's' : ''}`;
     } else {
@@ -2100,6 +2119,10 @@ class HavenApp {
     const count = grid.children.length;
     if (count === 0) {
       container.style.display = 'none';
+      this._screenShareMinimized = false;
+      this._removeScreenShareIndicator();
+    } else if (this._screenShareMinimized) {
+      this._showScreenShareIndicator(count);
     } else {
       label.textContent = `🖥️ ${count} stream${count > 1 ? 's' : ''}`;
     }
@@ -2108,16 +2131,40 @@ class HavenApp {
   _hideScreenShare() {
     const container = document.getElementById('screen-share-container');
     const grid = document.getElementById('screen-share-grid');
-    // Stop our own screen share if active (don't just hide the UI!)
+    // If WE are sharing, stop it
     if (this.voice && this.voice.isScreenSharing) {
       this.voice.stopScreenShare();
       document.getElementById('screen-share-btn').textContent = '🖥️ Share';
       document.getElementById('screen-share-btn').classList.remove('sharing');
     }
-    // Stop all video elements and clear grid
-    grid.querySelectorAll('video').forEach(v => { v.srcObject = null; });
-    grid.innerHTML = '';
+    // Just minimize — don't destroy other people's streams
     container.style.display = 'none';
+    this._screenShareMinimized = true;
+    // Show a "streams hidden" indicator if there are still tiles
+    if (grid.children.length > 0) {
+      this._showScreenShareIndicator(grid.children.length);
+    }
+  }
+
+  _showScreenShareIndicator(count) {
+    let ind = document.getElementById('screen-share-indicator');
+    if (!ind) {
+      ind = document.createElement('button');
+      ind.id = 'screen-share-indicator';
+      ind.className = 'screen-share-indicator';
+      ind.addEventListener('click', () => {
+        const container = document.getElementById('screen-share-container');
+        container.style.display = 'flex';
+        this._screenShareMinimized = false;
+        ind.remove();
+      });
+      document.querySelector('.channel-header')?.appendChild(ind);
+    }
+    ind.textContent = `🖥️ ${count} stream${count > 1 ? 's' : ''} hidden`;
+  }
+
+  _removeScreenShareIndicator() {
+    document.getElementById('screen-share-indicator')?.remove();
   }
 
   // ── Utilities ─────────────────────────────────────────
@@ -2133,8 +2180,8 @@ class HavenApp {
     const trimmed = str.trim();
     if (/^\/uploads\/[\w\-]+\.(jpg|jpeg|png|gif|webp)$/i.test(trimmed)) return true;
     if (/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)(\?[^"'<>]*)?$/i.test(trimmed)) return true;
-    // Tenor GIF URLs (don't have file extensions)
-    if (/^https:\/\/media\.tenor\.com\/.+/i.test(trimmed)) return true;
+    // GIPHY GIF URLs (may not have file extensions)
+    if (/^https:\/\/media\d*\.giphy\.com\/.+/i.test(trimmed)) return true;
     return false;
   }
 
@@ -2201,7 +2248,7 @@ class HavenApp {
         try { new URL(url); } catch { return url; }
         const safeUrl = url.replace(/['"<>]/g, '');
         if (/\.(jpg|jpeg|png|gif|webp)(\?[^"'<>]*)?$/i.test(safeUrl) ||
-            /^https:\/\/media\.tenor\.com\//i.test(safeUrl)) {
+            /^https:\/\/media\d*\.giphy\.com\//i.test(safeUrl)) {
           return `<img src="${safeUrl}" class="chat-image" alt="image" loading="lazy">`;
         }
         return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer nofollow">${safeUrl}</a>`;
@@ -2399,7 +2446,7 @@ class HavenApp {
   }
 
   // ═══════════════════════════════════════════════════════
-  // GIF PICKER (Tenor)
+  // GIF PICKER (GIPHY)
   // ═══════════════════════════════════════════════════════
 
   _setupGifPicker() {
@@ -2509,25 +2556,26 @@ class HavenApp {
       grid.innerHTML = `
         <div class="gif-setup-guide">
           <h3>🎞️ Set Up GIF Search</h3>
-          <p>GIF search is powered by <strong>Tenor</strong> (Google) and needs a free API key.</p>
+          <p>GIF search is powered by <strong>GIPHY</strong> and needs a free API key.</p>
           <ol>
-            <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → Credentials</a></li>
-            <li>Create a project (or pick an existing one)</li>
-            <li>Click <b>+ CREATE CREDENTIALS → API key</b></li>
-            <li>Copy the key and paste it below</li>
+            <li>Go to <a href="https://developers.giphy.com/" target="_blank" rel="noopener">developers.giphy.com</a></li>
+            <li>Create an account (or sign in)</li>
+            <li>Click <b>Create an App</b> → choose <b>API</b></li>
+            <li>Name it anything (e.g. "Haven Chat")</li>
+            <li>Copy the API key and paste it below</li>
           </ol>
           <div class="gif-setup-input-row">
-            <input type="text" id="gif-tenor-key-input" placeholder="Paste your Tenor API key…" spellcheck="false" autocomplete="off" />
-            <button id="gif-tenor-key-save">Save</button>
+            <input type="text" id="gif-giphy-key-input" placeholder="Paste your GIPHY API key…" spellcheck="false" autocomplete="off" />
+            <button id="gif-giphy-key-save">Save</button>
           </div>
-          <p class="gif-setup-note">💡 No billing required — the Tenor API is completely free.</p>
+          <p class="gif-setup-note">💡 No payment required — GIPHY's free tier is generous enough for a private server.</p>
         </div>`;
-      const saveBtn = document.getElementById('gif-tenor-key-save');
-      const input = document.getElementById('gif-tenor-key-input');
+      const saveBtn = document.getElementById('gif-giphy-key-save');
+      const input = document.getElementById('gif-giphy-key-input');
       saveBtn.addEventListener('click', () => {
         const key = input.value.trim();
         if (!key) return;
-        this.socket.emit('update-server-setting', { key: 'tenor_api_key', value: key });
+        this.socket.emit('update-server-setting', { key: 'giphy_api_key', value: key });
         grid.innerHTML = '<div class="gif-picker-empty">Saved! Loading GIFs…</div>';
         setTimeout(() => this._loadTrendingGifs(), 500);
       });
@@ -2538,7 +2586,7 @@ class HavenApp {
       grid.innerHTML = `
         <div class="gif-setup-guide">
           <h3>🎞️ GIF Search Not Available</h3>
-          <p>An admin needs to set up the Tenor API key before GIF search can work.</p>
+          <p>An admin needs to set up the GIPHY API key before GIF search can work.</p>
         </div>`;
     }
   }
@@ -3166,7 +3214,10 @@ class HavenApp {
       headers: { Authorization: `Bearer ${this.token}` },
       body: formData
     })
-    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) return r.text().then(t => { throw new Error(t || `HTTP ${r.status}`); });
+      return r.json();
+    })
     .then(data => {
       if (data.error) {
         this._showToast(data.error, 'error');

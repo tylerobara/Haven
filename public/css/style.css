@@ -720,8 +720,33 @@ input, textarea { font-family: inherit; outline: none; border: none; }
 .theme-btn[data-theme="bloodborne"] { background: #0a0000; color: #cc0020; }
 .theme-btn[data-theme="ice"]    { background: #0a1520; color: #00d4ff; }
 .theme-btn[data-theme="abyss"]  { background: #040810; color: #1a5aff; }
+.theme-btn[data-theme="custom"] { background: linear-gradient(135deg, #ff2d6f, #faa61a, #43b581, #7c5cfc); color: #fff; }
 
 .theme-btn .theme-icon { pointer-events: none; }
+
+/* ─── Custom Theme Triangle Picker ───────────────────── */
+#custom-theme-editor {
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+#custom-hue-bar {
+  width: 100%;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+  display: block;
+  margin-bottom: 6px;
+}
+#custom-triangle {
+  width: 100%;
+  height: 180px;
+  cursor: crosshair;
+  display: block;
+  border-radius: var(--radius-sm);
+}
 
 
 /* ═══════════════════════════════════════════════════════════
@@ -3337,6 +3362,27 @@ input, textarea { font-family: inherit; outline: none; border: none; }
   max-height: 50vh;
   min-height: 180px;
   position: relative;
+}
+
+.screen-share-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  margin-left: 8px;
+  animation: pulse-glow 2s ease-in-out infinite;
+  white-space: nowrap;
+}
+.screen-share-indicator:hover { filter: brightness(1.2); }
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .screen-share-header {
