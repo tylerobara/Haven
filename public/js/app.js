@@ -690,11 +690,12 @@ class HavenApp {
         sc.style.display = 'flex';
         document.getElementById('search-input').focus();
       }
-      // Escape = close modals
+      // Escape = close modals, search, theme popup
       if (e.key === 'Escape') {
         document.getElementById('search-container').style.display = 'none';
         document.getElementById('search-results-panel').style.display = 'none';
         document.getElementById('theme-popup').style.display = 'none';
+        document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
       }
     });
 
@@ -2003,9 +2004,11 @@ class HavenApp {
 
   _leaveVoice() {
     this.voice.leave();
+    this.notifications.playDirect('voice_leave');
     this._updateVoiceButtons(false);
     this._updateVoiceStatus(false);
     this._updateVoiceBar();
+    this._showToast('Left voice chat', 'info');
   }
 
   _toggleMute() {
@@ -2063,7 +2066,13 @@ class HavenApp {
       document.getElementById('screen-share-btn').textContent = '🖥️ Share';
       document.getElementById('screen-share-btn').classList.remove('sharing');
       document.getElementById('voice-ns-slider').value = 10;
-      this._hideScreenShare();
+      // Clear all stream tiles so no ghost tiles persist after leaving voice
+      const grid = document.getElementById('screen-share-grid');
+      grid.querySelectorAll('video').forEach(v => { v.srcObject = null; });
+      grid.innerHTML = '';
+      document.getElementById('screen-share-container').style.display = 'none';
+      this._screenShareMinimized = false;
+      this._removeScreenShareIndicator();
     }
   }
 
