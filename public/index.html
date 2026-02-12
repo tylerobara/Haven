@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Haven — Login</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/css/style.css">
   <script src="/js/theme-init.js"></script>
 </head>
@@ -59,8 +60,12 @@
       <!-- EULA acceptance (required before login/register) -->
       <div class="eula-notice" id="eula-notice">
         <label class="eula-check-row">
+          <input type="checkbox" id="age-checkbox">
+          <span>I confirm that I am <strong>18 years of age or older</strong> (or the age of legal majority in my jurisdiction)</span>
+        </label>
+        <label class="eula-check-row">
           <input type="checkbox" id="eula-checkbox">
-          <span>I have read and agree to the <a href="#" id="eula-link">Release of Liability Agreement</a></span>
+          <span>I have read and agree to the <a href="#" id="eula-link">Terms of Service &amp; Release of Liability Agreement</a></span>
         </label>
       </div>
 
@@ -86,52 +91,173 @@
   <!-- EULA Modal -->
   <div class="modal-overlay" id="eula-modal" style="display:none">
     <div class="modal eula-modal">
-      <h3>⚖️ Release of Liability Agreement</h3>
+      <h3>âš–ï¸ Terms of Service &amp; Release of Liability Agreement</h3>
       <div class="eula-content">
-        <p><strong>HAVEN — END USER LICENSE &amp; RELEASE OF LIABILITY</strong></p>
-        <p><em>Effective Date: February 10, 2026 &nbsp;|&nbsp; Version 1.0</em></p>
+        <p><strong>HAVEN â€” TERMS OF SERVICE, END USER LICENSE AGREEMENT &amp; RELEASE OF LIABILITY</strong></p>
+        <p><em>Effective Date: February 12, 2026 &nbsp;|&nbsp; Version 2.0</em></p>
 
         <p>By accessing, registering for, or using this Haven server instance
-        (the “Service”), you acknowledge and agree to the following terms:</p>
+        (the &quot;Service&quot;), you (&quot;User,&quot; &quot;you,&quot; or &quot;your&quot;) acknowledge that you have
+        read, understood, and agree to be legally bound by the following terms and
+        conditions (&quot;Agreement&quot;). If you do not agree to every provision of this
+        Agreement, you must immediately cease all use of the Service.</p>
 
-        <ol>
-          <li><strong>Work in Progress.</strong> This software is provided <em>as-is</em>,
-          in an active state of development. Features may be incomplete, unstable,
-          or subject to change without notice.</li>
+        <h4>1. AGE RESTRICTION &amp; ELIGIBILITY</h4>
+        <p>1.1. <strong>Minimum Age.</strong> You must be at least <strong>eighteen
+        (18) years of age</strong> â€” or the age of legal majority in your
+        jurisdiction, whichever is greater â€” to access or use the Service. By
+        checking the age-confirmation box and using the Service, you represent
+        and warrant that you meet this requirement.</p>
+        <p>1.2. <strong>Parental Notice.</strong> The Service is not intended for
+        individuals under 18. We do not knowingly collect personal information
+        from minors. If we learn that a minor has provided personal information,
+        we will delete that information and terminate the associated account
+        without notice.</p>
+        <p>1.3. <strong>Legal Capacity.</strong> You represent that you have the
+        legal capacity to enter into a binding agreement in your jurisdiction.</p>
 
-          <li><strong>No Warranty.</strong> The Service is offered without warranty of
-          any kind, express or implied, including but not limited to warranties of
-          merchantability, fitness for a particular purpose, or non-infringement.</li>
+        <h4>2. DESCRIPTION OF SERVICE</h4>
+        <p>2.1. Haven is self-hosted, open-source communication software provided
+        under the MIT-NC license. The Service enables text messaging, voice
+        communication, file sharing, and related features between consenting
+        adult users on a privately operated server instance.</p>
+        <p>2.2. <strong>Work in Progress.</strong> The software is provided in an
+        active state of development. Features may be incomplete, unstable, or
+        subject to change without notice.</p>
 
-          <li><strong>Assumption of Risk.</strong> You voluntarily assume all risk
-          associated with your use of the Service, including but not limited to
-          data loss, service interruptions, security vulnerabilities, and any
-          consequences arising from communications conducted through the Service.</li>
+        <h4>3. NO WARRANTY</h4>
+        <p>3.1. THE SERVICE IS PROVIDED <strong>&quot;AS IS&quot;</strong> AND <strong>&quot;AS
+        AVAILABLE&quot;</strong>, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+        INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR
+        A PARTICULAR PURPOSE, NON-INFRINGEMENT, ACCURACY, RELIABILITY, OR
+        AVAILABILITY.</p>
+        <p>3.2. The Providers (defined below) do not warrant that the Service
+        will be uninterrupted, error-free, secure, or free from harmful
+        components.</p>
 
-          <li><strong>Release of Liability.</strong> You agree to hold harmless the
-          developer(s), server operator(s), host(s), and any affiliated parties
-          (collectively, “Providers”) from any and all claims, damages, losses,
-          liabilities, costs, or expenses arising out of or related to your use of
-          the Service.</li>
+        <h4>4. ASSUMPTION OF RISK</h4>
+        <p>4.1. You <strong>voluntarily assume all risk</strong> associated with
+        your use of the Service, including but not limited to: data loss, service
+        interruptions, security vulnerabilities, exposure to objectionable or
+        unlawful content posted by other users, and any consequences arising from
+        communications conducted through the Service.</p>
+        <p>4.2. You acknowledge that the Service involves real-time, user-generated
+        content that is not pre-screened, moderated by artificial intelligence, or
+        guaranteed to be free of harmful material.</p>
 
-          <li><strong>No Legal Advice.</strong> This agreement does not constitute
-          legal advice. If you require legal counsel, consult a licensed attorney.</li>
+        <h4>5. RELEASE OF LIABILITY &amp; LIMITATION OF DAMAGES</h4>
+        <p>5.1. <strong>Release.</strong> To the fullest extent permitted by
+        applicable law, you hereby <strong>release, discharge, and hold
+        harmless</strong> the developer(s), server operator(s), host(s),
+        contributors, and any affiliated parties (collectively, &quot;Providers&quot;)
+        from any and all claims, demands, causes of action, damages, losses,
+        liabilities, costs, and expenses (including but not limited to
+        attorneys' fees) arising out of or related to:</p>
+        <ul>
+          <li>your use of, or inability to use, the Service;</li>
+          <li>any content transmitted, received, or stored through the Service;</li>
+          <li>unauthorized access to or alteration of your data;</li>
+          <li>the conduct of any third party on the Service;</li>
+          <li>any violation of this Agreement.</li>
+        </ul>
+        <p>5.2. <strong>Limitation.</strong> In no event shall the aggregate
+        liability of the Providers exceed the amount you paid to use the Service
+        (which is $0.00 for free software). In no event shall any Provider be
+        liable for indirect, incidental, special, consequential, or punitive
+        damages of any kind.</p>
 
-          <li><strong>Data Handling.</strong> Messages, files, and user data stored
-          on this server are managed at the sole discretion of the server operator.
-          No guarantee of privacy, backup, or retention is made.</li>
+        <h4>6. INDEMNIFICATION</h4>
+        <p>6.1. You agree to <strong>indemnify, defend, and hold harmless</strong>
+        the Providers from and against any and all claims, liabilities, damages,
+        losses, costs, and expenses (including reasonable attorneys' fees) arising
+        from or related to: (a) your use of the Service; (b) your violation of
+        this Agreement; (c) your violation of any applicable law or regulation;
+        or (d) any content you transmit through the Service.</p>
 
-          <li><strong>User Conduct.</strong> You are solely responsible for your
-          conduct and any content you transmit through the Service. The server
-          operator reserves the right to remove content or restrict access at
-          any time for any reason.</li>
+        <h4>7. USER CONDUCT &amp; CONTENT</h4>
+        <p>7.1. You are <strong>solely responsible</strong> for your conduct and
+        any content you create, transmit, or share through the Service.</p>
+        <p>7.2. You agree not to use the Service to: (a) violate any applicable
+        law or regulation; (b) transmit content that exploits or harms minors;
+        (c) harass, threaten, or abuse other users; (d) distribute malware or
+        engage in phishing; or (e) infringe on any third party's intellectual
+        property rights.</p>
+        <p>7.3. The server operator reserves the right to remove any content and
+        to restrict or terminate any user's access at any time, for any reason,
+        without prior notice.</p>
 
-          <li><strong>Acceptance.</strong> By checking the acceptance box and
-          continuing to use the Service, you confirm that you have read, understood,
-          and agree to be bound by these terms.</li>
-        </ol>
+        <h4>8. DATA HANDLING &amp; PRIVACY</h4>
+        <p>8.1. Messages, files, and user data are stored on the server
+        operator's hardware and managed at their sole discretion. <strong>No
+        guarantee of privacy, backup, retention, or confidentiality is
+        made.</strong></p>
+        <p>8.2. You acknowledge that communications on the Service may be
+        accessed by the server operator and are not end-to-end encrypted by
+        default.</p>
+        <p>8.3. Haven does not transmit data to third-party analytics,
+        advertising, or tracking services. API calls to third-party services
+        (e.g., GIPHY) are made only when explicitly triggered by user action.</p>
+        <p>8.4. You consent to the collection and storage of your IP address,
+        username, and agreement acceptance records for the purposes of
+        security, abuse prevention, and legal compliance.</p>
 
-        <p class="eula-footer"><em>If you do not agree to these terms, do not use this Service.</em></p>
+        <h4>9. INTELLECTUAL PROPERTY</h4>
+        <p>9.1. Haven software is licensed under the MIT-NC License. You retain
+        ownership of content you create, but grant the server operator a
+        non-exclusive, royalty-free license to store, display, and transmit your
+        content as necessary to operate the Service.</p>
+        <p>9.2. You represent that you have the right to share any content you
+        upload and that such content does not infringe any third party's rights.</p>
+
+        <h4>10. DISPUTE RESOLUTION &amp; GOVERNING LAW</h4>
+        <p>10.1. <strong>Governing Law.</strong> This Agreement shall be governed
+        by and construed in accordance with the laws of the State in which the
+        server operator resides, without regard to conflict of law provisions.</p>
+        <p>10.2. <strong>Informal Resolution.</strong> Before initiating any
+        formal proceedings, you agree to first attempt to resolve any dispute
+        informally by contacting the server operator directly.</p>
+        <p>10.3. <strong>Limitation Period.</strong> Any claim arising out of
+        this Agreement must be brought within <strong>one (1) year</strong> of
+        the date on which the claim arose, or it is permanently barred.</p>
+        <p>10.4. <strong>Waiver of Class Action.</strong> You agree that any
+        dispute resolution proceedings will be conducted only on an individual
+        basis and not as a class, consolidated, or representative action.</p>
+
+        <h4>11. TERMINATION</h4>
+        <p>11.1. The server operator may terminate or suspend your access at
+        any time, with or without cause, with or without notice.</p>
+        <p>11.2. Upon termination, all rights granted to you under this
+        Agreement immediately cease. Sections 1, 3, 4, 5, 6, 8, 10, and 12
+        survive termination.</p>
+
+        <h4>12. GENERAL PROVISIONS</h4>
+        <p>12.1. <strong>Entire Agreement.</strong> This Agreement constitutes
+        the entire agreement between you and the Providers and supersedes all
+        prior agreements relating to the Service.</p>
+        <p>12.2. <strong>Severability.</strong> If any provision is found
+        unenforceable, the remaining provisions remain in full force and
+        effect.</p>
+        <p>12.3. <strong>Waiver.</strong> Failure to enforce any provision does
+        not constitute a waiver of that provision.</p>
+        <p>12.4. <strong>Modification.</strong> The Providers reserve the right
+        to modify this Agreement at any time. Continued use after changes are
+        posted constitutes acceptance. Material changes will be communicated
+        with a version number increment and, where feasible, an in-app notice.</p>
+        <p>12.5. <strong>No Legal Advice.</strong> This Agreement does not
+        constitute legal advice. If you require legal counsel, you should
+        consult a licensed attorney in your jurisdiction.</p>
+        <p>12.6. <strong>Assignment.</strong> You may not assign or transfer
+        your rights under this Agreement. The Providers may assign their rights
+        without restriction.</p>
+
+        <p class="eula-footer"><strong>BY CHECKING THE ACCEPTANCE BOXES AND USING
+        THIS SERVICE, YOU AFFIRM THAT YOU ARE AT LEAST 18 YEARS OLD (OR THE AGE
+        OF LEGAL MAJORITY IN YOUR JURISDICTION), THAT YOU HAVE READ AND
+        UNDERSTOOD THIS AGREEMENT IN ITS ENTIRETY, AND THAT YOU VOLUNTARILY
+        AGREE TO BE LEGALLY BOUND BY ALL OF ITS TERMS.</strong></p>
+
+        <p class="eula-footer"><em>If you do not agree to these terms, do not use
+        this Service.</em></p>
       </div>
       <div class="modal-actions">
         <button class="btn-sm" id="eula-decline-btn">Decline</button>

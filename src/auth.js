@@ -61,12 +61,16 @@ router.post('/register', async (req, res) => {
     const username = sanitizeString(req.body.username, 20);
     const password = typeof req.body.password === 'string' ? req.body.password : '';
     const eulaVersion = typeof req.body.eulaVersion === 'string' ? req.body.eulaVersion.trim() : '';
+    const ageVerified = req.body.ageVerified === true;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
     if (!eulaVersion) {
-      return res.status(400).json({ error: 'You must accept the Release of Liability Agreement' });
+      return res.status(400).json({ error: 'You must accept the Terms of Service & Release of Liability Agreement' });
+    }
+    if (!ageVerified) {
+      return res.status(400).json({ error: 'You must confirm that you are 18 years of age or older' });
     }
 
     if (!username || !password) {
@@ -115,8 +119,8 @@ router.post('/register', async (req, res) => {
     if (eulaVersion) {
       try {
         db.prepare(
-          'INSERT OR IGNORE INTO eula_acceptances (user_id, version, ip_address) VALUES (?, ?, ?)'
-        ).run(result.lastInsertRowid, eulaVersion, req.ip || req.socket.remoteAddress || '');
+          'INSERT OR IGNORE INTO eula_acceptances (user_id, version, ip_address, age_verified) VALUES (?, ?, ?, ?)'
+        ).run(result.lastInsertRowid, eulaVersion, req.ip || req.socket.remoteAddress || '', ageVerified ? 1 : 0);
       } catch { /* non-critical */ }
     }
 
@@ -136,9 +140,16 @@ router.post('/login', async (req, res) => {
     const username = sanitizeString(req.body.username, 20);
     const password = typeof req.body.password === 'string' ? req.body.password : '';
     const eulaVersion = typeof req.body.eulaVersion === 'string' ? req.body.eulaVersion.trim() : '';
+    const ageVerified = req.body.ageVerified === true;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
+    }
+    if (!eulaVersion) {
+      return res.status(400).json({ error: 'You must accept the Terms of Service & Release of Liability Agreement' });
+    }
+    if (!ageVerified) {
+      return res.status(400).json({ error: 'You must confirm that you are 18 years of age or older' });
     }
 
     const db = getDb();
@@ -177,8 +188,8 @@ router.post('/login', async (req, res) => {
     if (eulaVersion) {
       try {
         db.prepare(
-          'INSERT OR IGNORE INTO eula_acceptances (user_id, version, ip_address) VALUES (?, ?, ?)'
-        ).run(user.id, eulaVersion, req.ip || req.socket.remoteAddress || '');
+          'INSERT OR IGNORE INTO eula_acceptances (user_id, version, ip_address, age_verified) VALUES (?, ?, ?, ?)'
+        ).run(user.id, eulaVersion, req.ip || req.socket.remoteAddress || '', ageVerified ? 1 : 0);
       } catch { /* non-critical */ }
     }
 

@@ -201,6 +201,13 @@ function initDatabase() {
     db.exec("ALTER TABLE channels ADD COLUMN is_dm INTEGER DEFAULT 0");
   }
 
+  // ── Migration: age_verified on eula_acceptances ─────────
+  try {
+    db.prepare("SELECT age_verified FROM eula_acceptances LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE eula_acceptances ADD COLUMN age_verified INTEGER DEFAULT 0");
+  }
+
   // ── Migration: read positions table ─────────────────────
   db.exec(`
     CREATE TABLE IF NOT EXISTS read_positions (
