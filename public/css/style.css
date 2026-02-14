@@ -1696,45 +1696,8 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   50%      { opacity: 0.9; }
 }
 
-/* ── Nord: Snowfall particles ──────────────────────── */
+/* ── Nord: Snowfall now handled by JS canvas ──────── */
 [data-theme="nord"] .main { position: relative; }
-[data-theme="nord"] .main::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 99998;
-  background-image:
-    radial-gradient(3px 3px at 10% 0%, #d8dee9, transparent),
-    radial-gradient(2px 2px at 25% 0%, #d8dee9, transparent),
-    radial-gradient(3px 3px at 40% 0%, #d8dee9, transparent),
-    radial-gradient(2px 2px at 55% 0%, #d8dee9, transparent),
-    radial-gradient(3px 3px at 70% 0%, #d8dee9, transparent),
-    radial-gradient(2px 2px at 85% 0%, #d8dee9, transparent),
-    radial-gradient(2px 2px at 5%  0%, #d8dee9, transparent),
-    radial-gradient(3px 3px at 95% 0%, #d8dee9, transparent),
-    radial-gradient(2px 2px at 18% 0%, #d8dee9, transparent),
-    radial-gradient(3px 3px at 33% 0%, #d8dee9, transparent),
-    radial-gradient(2px 2px at 48% 0%, #d8dee9, transparent),
-    radial-gradient(3px 3px at 63% 0%, #d8dee9, transparent),
-    radial-gradient(2px 2px at 78% 0%, #d8dee9, transparent),
-    radial-gradient(3px 3px at 92% 0%, #d8dee9, transparent);
-  background-size:
-    100% 100vh, 100% 80vh, 100% 110vh, 100% 90vh,
-    100% 120vh, 100% 70vh, 100% 95vh, 100% 105vh,
-    100% 85vh, 100% 115vh, 100% 75vh, 100% 100vh,
-    100% 88vh, 100% 108vh;
-  opacity: 0.7;
-  animation: nord-snow calc(6s * var(--fx-mult, 1)) linear infinite;
-}
-@keyframes nord-snow {
-  0%   { background-position:
-    10%  -10vh, 25%  -20vh, 40%  -5vh,  55%  -15vh,
-    70%  -8vh,  85%  -25vh, 5%   -12vh, 95%  -18vh,
-    18%  -22vh, 33%  -7vh,  48%  -14vh, 63%  -3vh,
-    78%  -20vh, 92%  -11vh; }
-  100% { background-position:
-    12%  110vh, 22%  100vh, 43%  115vh, 52%  105vh,
-    68%  108vh, 88%  95vh,  8%   112vh, 93%  102vh,
-    15%  98vh,  36%  113vh, 45%  96vh,  66%  110vh,
-    75%  103vh, 90%  107vh; }
-}
 
 /* ── Dark Souls: Campfire glow (muted, sporadic flicker) ── */
 [data-theme="darksouls"] .sidebar::after {
@@ -1834,15 +1797,9 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   100% { transform: translateY(0); }
 }
 
-/* ── Cyberpunk: Glitch effect on header ────────────── */
+/* ── Cyberpunk: Text-scramble effect on header ─────── */
 [data-theme="cyberpunk"] .brand-text {
-  animation: cp-glitch calc(4s * var(--fx-mult, 1)) infinite;
-}
-@keyframes cp-glitch {
-  0%, 92%, 100% { transform: none; text-shadow: 0 0 8px rgba(255,0,100,0.6); }
-  93% { transform: translate(-3px, 1px) skewX(-3deg); text-shadow: -3px 0 #ff0066, 3px 0 #00ffff; }
-  95% { transform: translate(3px, -1px) skewX(2deg); text-shadow: 3px 0 #ff0066, -3px 0 #00ffff; }
-  97% { transform: translate(-2px, 0) skewX(-1deg); text-shadow: -2px 0 #ff0066, 2px 0 #00ffff; }
+  text-shadow: 0 0 8px rgba(255,0,100,0.6);
 }
 
 /* ── Minecraft: Pixelated border style ─────────────── */
@@ -1930,7 +1887,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 /* ── CRT vignette overlay ─────────────────────────────── */
 .fx-crt-vignette {
   position: fixed; inset: 0;
-  background: radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.45) 65%, rgba(0,0,0,0.70) 100%);
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.35) 75%, rgba(0,0,0,0.55) 100%);
   animation: crt-flicker calc(0.09s * var(--fx-mult, 1)) infinite alternate;
   border-radius: 10px;
   box-shadow: inset 0 0 80px rgba(0,0,0,0.7), inset 0 0 200px rgba(0,0,0,0.35);
@@ -2011,32 +1968,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   -webkit-mask-repeat: repeat-x; mask-repeat: repeat-x;
 }
 
-/* ── Nord snowfall overlay ────────────────────────────── */
-.fx-nord-snow {
-  position: fixed; inset: 0;
-  background-image:
-    radial-gradient(3px 3px at 10% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(2px 2px at 25% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(3px 3px at 40% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(2px 2px at 55% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(3px 3px at 70% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(2px 2px at 85% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(2px 2px at  5% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(3px 3px at 95% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(2px 2px at 18% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(3px 3px at 33% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(2px 2px at 48% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(3px 3px at 63% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(2px 2px at 78% 0%, rgba(216,222,233,0.8), transparent),
-    radial-gradient(3px 3px at 92% 0%, rgba(216,222,233,0.8), transparent);
-  background-size:
-    100% 100vh, 100% 80vh, 100% 110vh, 100% 90vh,
-    100% 120vh, 100% 70vh, 100% 95vh, 100% 105vh,
-    100% 85vh, 100% 115vh, 100% 75vh, 100% 100vh,
-    100% 88vh, 100% 108vh;
-  opacity: 0.7;
-  animation: nord-snow calc(6s * var(--fx-mult, 1)) linear infinite;
-}
+/* ── Nord snowfall: now handled by JS canvas ──────────── */
 
 /* ── Dark Souls ember glow (sidebar) overlay ──────────── */
 .fx-ds-ember-glow {
@@ -2074,9 +2006,20 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   animation: bb-vignette calc(4s * var(--fx-mult, 1)) ease-in-out infinite;
 }
 
-/* ── Cyberpunk class on <html> (glitch) ───────────────── */
+/* ── Cyberpunk class on <html> (text-scramble) ────────── */
 .fx-cyberpunk .brand-text {
-  animation: cp-glitch calc(4s * var(--fx-mult, 1)) infinite;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.15em;
+  text-shadow:
+    0 0 8px rgba(255,0,100,0.7),
+    0 0 20px rgba(0,255,255,0.3);
+  transition: text-shadow 0.2s;
+}
+.fx-cyberpunk .brand-text.scrambling {
+  text-shadow:
+    -2px 0 #ff0066, 2px 0 #00ffff,
+    0 0 12px rgba(255,0,100,0.9),
+    0 0 30px rgba(0,255,255,0.5);
 }
 
 /* ── LOTR candle (sidebar) overlay ────────────────────── */
@@ -2098,12 +2041,12 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   position: absolute; inset: 0;
   pointer-events: none; z-index: 0;
   background:
-    linear-gradient(to bottom, transparent 5%, rgba(200,168,76,0.18) 22%, rgba(200,168,76,0.30) 40%, rgba(200,168,76,0.18) 58%, transparent 80%) center / 8% 100% no-repeat,
-    linear-gradient(to right, transparent 20%, rgba(200,168,76,0.16) 35%, rgba(200,168,76,0.25) 46%, rgba(200,168,76,0.25) 54%, rgba(200,168,76,0.16) 65%, transparent 80%) center 30% / 100% 6% no-repeat,
-    radial-gradient(ellipse 35% 55% at 50% 38%, rgba(200,168,76,0.12) 0%, transparent 70%);
+    linear-gradient(to bottom, transparent 5%, rgba(200,168,76,0.30) 22%, rgba(200,168,76,0.50) 40%, rgba(200,168,76,0.30) 58%, transparent 80%) center / 8% 100% no-repeat,
+    linear-gradient(to right, transparent 20%, rgba(200,168,76,0.28) 35%, rgba(200,168,76,0.42) 46%, rgba(200,168,76,0.42) 54%, rgba(200,168,76,0.28) 65%, transparent 80%) center 30% / 100% 6% no-repeat,
+    radial-gradient(ellipse 35% 55% at 50% 38%, rgba(200,168,76,0.22) 0%, transparent 70%);
   animation: scripture-cross-pulse 8s ease-in-out infinite;
   mix-blend-mode: screen;
-  opacity: var(--fx-religious-intensity, 1);
+  filter: brightness(var(--fx-religious-intensity, 1));
 }
 
 /* ── Chapel stained glass overlay ─────────────────────── */
@@ -2111,13 +2054,13 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   position: absolute; inset: 0;
   pointer-events: none; z-index: 0;
   background:
-    linear-gradient(155deg, transparent 10%, rgba(138,92,240,0.14) 22%, rgba(102,51,204,0.22) 35%, transparent 55%) no-repeat,
-    linear-gradient(175deg, transparent 15%, rgba(200,80,140,0.12) 30%, rgba(220,100,160,0.18) 45%, transparent 65%) no-repeat,
-    linear-gradient(195deg, transparent 25%, rgba(200,168,76,0.10) 40%, rgba(220,190,100,0.16) 55%, transparent 75%) no-repeat,
-    radial-gradient(ellipse 45% 40% at 50% 25%, rgba(138,92,240,0.10) 0%, transparent 70%);
+    linear-gradient(155deg, transparent 10%, rgba(138,92,240,0.24) 22%, rgba(102,51,204,0.36) 35%, transparent 55%) no-repeat,
+    linear-gradient(175deg, transparent 15%, rgba(200,80,140,0.22) 30%, rgba(220,100,160,0.30) 45%, transparent 65%) no-repeat,
+    linear-gradient(195deg, transparent 25%, rgba(200,168,76,0.20) 40%, rgba(220,190,100,0.28) 55%, transparent 75%) no-repeat,
+    radial-gradient(ellipse 45% 40% at 50% 25%, rgba(138,92,240,0.18) 0%, transparent 70%);
   animation: chapel-glass-shift 12s ease-in-out infinite;
   mix-blend-mode: screen;
-  opacity: var(--fx-religious-intensity, 1);
+  filter: brightness(var(--fx-religious-intensity, 1));
 }
 
 /* ── Gospel radiance overlay ──────────────────────────── */
@@ -2125,11 +2068,11 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   position: absolute; inset: 0;
   pointer-events: none; z-index: 0;
   background:
-    linear-gradient(180deg, rgba(200,168,76,0.14) 0%, rgba(220,195,120,0.10) 15%, transparent 50%) no-repeat,
-    radial-gradient(ellipse 55% 45% at 50% 18%, rgba(139,32,50,0.10) 0%, rgba(200,168,76,0.06) 40%, transparent 70%),
-    radial-gradient(circle at 50% 8%, rgba(255,250,240,0.12) 0%, transparent 55%);
+    linear-gradient(180deg, rgba(200,168,76,0.26) 0%, rgba(220,195,120,0.18) 15%, transparent 50%) no-repeat,
+    radial-gradient(ellipse 55% 45% at 50% 18%, rgba(139,32,50,0.18) 0%, rgba(200,168,76,0.12) 40%, transparent 70%),
+    radial-gradient(circle at 50% 8%, rgba(255,250,240,0.22) 0%, transparent 55%);
   animation: gospel-radiance 10s ease-in-out infinite;
-  opacity: var(--fx-religious-intensity, 1);
+  filter: brightness(var(--fx-religious-intensity, 1));
 }
 
 /* ── Ice parent helpers ───────────────────────────────── */
@@ -2917,26 +2860,26 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 }
 
 /* Avatar settings */
-.avatar-settings { padding: 4px 0; }
-.avatar-preview-row { display: flex; align-items: center; gap: 16px; }
-.avatar-preview-circle {
-  width: 64px;
-  height: 64px;
+.avatar-settings { padding: 4px 0; position: relative; z-index: 1; }
+.settings-section-subtitle { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+
+/* Avatar Upload Row (Anmire-style) */
+.avatar-upload-row { display: flex; align-items: center; gap: 8px; }
+.avatar-upload-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
   border: 2px solid var(--border);
-  border-radius: 50%;
+  background: var(--bg-tertiary);
 }
-.avatar-preview-circle img {
+.avatar-upload-preview img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 50%;
 }
-.avatar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-
-/* PFP Customizer */
-.pfp-option-group { margin-top: 10px; }
-.pfp-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; }
 
 /* Avatar Shape Picker */
 .avatar-shape-picker { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -3405,7 +3348,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10001;
+  z-index: 100001;
   backdrop-filter: blur(4px);
 }
 

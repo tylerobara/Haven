@@ -234,9 +234,10 @@ function setupSocketHandlers(io, db) {
 
     // Refresh display_name, avatar AND is_admin from DB (JWT may be stale)
     try {
-      const uRow = db.prepare('SELECT display_name, is_admin, username, avatar FROM users WHERE id = ?').get(user.id);
+      const uRow = db.prepare('SELECT display_name, is_admin, username, avatar, avatar_shape FROM users WHERE id = ?').get(user.id);
       socket.user.displayName = (uRow && uRow.display_name) ? uRow.display_name : user.username;
       socket.user.avatar = (uRow && uRow.avatar) ? uRow.avatar : null;
+      socket.user.avatar_shape = (uRow && uRow.avatar_shape) ? uRow.avatar_shape : 'circle';
       if (uRow) {
         // Sync admin status from .env (handles ADMIN_USERNAME changes)
         const shouldBeAdmin = uRow.username.toLowerCase() === ADMIN_USERNAME ? 1 : 0;
@@ -361,6 +362,7 @@ function setupSocketHandlers(io, db) {
       isAdmin: socket.user.isAdmin,
       displayName: socket.user.displayName,
       avatar: socket.user.avatar || null,
+      avatarShape: socket.user.avatar_shape || 'circle',
       version: HAVEN_VERSION,
       roles: socket.user.roles || [],
       effectiveLevel: socket.user.effectiveLevel || 0
@@ -623,7 +625,8 @@ function setupSocketHandlers(io, db) {
         socketId: socket.id,
         status: socket.user.status || 'online',
         statusText: socket.user.statusText || '',
-        avatar: socket.user.avatar || null
+        avatar: socket.user.avatar || null,
+        avatar_shape: socket.user.avatar_shape || 'circle'
       });
 
       // Broadcast online users
@@ -650,7 +653,7 @@ function setupSocketHandlers(io, db) {
       if (before) {
         messages = db.prepare(`
           SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at,
-                 COALESCE(u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar
+                 COALESCE(u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar, COALESCE(u.avatar_shape, 'circle') as avatar_shape
           FROM messages m LEFT JOIN users u ON m.user_id = u.id
           WHERE m.channel_id = ? AND m.id < ?
           ORDER BY m.created_at DESC LIMIT ?
@@ -658,7 +661,7 @@ function setupSocketHandlers(io, db) {
       } else {
         messages = db.prepare(`
           SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at,
-                 COALESCE(u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar
+                 COALESCE(u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar, COALESCE(u.avatar_shape, 'circle') as avatar_shape
           FROM messages m LEFT JOIN users u ON m.user_id = u.id
           WHERE m.channel_id = ?
           ORDER BY m.created_at DESC LIMIT ?
@@ -809,6 +812,7 @@ function setupSocketHandlers(io, db) {
             username: socket.user.displayName,
             user_id: socket.user.id,
             avatar: socket.user.avatar || null,
+            avatar_shape: socket.user.avatar_shape || 'circle',
             reply_to: null,
             replyContext: null,
             reactions: [],
@@ -836,6 +840,7 @@ function setupSocketHandlers(io, db) {
         username: socket.user.displayName,
         user_id: socket.user.id,
         avatar: socket.user.avatar || null,
+        avatar_shape: socket.user.avatar_shape || 'circle',
         reply_to: replyTo,
         replyContext: null,
         reactions: [],
@@ -2064,27 +2069,44 @@ function setupSocketHandlers(io, db) {
 
     // ═══════════════ USER STATUS ════════════════════════════
 
+    // set-avatar via socket is now only used to broadcast the URL after HTTP upload
+    // The actual file upload + DB write happens via /api/upload-avatar
     socket.on('set-avatar', (data) => {
       if (!data || typeof data !== 'object') return;
       const url = typeof data.url === 'string' ? data.url.trim() : '';
-      // Allow clearing avatar (empty), /uploads/ paths, or data:image/ URLs (canvas-based)
-      if (url && !url.startsWith('/uploads/') && !url.startsWith('data:image/')) return;
-      // Sanity-check: data URLs must be reasonable size (< 200 KB base64 ≈ ~270 KB string)
-      if (url.startsWith('data:') && url.length > 300000) return;
+      // Only allow /uploads/ paths or empty (clear) — no data: URLs via socket
+      if (url && !url.startsWith('/uploads/')) return;
+      // DB was already updated by the HTTP endpoint; just sync the in-memory state
+      socket.user.avatar = url || null;
+      console.log(`[Avatar] ${socket.user.username} broadcast avatar: ${url || '(removed)'}`);
+      // Refresh online users in all channels this user is in
+      for (const [code, users] of channelUsers) {
+        if (users.has(socket.user.id)) {
+          users.get(socket.user.id).avatar = url || null;
+          emitOnlineUsers(code);
+        }
+      }
+    });
+
+    // Set avatar shape (circle, rounded, squircle, hex, diamond)
+    socket.on('set-avatar-shape', (data) => {
+      if (!data || typeof data !== 'object') return;
+      const validShapes = ['circle', 'rounded', 'squircle', 'hex', 'diamond'];
+      const shape = validShapes.includes(data.shape) ? data.shape : 'circle';
       try {
-        db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(url || null, socket.user.id);
-        socket.user.avatar = url || null;
-        console.log(`[Avatar] ${socket.user.username} set avatar: ${url ? (url.startsWith('data:') ? `data URL (${(url.length / 1024).toFixed(1)} KB)` : url) : '(removed)'}`);
-        // Refresh online users in all channels this user is in
+        db.prepare('UPDATE users SET avatar_shape = ? WHERE id = ?').run(shape, socket.user.id);
+        socket.user.avatar_shape = shape;
+        console.log(`[Avatar] ${socket.user.username} set shape: ${shape}`);
+        // Refresh online users so other clients see the new shape
         for (const [code, users] of channelUsers) {
           if (users.has(socket.user.id)) {
-            users.get(socket.user.id).avatar = url || null;
+            users.get(socket.user.id).avatar_shape = shape;
             emitOnlineUsers(code);
           }
         }
-        socket.emit('avatar-updated', { url: url || null });
+        socket.emit('avatar-shape-updated', { shape });
       } catch (err) {
-        console.error('Set avatar error:', err);
+        console.error('Set avatar shape error:', err);
       }
     });
 
@@ -2460,8 +2482,8 @@ function setupSocketHandlers(io, db) {
       // Fetch user statuses and avatars
       const statusMap = {};
       try {
-        const statusRows = db.prepare('SELECT id, status, status_text, avatar FROM users').all();
-        statusRows.forEach(r => { statusMap[r.id] = { status: r.status || 'online', statusText: r.status_text || '', avatar: r.avatar || null }; });
+        const statusRows = db.prepare('SELECT id, status, status_text, avatar, avatar_shape FROM users').all();
+        statusRows.forEach(r => { statusMap[r.id] = { status: r.status || 'online', statusText: r.status_text || '', avatar: r.avatar || null, avatarShape: r.avatar_shape || 'circle' }; });
       } catch { /* columns may not exist yet */ }
 
       // Build set of user IDs who are members of THIS channel
@@ -2497,6 +2519,7 @@ function setupSocketHandlers(io, db) {
           status: statusMap[m.id]?.status || 'online',
           statusText: statusMap[m.id]?.statusText || '',
           avatar: statusMap[m.id]?.avatar || null,
+          avatarShape: statusMap[m.id]?.avatarShape || 'circle',
           role: getUserHighestRole(m.id, channel ? channel.id : null)
         }));
       } else {
@@ -2512,6 +2535,7 @@ function setupSocketHandlers(io, db) {
               status: statusMap[s.user.id]?.status || 'online',
               statusText: statusMap[s.user.id]?.statusText || '',
               avatar: statusMap[s.user.id]?.avatar || s.user.avatar || null,
+              avatarShape: statusMap[s.user.id]?.avatarShape || s.user.avatar_shape || 'circle',
               role: getUserHighestRole(s.user.id, channel ? channel.id : null)
             });
           }

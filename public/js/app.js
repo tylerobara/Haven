@@ -90,6 +90,9 @@ class HavenApp {
   _init() {
     this.socket = io({ auth: { token: this.token } });
     this.voice = new VoiceManager(this.socket);
+    
+    // CRITICAL FIX: Run avatar setup first and use delegation to ensure listeners work
+    this._setupAvatarUpload();
 
     this._setupSocketListeners();
     this._setupUI();
@@ -103,7 +106,7 @@ class HavenApp {
     this._setupStatusPicker();
     this._setupFileUpload();
     this._setupIdleDetection();
-    this._setupAvatarUpload();
+    // this._setupAvatarUpload(); // Moved to top of _init
     this._setupSoundManagement();
     this._initRoleManagement();
     this._setupResizableSidebars();
@@ -145,6 +148,20 @@ class HavenApp {
       this.user = { ...this.user, ...data };
       this.user.roles = data.roles || [];
       this.user.effectiveLevel = data.effectiveLevel || 0;
+      // Sync avatar shape from server
+      if (data.avatarShape) {
+        this.user.avatarShape = data.avatarShape;
+        this._avatarShape = data.avatarShape;
+        this._pendingAvatarShape = data.avatarShape;
+        localStorage.setItem('haven_avatar_shape', data.avatarShape);
+        // Update shape picker UI
+        const picker = document.getElementById('avatar-shape-picker');
+        if (picker) {
+          picker.querySelectorAll('.avatar-shape-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.shape === data.avatarShape);
+          });
+        }
+      }
       localStorage.setItem('haven_user', JSON.stringify(this.user));
       // Show server version in status bar
       if (data.version) {
@@ -179,12 +196,13 @@ class HavenApp {
       this._showToast('Your roles have been updated', 'info');
     });
 
-    // Avatar updated confirmation
+    // Avatar updated confirmation (from socket broadcast by other tabs/reconnect)
     this.socket.on('avatar-updated', (data) => {
-      this.user.avatar = data.url;
-      localStorage.setItem('haven_user', JSON.stringify(this.user));
-      this._updateAvatarPreview();
-      this._showToast('Avatar updated!', 'success');
+      if (data && data.url !== undefined) {
+        this.user.avatar = data.url;
+        localStorage.setItem('haven_user', JSON.stringify(this.user));
+        this._updateAvatarPreview();
+      }
     });
 
     this.socket.on('connect', () => {
@@ -1669,177 +1687,200 @@ class HavenApp {
   // ═══════════════════════════════════════════════════════
 
   _updateAvatarPreview() {
-    const shapeClass = 'avatar-' + (this._avatarShape || 'circle');
-    ['avatar-preview', 'rename-avatar-preview'].forEach(id => {
-      const preview = document.getElementById(id);
-      if (!preview) return;
-      if (this.user.avatar) {
-        preview.innerHTML = `<img src="${this._escapeHtml(this.user.avatar)}" alt="Avatar" class="${shapeClass}">`;
-      } else {
-        const color = this._getUserColor(this.user.username);
-        const initial = this.user.username.charAt(0).toUpperCase();
-        preview.innerHTML = `<div class="${shapeClass}" style="background-color:${color};width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:24px;color:white">${initial}</div>`;
-      }
-    });
+    const preview = document.getElementById('avatar-upload-preview');
+    if (!preview) return;
+    if (this.user.avatar) {
+      preview.innerHTML = `<img src="${this._escapeHtml(this.user.avatar)}" alt="avatar">`;
+    } else {
+      const color = this._getUserColor(this.user.username);
+      const initial = this.user.username.charAt(0).toUpperCase();
+      preview.innerHTML = `<div style="background-color:${color};width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:white">${initial}</div>`;
+    }
   }
 
   _setupAvatarUpload() {
-    // Load saved shape preference
-    this._avatarShape = localStorage.getItem('haven_avatar_shape') || 'circle';
-    this._avatarSize = parseInt(localStorage.getItem('haven_avatar_size') || '256', 10);
-    this._pendingAvatarFile = null; // raw Image element for re-processing
+    console.log('[Avatar Setup v6] Initializing with HTTP upload model...');
+    if (this._avatarDelegationActive) return;
+    this._avatarDelegationActive = true;
 
+    // Pending state — nothing is saved until the user clicks Save
+    this._pendingAvatarFile = null;       // raw File object from <input>
+    this._pendingAvatarPreviewUrl = null; // local preview data URL (display only)
+    this._pendingAvatarRemoved = false;   // user clicked Clear
+    this._pendingAvatarShape = this.user.avatarShape || localStorage.getItem('haven_avatar_shape') || 'circle';
+    this._avatarShape = this._pendingAvatarShape;
+
+    // Initialize preview + shape buttons
     this._updateAvatarPreview();
-    this._setupAvatarShapePicker();
-    this._setupAvatarImageUpload();
-    this._setupAvatarSizeSlider();
-    this._applyAvatarShape();
-  }
-
-  _setupAvatarShapePicker() {
     const picker = document.getElementById('avatar-shape-picker');
-    if (!picker) return;
-    picker.querySelectorAll('.avatar-shape-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.shape === this._avatarShape);
-      btn.addEventListener('click', () => {
-        picker.querySelectorAll('.avatar-shape-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this._avatarShape = btn.dataset.shape;
-        localStorage.setItem('haven_avatar_shape', btn.dataset.shape);
-        this._applyAvatarShape();
-        this._updateAvatarPreview();
-        // Re-process current image with new shape if we have one loaded
-        if (this._pendingAvatarFile) this._processAndUploadAvatar(this._pendingAvatarFile);
+    if (picker) {
+      picker.querySelectorAll('.avatar-shape-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.shape === this._pendingAvatarShape);
       });
-    });
-  }
+    }
 
-  _setupAvatarSizeSlider() {
-    const slider = document.getElementById('avatar-size-slider');
-    const valueEl = document.getElementById('avatar-size-value');
-    if (!slider) return;
-    slider.value = this._avatarSize;
-    if (valueEl) valueEl.textContent = this._avatarSize;
-
-    slider.addEventListener('input', () => {
-      this._avatarSize = parseInt(slider.value, 10);
-      if (valueEl) valueEl.textContent = this._avatarSize;
-      localStorage.setItem('haven_avatar_size', this._avatarSize);
-      // Re-process with new size if we have an image loaded
-      if (this._pendingAvatarFile) this._processAndUploadAvatar(this._pendingAvatarFile);
-    });
-  }
-
-  _setupAvatarImageUpload() {
-    const uploadBtn = document.getElementById('avatar-upload-btn');
-    const removeBtn = document.getElementById('avatar-remove-btn');
-    const fileInput = document.getElementById('avatar-file-input');
-    if (!uploadBtn || !fileInput) return;
-
-    // Create fresh file input to avoid stale-listener issues
-    const freshInput = document.createElement('input');
-    freshInput.type = 'file';
-    freshInput.accept = 'image/*';
-    freshInput.style.display = 'none';
-    freshInput.id = 'avatar-file-input';
-    fileInput.parentNode.replaceChild(freshInput, fileInput);
-
-    uploadBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      freshInput.value = '';
-      freshInput.click();
-    });
-
-    freshInput.addEventListener('change', () => {
-      const file = freshInput.files[0];
-      if (!file) return;
-      if (file.size > 10 * 1024 * 1024) {
-        this._showToast('Image too large (max 10 MB)', 'error');
-        freshInput.value = '';
-        return;
-      }
-      if (!file.type.startsWith('image/')) {
-        this._showToast('Please select an image file', 'error');
-        freshInput.value = '';
+    // ── Delegated click handler ──
+    document.addEventListener('click', (e) => {
+      // Shape buttons
+      const shapeBtn = e.target.closest('.avatar-shape-btn');
+      if (shapeBtn) {
+        e.preventDefault();
+        const container = document.getElementById('avatar-shape-picker');
+        if (container) container.querySelectorAll('.avatar-shape-btn').forEach(b => b.classList.remove('active'));
+        shapeBtn.classList.add('active');
+        this._pendingAvatarShape = shapeBtn.dataset.shape;
+        this._markAvatarUnsaved();
         return;
       }
 
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          this._pendingAvatarFile = img;
-          // Show the resize slider since we have an image
-          const resizeGroup = document.getElementById('avatar-resize-group');
-          if (resizeGroup) resizeGroup.style.display = '';
-          this._processAndUploadAvatar(img);
-        };
-        img.onerror = () => this._showToast('Could not load image', 'error');
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-      freshInput.value = '';
-    });
+      // Upload button → trigger file picker
+      if (e.target.closest('#avatar-upload-btn')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const fileInput = document.getElementById('avatar-file-input');
+        if (fileInput) { fileInput.value = ''; fileInput.click(); }
+        return;
+      }
 
-    if (removeBtn) {
-      removeBtn.addEventListener('click', () => {
+      // Clear/Remove button
+      if (e.target.closest('#avatar-remove-btn')) {
+        e.preventDefault();
         this._pendingAvatarFile = null;
-        const resizeGroup = document.getElementById('avatar-resize-group');
-        if (resizeGroup) resizeGroup.style.display = 'none';
+        this._pendingAvatarPreviewUrl = null;
+        this._pendingAvatarRemoved = true;
+        const preview = document.getElementById('avatar-upload-preview');
+        if (preview) {
+          const color = this._getUserColor(this.user.username);
+          const initial = this.user.username.charAt(0).toUpperCase();
+          preview.innerHTML = `<div style="background-color:${color};width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;color:white">${initial}</div>`;
+        }
+        this._markAvatarUnsaved();
+        return;
+      }
+
+      // Save button
+      if (e.target.closest('#avatar-save-btn')) {
+        e.preventDefault();
+        this._commitAvatarSettings();
+        return;
+      }
+    });
+
+    // File input change → stage the file, show local preview
+    document.addEventListener('change', (e) => {
+      if (e.target && e.target.id === 'avatar-file-input') {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) return this._showToast('Image too large (max 5 MB)', 'error');
+        if (!file.type.startsWith('image/')) return this._showToast('Not an image file', 'error');
+
+        this._pendingAvatarFile = file;
+        this._pendingAvatarRemoved = false;
+
+        // Show local preview immediately (not sent to server yet)
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          this._pendingAvatarPreviewUrl = ev.target.result;
+          const preview = document.getElementById('avatar-upload-preview');
+          if (preview) preview.innerHTML = `<img src="${ev.target.result}" alt="avatar preview">`;
+          this._markAvatarUnsaved();
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    console.log('[Avatar Setup v6] Ready.');
+  }
+
+  _markAvatarUnsaved() {
+    const status = document.getElementById('avatar-save-status');
+    if (status) { status.textContent = 'Unsaved changes'; status.style.color = 'var(--warning, orange)'; }
+  }
+
+  // Commit pending avatar + shape to the server via HTTP (not socket!)
+  async _commitAvatarSettings() {
+    const status = document.getElementById('avatar-save-status');
+    if (status) { status.textContent = 'Saving...'; status.style.color = 'var(--text-secondary)'; }
+
+    try {
+      // 1. Upload avatar image via HTTP if a new file was chosen
+      if (this._pendingAvatarFile) {
+        const formData = new FormData();
+        formData.append('avatar', this._pendingAvatarFile);
+        const resp = await fetch('/api/upload-avatar', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.token}` },
+          body: formData
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Upload failed');
+
+        // Server stored the file and returned the URL path
+        this.user.avatar = data.url;
+        localStorage.setItem('haven_user', JSON.stringify(this.user));
+        this._pendingAvatarFile = null;
+        this._pendingAvatarPreviewUrl = null;
+        
+        // Update preview to use the server URL
+        const preview = document.getElementById('avatar-upload-preview');
+        if (preview) preview.innerHTML = `<img src="${data.url}" alt="avatar">`;
+        
+        // Notify connected sockets about the avatar change (small URL, not data URL)
+        if (this.socket) this.socket.emit('set-avatar', { url: data.url });
+      }
+
+      // 2. Remove avatar if Clear was clicked
+      if (this._pendingAvatarRemoved) {
+        const resp = await fetch('/api/remove-avatar', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        if (!resp.ok) throw new Error('Failed to remove avatar');
+
         this.user.avatar = null;
         localStorage.setItem('haven_user', JSON.stringify(this.user));
-        this._updateAvatarPreview();
-        this.socket.emit('set-avatar', { url: '' });
-      });
-    }
-  }
-
-  _processAndUploadAvatar(img) {
-    // Canvas center-crop and resize
-    const size = this._avatarSize || 256;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Center-crop: take the largest centered square from the source
-    const srcSize = Math.min(img.naturalWidth, img.naturalHeight);
-    const sx = (img.naturalWidth - srcSize) / 2;
-    const sy = (img.naturalHeight - srcSize) / 2;
-    ctx.drawImage(img, sx, sy, srcSize, srcSize, 0, 0, size, size);
-
-    // Export as WebP (smaller) with fallback to PNG
-    let dataUrl;
-    try {
-      dataUrl = canvas.toDataURL('image/webp', 0.85);
-      // Some browsers don't support WebP canvas export — falls back to PNG
-      if (!dataUrl.startsWith('data:image/webp')) {
-        dataUrl = canvas.toDataURL('image/png');
+        this._pendingAvatarRemoved = false;
+        
+        if (this.socket) this.socket.emit('set-avatar', { url: '' });
       }
-    } catch {
-      dataUrl = canvas.toDataURL('image/png');
+
+      // 3. Save shape via HTTP
+      if (this._pendingAvatarShape !== this._avatarShape) {
+        const resp = await fetch('/api/set-avatar-shape', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ shape: this._pendingAvatarShape })
+        });
+        if (!resp.ok) throw new Error('Failed to save shape');
+
+        this._avatarShape = this._pendingAvatarShape;
+        this.user.avatarShape = this._pendingAvatarShape;
+        localStorage.setItem('haven_avatar_shape', this._pendingAvatarShape);
+        localStorage.setItem('haven_user', JSON.stringify(this.user));
+        
+        if (this.socket) this.socket.emit('set-avatar-shape', { shape: this._pendingAvatarShape });
+      }
+
+      if (status) { status.textContent = '✅ Saved!'; status.style.color = 'var(--success, #6f6)'; }
+      this._showToast('Avatar settings saved!', 'success');
+      setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+
+    } catch (err) {
+      console.error('[Avatar] Save failed:', err);
+      if (status) { status.textContent = '❌ ' + err.message; status.style.color = 'var(--danger, red)'; }
+      this._showToast('Failed to save: ' + err.message, 'error');
     }
-
-    console.log(`[Avatar] Processed: ${size}x${size}, ${(dataUrl.length / 1024).toFixed(1)} KB`);
-
-    // Update local state immediately
-    this.user.avatar = dataUrl;
-    localStorage.setItem('haven_user', JSON.stringify(this.user));
-    this._updateAvatarPreview();
-
-    // Send to server for persistence + broadcast to other users
-    this.socket.emit('set-avatar', { url: dataUrl });
-    this._showToast('Avatar updated!', 'success');
   }
 
   _applyAvatarShape() {
-    const shape = this._avatarShape || 'circle';
-    const shapeClass = 'avatar-' + shape;
-    document.querySelectorAll('.message-avatar, .message-avatar-img').forEach(el => {
-      el.classList.remove('avatar-circle', 'avatar-rounded', 'avatar-squircle', 'avatar-hex', 'avatar-diamond');
-      el.classList.add(shapeClass);
-    });
+    // No-op: shapes are now per-user and rendered from server data per message.
+    // This function is kept as a safe stub in case it's called elsewhere.
   }
 
   // ═══════════════════════════════════════════════════════
@@ -2600,13 +2641,15 @@ class HavenApp {
 
     const color = this._getUserColor(msg.username);
     const initial = msg.username.charAt(0).toUpperCase();
-    const shapeClass = 'avatar-' + (this._avatarShape || 'circle');
+    // Look up user's role from online users list
+    const onlineUser = this.users ? this.users.find(u => u.id === msg.user_id) : null;
+    // Use the message sender's avatar_shape (from server), not the local user's preference
+    const msgShape = msg.avatar_shape || (onlineUser && onlineUser.avatarShape) || 'circle';
+    const shapeClass = 'avatar-' + msgShape;
     const avatarHtml = msg.avatar
       ? `<img class="message-avatar message-avatar-img ${shapeClass}" src="${this._escapeHtml(msg.avatar)}" alt="${initial}"><div class="message-avatar ${shapeClass}" style="background-color:${color};display:none">${initial}</div>`
       : `<div class="message-avatar ${shapeClass}" style="background-color:${color}">${initial}</div>`;
 
-    // Look up user's role from online users list
-    const onlineUser = this.users ? this.users.find(u => u.id === msg.user_id) : null;
     const msgRoleBadge = onlineUser && onlineUser.role
       ? `<span class="user-role-badge msg-role-badge" style="color:${onlineUser.role.color || 'var(--text-muted)'}">${this._escapeHtml(onlineUser.role.name)}</span>`
       : '';
@@ -5134,7 +5177,12 @@ class HavenApp {
     statusDot.title = 'Set status';
     statusDot.addEventListener('click', () => this._toggleStatusPicker());
     const currentUser = document.getElementById('current-user');
-    userBar.insertBefore(statusDot, currentUser);
+    // currentUser lives inside .user-names, not directly in .user-bar
+    if (currentUser && currentUser.parentNode) {
+      currentUser.parentNode.insertBefore(statusDot, currentUser);
+    } else {
+      userBar.prepend(statusDot);
+    }
 
     // Build dropdown
     const picker = document.createElement('div');

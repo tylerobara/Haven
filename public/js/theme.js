@@ -222,14 +222,17 @@ function initSacredIntensityEditor() {
 // ═══════════════════════════════════════════════════════════
 const THEME_DEFAULT_FX = {
   crt: ['crt'], matrix: ['matrix'], fallout: ['fallout'], ffx: ['ffx'],
-  ice: ['ice'], nord: ['nord'], darksouls: ['darksouls'], bloodborne: ['bloodborne'],
-  cyberpunk: ['cyberpunk'], lotr: ['lotr'], abyss: ['abyss'],
+  ice: ['ice'], nord: ['nord'], darksouls: ['darksouls'], eldenring: ['eldenring'],
+  bloodborne: ['bloodborne'], cyberpunk: ['cyberpunk'], lotr: ['lotr'], abyss: ['abyss'],
   scripture: ['scripture'], chapel: ['chapel'], gospel: ['gospel']
 };
 
 let _activeFx = new Set();
 let _matrixCtx = null, _matrixRAF = null, _matrixDrops = [];
 let _emberCtx = null, _emberRAF = null, _embers = [];
+let _graceCtx = null, _graceRAF = null, _graceEmbers = [];
+let _snowCtx = null, _snowRAF = null, _snowflakes = [];
+let _scrambleTimer = null, _scrambleOriginal = 'HAVEN';
 
 // Layer definitions: each effect -> array of { id, parent, cls }
 const FX_LAYERS = {
@@ -241,12 +244,12 @@ const FX_LAYERS = {
   ice:        [{ id: 'fx-ice-shimmer', parent: '#fx-layers', cls: 'fx-ice-shimmer' },
                { id: 'fx-ice-icicle-ch', parent: '.channel-header', cls: 'fx-ice-icicle' },
                { id: 'fx-ice-icicle-sb', parent: '.sidebar-header', cls: 'fx-ice-icicle-sb' }],
-  nord:       [{ id: 'fx-nord-snow', parent: '#fx-layers', cls: 'fx-nord-snow' }],
-  darksouls:  [{ id: 'fx-ds-ember-glow', parent: '.sidebar', cls: 'fx-ds-ember-glow' },
-               { id: 'fx-ds-fireline', parent: '#fx-layers', cls: 'fx-ds-fireline' },
+  nord:       [],  // snowfall handled entirely by JS canvas
+  darksouls:  [{ id: 'fx-ds-fireline', parent: '#fx-layers', cls: 'fx-ds-fireline' },
                { id: 'fx-ds-ambient', parent: '#fx-layers', cls: 'fx-ds-ambient' }],
+  eldenring:  [],  // golden grace handled by JS canvas
   bloodborne: [{ id: 'fx-bb-vignette', parent: '#fx-layers', cls: 'fx-bb-vignette' }],
-  cyberpunk:  [],
+  cyberpunk:  [],  // text-scramble handled entirely by JS
   lotr:       [{ id: 'fx-lotr-candle', parent: '.sidebar', cls: 'fx-lotr-candle' }],
   abyss:      [{ id: 'fx-abyss-vignette', parent: '#fx-layers', cls: 'fx-abyss-vignette' }],
   scripture:  [{ id: 'fx-scripture-cross', parent: '.main', cls: 'fx-scripture-cross' }],
@@ -260,7 +263,10 @@ const FX_CLASSES = { crt: 'fx-crt', cyberpunk: 'fx-cyberpunk' };
 // Effects that use JS canvas
 const FX_CANVAS = {
   matrix: { start: _startMatrixRain, stop: _stopMatrixRain },
-  darksouls: { start: _startEmbers, stop: _stopEmbers }
+  darksouls: { start: _startEmbers, stop: _stopEmbers },
+  eldenring: { start: _startGraceEmbers, stop: _stopGraceEmbers },
+  nord: { start: _startNordSnow, stop: _stopNordSnow },
+  cyberpunk: { start: _startTextScramble, stop: _stopTextScramble }
 };
 
 function _ensureFxLayers() {
@@ -349,20 +355,91 @@ function applyEffects(mode) {
   if (Array.isArray(mode)) mode.forEach(_activateEffect);
 }
 
-// ── Matrix Digital Rain (canvas) ────────────────────────
+// ── Cyberpunk Text Scramble — decodes "HAVEN" with random chars ─
+const _SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%&*!?<>{}[]=/\\|~^';
+
+function _scrambleOnce() {
+  const el = document.querySelector('.brand-text');
+  if (!el) return;
+
+  const original = _scrambleOriginal;
+  const len = original.length;
+  const totalFrames = 30;           // how many animation frames per cycle
+  const resolveStart = 8;           // frame at which chars start locking in
+  let frame = 0;
+
+  el.classList.add('scrambling');
+
+  const interval = setInterval(() => {
+    let display = '';
+    for (let i = 0; i < len; i++) {
+      // Each char resolves at a staggered frame
+      const charResolveFrame = resolveStart + (i * ((totalFrames - resolveStart) / len));
+      if (frame >= charResolveFrame) {
+        display += original[i];
+      } else {
+        display += _SCRAMBLE_CHARS[Math.floor(Math.random() * _SCRAMBLE_CHARS.length)];
+      }
+    }
+    el.textContent = display;
+    frame++;
+
+    if (frame > totalFrames) {
+      clearInterval(interval);
+      el.textContent = original;
+      el.classList.remove('scrambling');
+    }
+  }, 50);  // ~50ms per frame = smooth scramble
+}
+
+function _startTextScramble() {
+  _stopTextScramble();
+  const el = document.querySelector('.brand-text');
+  if (el) _scrambleOriginal = el.textContent.trim() || 'HAVEN';
+
+  // Run once immediately, then repeat every 4-8 seconds (random)
+  _scrambleOnce();
+  _scrambleTimer = setInterval(() => {
+    _scrambleOnce();
+  }, 4000 + Math.random() * 4000);
+}
+
+function _stopTextScramble() {
+  if (_scrambleTimer) {
+    clearInterval(_scrambleTimer);
+    _scrambleTimer = null;
+  }
+  const el = document.querySelector('.brand-text');
+  if (el) {
+    el.textContent = _scrambleOriginal;
+    el.classList.remove('scrambling');
+  }
+}
+
+// ── Matrix Digital Rain (canvas) — scoped to .main area ─
 function _startMatrixRain() {
   _stopMatrixRain();
-  const container = _ensureFxLayers();
+  const mainEl = document.querySelector('.main');
+  if (!mainEl) return;
+  // Ensure .main is a positioning parent for the canvas
+  if (getComputedStyle(mainEl).position === 'static') {
+    mainEl.style.position = 'relative';
+  }
+
   const canvas = document.createElement('canvas');
   canvas.id = 'fx-matrix-rain';
-  canvas.className = 'fx-canvas';
-  canvas.style.zIndex = '-1';
+  canvas.style.position = 'absolute';
+  canvas.style.inset = '0';
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '0';
   canvas.style.opacity = '0.18';
-  container.appendChild(canvas);
+  mainEl.insertBefore(canvas, mainEl.firstChild);
 
   function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width = mainEl.clientWidth;
+    canvas.height = mainEl.clientHeight;
   }
   resize();
 
@@ -409,6 +486,9 @@ function _startMatrixRain() {
 
   canvas._resizeHandler = () => { resize(); initDrops(); };
   window.addEventListener('resize', canvas._resizeHandler);
+  // Also observe .main resizing (e.g. sidebar toggle)
+  canvas._resizeObs = new ResizeObserver(() => { resize(); initDrops(); });
+  canvas._resizeObs.observe(mainEl);
 }
 
 function _stopMatrixRain() {
@@ -416,6 +496,7 @@ function _stopMatrixRain() {
   const c = document.getElementById('fx-matrix-rain');
   if (c) {
     if (c._resizeHandler) window.removeEventListener('resize', c._resizeHandler);
+    if (c._resizeObs) c._resizeObs.disconnect();
     c.remove();
   }
   _matrixCtx = null;
@@ -518,6 +599,217 @@ function _stopEmbers() {
   }
   _emberCtx = null;
   _embers = [];
+}
+
+// ── Elden Ring Grace Embers (canvas — golden, angular, stable glow) ──
+function _startGraceEmbers() {
+  _stopGraceEmbers();
+  const container = _ensureFxLayers();
+  const canvas = document.createElement('canvas');
+  canvas.id = 'fx-er-grace';
+  canvas.className = 'fx-canvas';
+  canvas.style.zIndex = '1';
+  container.appendChild(canvas);
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+
+  _graceCtx = canvas.getContext('2d');
+  _graceEmbers = [];
+
+  function spawnGrace() {
+    // Spawn across the full width, biased toward lower-center
+    const cx = canvas.width / 2;
+    const spread = canvas.width * 0.4;
+    const x = cx + (Math.random() - 0.5) * spread * 2;
+    _graceEmbers.push({
+      x: x,
+      y: canvas.height + 4 + Math.random() * 8,
+      vx: (Math.random() - 0.5) * 0.15,          // very little horizontal drift
+      vy: -(0.6 + Math.random() * 1.4),           // slow, graceful rise
+      size: 0.5 + Math.random() * 1.2,
+      life: 1,
+      decay: 0.002 + Math.random() * 0.005,       // longer life than DS embers
+      hue: 42 + Math.random() * 16,               // golden-yellow (42–58)
+      phase: Math.random() * Math.PI * 2,
+      driftAmp: 0.05 + Math.random() * 0.12,      // very subtle sway
+      angle: Math.random() * Math.PI * 2           // rotation for diamond shape
+    });
+  }
+
+  // Draw a diamond (rhombus) at (x, y) with given half-size
+  function drawDiamond(ctx, x, y, sz, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -sz * 1.6);   // top (taller than wide for "grace" look)
+    ctx.lineTo(sz, 0);          // right
+    ctx.moveTo(0, -sz * 1.6);
+    ctx.lineTo(-sz, 0);         // left
+    ctx.lineTo(0, sz * 1.2);    // bottom
+    ctx.lineTo(sz, 0);          // back to right
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function draw() {
+    _graceCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const spawnRate = Math.max(1, Math.floor(canvas.width / 220));
+    for (let s = 0; s < spawnRate; s++) {
+      if (_graceEmbers.length < 40 && Math.random() > 0.65) spawnGrace();
+    }
+
+    for (let i = _graceEmbers.length - 1; i >= 0; i--) {
+      const e = _graceEmbers[i];
+      e.phase += 0.03;                             // slow shimmer, not frantic flicker
+      e.angle += 0.004;                             // very slow rotation
+      e.x += e.vx + Math.sin(e.phase) * e.driftAmp;
+      e.y += e.vy;
+      e.life -= e.decay;
+
+      if (e.life <= 0 || e.y < -10) { _graceEmbers.splice(i, 1); continue; }
+
+      const alpha = e.life * 0.85;
+      const sz = e.size * (0.4 + e.life * 0.6);
+      const lightness = 55 + e.life * 25;          // bright gold
+
+      // Core diamond
+      _graceCtx.globalAlpha = alpha;
+      _graceCtx.fillStyle = 'hsl(' + e.hue + ',85%,' + Math.floor(lightness) + '%)';
+      drawDiamond(_graceCtx, e.x, e.y, sz, e.angle);
+
+      // Soft golden glow (tall, stable — no wild flickering)
+      _graceCtx.globalAlpha = alpha * 0.25;
+      _graceCtx.save();
+      _graceCtx.translate(e.x, e.y);
+      _graceCtx.scale(1, 2.2);                     // tall vertical glow
+      _graceCtx.beginPath();
+      _graceCtx.arc(0, 0, sz * 3.5, 0, Math.PI * 2);
+      _graceCtx.fill();
+      _graceCtx.restore();
+    }
+    _graceCtx.globalAlpha = 1;
+    _graceRAF = requestAnimationFrame(draw);
+  }
+  draw();
+
+  canvas._resizeHandler = resize;
+  window.addEventListener('resize', canvas._resizeHandler);
+}
+
+function _stopGraceEmbers() {
+  if (_graceRAF) { cancelAnimationFrame(_graceRAF); _graceRAF = null; }
+  const c = document.getElementById('fx-er-grace');
+  if (c) {
+    if (c._resizeHandler) window.removeEventListener('resize', c._resizeHandler);
+    c.remove();
+  }
+  _graceCtx = null;
+  _graceEmbers = [];
+}
+
+// ── Nord Snowfall (canvas — randomised, fleeting) ───────
+function _startNordSnow() {
+  _stopNordSnow();
+  const container = _ensureFxLayers();
+  const canvas = document.createElement('canvas');
+  canvas.id = 'fx-nord-snow-canvas';
+  canvas.className = 'fx-canvas';
+  canvas.style.zIndex = '1';
+  container.appendChild(canvas);
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+
+  _snowCtx = canvas.getContext('2d');
+  _snowflakes = [];
+
+  function spawnFlake() {
+    _snowflakes.push({
+      x: Math.random() * canvas.width,
+      y: -4 - Math.random() * 40,
+      vx: (Math.random() - 0.5) * 0.6,
+      vy: 0.6 + Math.random() * 1.8,
+      size: 1 + Math.random() * 2.5,
+      opacity: 0.3 + Math.random() * 0.5,
+      drift: Math.random() * Math.PI * 2,
+      driftSpeed: 0.008 + Math.random() * 0.02,
+      driftAmp: 0.15 + Math.random() * 0.45,
+      fadeStart: 0.80 + Math.random() * 0.18  // fraction of screen height where fading begins
+    });
+  }
+
+  function draw() {
+    _snowCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Spawn snowflakes at random intervals — density scales with width
+    const targetCount = Math.max(20, Math.floor(canvas.width / 18));
+    const spawnChance = _snowflakes.length < targetCount ? 0.35 : 0.05;
+    if (Math.random() < spawnChance && _snowflakes.length < targetCount * 1.5) {
+      // Spawn 1-3 flakes at once for bursts
+      const burst = 1 + Math.floor(Math.random() * 3);
+      for (let b = 0; b < burst; b++) spawnFlake();
+    }
+
+    for (let i = _snowflakes.length - 1; i >= 0; i--) {
+      const f = _snowflakes[i];
+      f.drift += f.driftSpeed;
+      f.x += f.vx + Math.sin(f.drift) * f.driftAmp;
+      f.y += f.vy;
+
+      // Fade out near bottom to avoid sharp cut-off
+      let alpha = f.opacity;
+      const screenFrac = f.y / canvas.height;
+      if (screenFrac > f.fadeStart) {
+        alpha *= 1 - (screenFrac - f.fadeStart) / (1 - f.fadeStart);
+      }
+
+      // Remove when off-screen or fully faded
+      if (f.y > canvas.height + 10 || alpha <= 0.01) {
+        _snowflakes.splice(i, 1);
+        continue;
+      }
+
+      // Draw snowflake — soft circle with glow
+      _snowCtx.globalAlpha = alpha;
+      _snowCtx.fillStyle = '#d8dee9';
+      _snowCtx.beginPath();
+      _snowCtx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+      _snowCtx.fill();
+
+      // Subtle glow
+      _snowCtx.globalAlpha = alpha * 0.25;
+      _snowCtx.beginPath();
+      _snowCtx.arc(f.x, f.y, f.size * 2.5, 0, Math.PI * 2);
+      _snowCtx.fill();
+    }
+    _snowCtx.globalAlpha = 1;
+    _snowRAF = requestAnimationFrame(draw);
+  }
+  draw();
+
+  canvas._resizeHandler = resize;
+  window.addEventListener('resize', canvas._resizeHandler);
+}
+
+function _stopNordSnow() {
+  if (_snowRAF) { cancelAnimationFrame(_snowRAF); _snowRAF = null; }
+  const c = document.getElementById('fx-nord-snow-canvas');
+  if (c) {
+    if (c._resizeHandler) window.removeEventListener('resize', c._resizeHandler);
+    c.remove();
+  }
+  _snowCtx = null;
+  _snowflakes = [];
 }
 
 // ── Effect mode helpers ─────────────────────────────────

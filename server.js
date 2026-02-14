@@ -149,6 +149,103 @@ const fileUpload = multer({
 // ── API routes (rate-limited) ────────────────────────────
 app.use('/api/auth', authLimiter, authRoutes);
 
+// ── Avatar upload endpoint (saves to /uploads, updates DB) ──
+app.post('/api/upload-avatar', uploadLimiter, (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const user = token ? verifyToken(token) : null;
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { getDb } = require('./src/database');
+  const ban = getDb().prepare('SELECT id FROM bans WHERE user_id = ?').get(user.id);
+  if (ban) return res.status(403).json({ error: 'Banned users cannot upload' });
+
+  upload.single('avatar')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    // Validate file magic bytes
+    try {
+      const fd = fs.openSync(req.file.path, 'r');
+      const hdr = Buffer.alloc(12);
+      fs.readSync(fd, hdr, 0, 12, 0);
+      fs.closeSync(fd);
+      let validMagic = false;
+      if (req.file.mimetype === 'image/jpeg') validMagic = hdr[0] === 0xFF && hdr[1] === 0xD8 && hdr[2] === 0xFF;
+      else if (req.file.mimetype === 'image/png') validMagic = hdr[0] === 0x89 && hdr[1] === 0x50 && hdr[2] === 0x4E && hdr[3] === 0x47;
+      else if (req.file.mimetype === 'image/gif') validMagic = hdr.slice(0, 6).toString().startsWith('GIF8');
+      else if (req.file.mimetype === 'image/webp') validMagic = hdr.slice(0, 4).toString() === 'RIFF' && hdr.slice(8, 12).toString() === 'WEBP';
+      if (!validMagic) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'File content does not match image type' });
+      }
+    } catch {
+      try { fs.unlinkSync(req.file.path); } catch {}
+      return res.status(400).json({ error: 'Failed to validate file' });
+    }
+
+    // Force safe extension
+    const mimeToExt = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp' };
+    const safeExt = mimeToExt[req.file.mimetype];
+    if (!safeExt) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Invalid file type' });
+    }
+    const currentExt = path.extname(req.file.filename).toLowerCase();
+    let finalName = req.file.filename;
+    if (currentExt !== safeExt) {
+      finalName = req.file.filename.replace(/\.[^.]+$/, '') + safeExt;
+      const oldPath = req.file.path;
+      const newPath = path.join(uploadDir, finalName);
+      fs.renameSync(oldPath, newPath);
+    }
+    const avatarUrl = `/uploads/${finalName}`;
+
+    // Update the user's avatar in the database
+    try {
+      const db = getDb();
+      db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatarUrl, user.id);
+      console.log(`[Avatar] ${user.username} uploaded avatar: ${avatarUrl}`);
+    } catch (dbErr) {
+      console.error('Avatar DB update error:', dbErr);
+      return res.status(500).json({ error: 'Failed to save avatar' });
+    }
+
+    res.json({ url: avatarUrl });
+  });
+});
+
+// ── Avatar remove endpoint ──
+app.post('/api/remove-avatar', express.json(), (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const user = token ? verifyToken(token) : null;
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { getDb } = require('./src/database');
+    getDb().prepare('UPDATE users SET avatar = NULL WHERE id = ?').run(user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Avatar remove error:', err);
+    res.status(500).json({ error: 'Failed to remove avatar' });
+  }
+});
+
+// ── Avatar shape endpoint ──
+app.post('/api/set-avatar-shape', express.json(), (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const user = token ? verifyToken(token) : null;
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  const validShapes = ['circle', 'rounded', 'squircle', 'hex', 'diamond'];
+  const shape = validShapes.includes(req.body.shape) ? req.body.shape : 'circle';
+  try {
+    const { getDb } = require('./src/database');
+    getDb().prepare('UPDATE users SET avatar_shape = ? WHERE id = ?').run(shape, user.id);
+    res.json({ shape });
+  } catch (err) {
+    console.error('Avatar shape error:', err);
+    res.status(500).json({ error: 'Failed to save shape' });
+  }
+});
+
 // ── Serve pages ──────────────────────────────────────────
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

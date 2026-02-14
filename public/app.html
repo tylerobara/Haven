@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <title>Haven</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cG9seWdvbiBwb2ludHM9IjUwLDMgOTMsMjggOTMsNzIgNTAsOTcgNyw3MiA3LDI4IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjRmZGIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjx0ZXh0IHg9IjUwIiB5PSI2MyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLEhlbHZldGljYSxzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIzOCIgZmlsbD0iIzZiNGZkYiIgb3BhY2l0eT0iMC45NSI+SDwvdGV4dD48L3N2Zz4=">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=scramble1">
   <script src="/js/theme-init.js"></script>
 </head>
 <body>
@@ -117,6 +117,7 @@
                 <button class="effect-btn" data-effect="matrix" title="Matrix Rain">Ⅿ</button>
                 <button class="effect-btn" data-effect="nord" title="Snowfall">❄</button>
                 <button class="effect-btn" data-effect="darksouls" title="Campfire">🔥</button>
+                <button class="effect-btn" data-effect="eldenring" title="Golden Grace">💍</button>
                 <button class="effect-btn" data-effect="bloodborne" title="Blood Vignette">🩸</button>
                 <button class="effect-btn" data-effect="fallout" title="Phosphor Glow">☢️</button>
                 <button class="effect-btn" data-effect="ffx" title="Water Flow">⚔️</button>
@@ -522,33 +523,29 @@
       <div class="settings-section">
         <h5 class="settings-section-title">🖼️ Customize Avatar</h5>
         <div class="avatar-settings">
-          <!-- Live Preview -->
-          <div class="avatar-preview-row">
-            <div class="avatar-preview-circle" id="avatar-preview"></div>
-            <div class="avatar-actions">
-              <button type="button" class="btn-sm btn-accent" id="avatar-upload-btn">Upload Image</button>
-              <button class="btn-sm" id="avatar-remove-btn">Remove</button>
-              <input type="file" id="avatar-file-input" accept="image/*" style="display:none">
-            </div>
-          </div>
-          <small class="settings-hint">Max 10 MB. Will be resized automatically.</small>
-
-          <!-- Resize Slider -->
-          <div class="pfp-option-group" id="avatar-resize-group" style="display:none">
-            <label class="pfp-label">Size <span id="avatar-size-value">256</span>px</label>
-            <input type="range" id="avatar-size-slider" min="64" max="512" value="256" step="16" class="slider-sm">
-          </div>
-
           <!-- Shape Picker -->
-          <div class="pfp-option-group">
-            <label class="pfp-label">Shape</label>
-            <div class="avatar-shape-picker" id="avatar-shape-picker">
-              <button class="avatar-shape-btn active" data-shape="circle" title="Circle"><div class="shape-preview shape-circle"></div></button>
-              <button class="avatar-shape-btn" data-shape="rounded" title="Rounded"><div class="shape-preview shape-rounded"></div></button>
-              <button class="avatar-shape-btn" data-shape="squircle" title="Squircle"><div class="shape-preview shape-squircle"></div></button>
-              <button class="avatar-shape-btn" data-shape="hex" title="Hexagon"><div class="shape-preview shape-hex"></div></button>
-              <button class="avatar-shape-btn" data-shape="diamond" title="Diamond"><div class="shape-preview shape-diamond"></div></button>
-            </div>
+          <h5 class="settings-section-subtitle">Avatar Shape</h5>
+          <div class="avatar-shape-picker" id="avatar-shape-picker">
+            <button type="button" class="avatar-shape-btn active" data-shape="circle" title="Circle"><div class="shape-preview shape-circle"></div></button>
+            <button type="button" class="avatar-shape-btn" data-shape="rounded" title="Rounded"><div class="shape-preview shape-rounded"></div></button>
+            <button type="button" class="avatar-shape-btn" data-shape="squircle" title="Squircle"><div class="shape-preview shape-squircle"></div></button>
+            <button type="button" class="avatar-shape-btn" data-shape="hex" title="Hexagon"><div class="shape-preview shape-hex"></div></button>
+            <button type="button" class="avatar-shape-btn" data-shape="diamond" title="Diamond"><div class="shape-preview shape-diamond"></div></button>
+          </div>
+
+          <!-- Image Upload -->
+          <h5 class="settings-section-subtitle" style="margin-top:10px">Avatar Image</h5>
+          <div class="avatar-upload-row">
+            <div class="avatar-upload-preview" id="avatar-upload-preview"></div>
+            <button type="button" class="btn-sm" id="avatar-upload-btn">Upload</button>
+            <button type="button" class="btn-sm" id="avatar-remove-btn">Clear</button>
+            <input type="file" id="avatar-file-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none">
+          </div>
+
+          <!-- Save / Status -->
+          <div style="margin-top:12px; display:flex; align-items:center; gap:10px;">
+            <button type="button" class="btn-sm btn-accent" id="avatar-save-btn">💾 Save Avatar Settings</button>
+            <span id="avatar-save-status" class="settings-hint"></span>
           </div>
         </div>
       </div>
@@ -809,10 +806,10 @@
   <div id="fx-layers"></div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/theme.js"></script>
+  <script src="/js/theme.js?v=scramble1"></script>
   <script src="/js/notifications.js"></script>
   <script src="/js/servers.js"></script>
   <script src="/js/voice.js"></script>
-  <script src="/js/app.js"></script>
+  <script src="/js/app.js?v=fixed6"></script>
 </body>
 </html>

@@ -194,6 +194,13 @@ function initDatabase() {
     db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL");
   }
 
+  // ── Migration: avatar_shape column ────────────────────────
+  try {
+    db.prepare("SELECT avatar_shape FROM users LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE users ADD COLUMN avatar_shape TEXT DEFAULT 'circle'");
+  }
+
   // ── Migration: custom_sounds table (admin-uploaded notification sounds) ──
   db.exec(`
     CREATE TABLE IF NOT EXISTS custom_sounds (
