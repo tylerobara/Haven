@@ -1539,12 +1539,8 @@ class HavenApp {
 
     this._updateAvatarPreview();
 
-    // Explicit click handler — some browsers / CSS contexts don't reliably
-    // trigger the hidden file input via <label for="…">, so we handle it in JS.
-    uploadBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      fileInput.click();
-    });
+    // Open file picker when button is clicked
+    uploadBtn.addEventListener('click', () => fileInput.click());
 
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0];
@@ -1595,11 +1591,8 @@ class HavenApp {
     const renameRemoveBtn = document.getElementById('rename-avatar-remove-btn');
     const renameFileInput = document.getElementById('rename-avatar-file-input');
     if (renameUploadBtn && renameFileInput) {
-      // Explicit click handler — bulletproof fallback for <label for="…"> in modals
-      renameUploadBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        renameFileInput.click();
-      });
+      // Open file picker when button is clicked
+      renameUploadBtn.addEventListener('click', () => renameFileInput.click());
       renameFileInput.addEventListener('change', async () => {
         const file = renameFileInput.files[0];
         if (!file) return;
