@@ -5134,7 +5134,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 @media (max-width: 768px) {
   /* Show hamburger and users button */
   .mobile-menu-btn,
-  .mobile-users-btn { display: flex; }
+  .mobile-users-btn { display: flex !important; }
 
   /* Collapse server bar */
   .server-bar { width: 0; min-width: 0; overflow: hidden; border: none; padding: 0; }
@@ -5399,7 +5399,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
     font-size: 16px; /* prevents iOS zoom on focus */
     border-radius: 20px;
     min-height: 36px;
-    flex: 1;
+    flex: 1 0 calc(100% - 48px); /* large basis forces buttons to wrap to their own row */
     min-width: 0;
     order: 1;
   }
