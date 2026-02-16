@@ -50,7 +50,7 @@ async function stopTunnel() {
   return true;
 }
 
-async function startTunnel(port, provider = 'localtunnel') {
+async function startTunnel(port, provider = 'localtunnel', ssl = false) {
   if (starting) return getTunnelStatus();
   starting = true;
   status = { ...status, error: null, provider };
@@ -64,7 +64,9 @@ async function startTunnel(port, provider = 'localtunnel') {
 
     if (provider === 'localtunnel') {
       const localtunnel = require('localtunnel');
-      const tunnel = await localtunnel({ port });
+      const opts = { port };
+      if (ssl) { opts.local_https = true; opts.allow_invalid_cert = true; }
+      const tunnel = await localtunnel(opts);
       active = { type: 'localtunnel', ref: tunnel };
       status = { active: true, url: tunnel.url, provider, error: null };
       tunnel.on('close', () => {
@@ -79,8 +81,11 @@ async function startTunnel(port, provider = 'localtunnel') {
       return getTunnelStatus();
     }
 
-    // Cloudflared quick-tunnel
-    const proc = spawn('cloudflared', ['tunnel', '--url', `http://127.0.0.1:${port}`, '--no-autoupdate'], {
+    // Cloudflared quick-tunnel — use HTTPS origin + skip cert verify for self-signed
+    const origin = ssl ? `https://127.0.0.1:${port}` : `http://127.0.0.1:${port}`;
+    const args = ['tunnel', '--url', origin, '--no-autoupdate'];
+    if (ssl) args.push('--no-tls-verify');
+    const proc = spawn('cloudflared', args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true
     });

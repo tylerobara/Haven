@@ -287,7 +287,7 @@ app.post('/api/tunnel/sync', express.json(), async (req, res) => {
     const enabled = req.body.enabled === true;
     const provider = req.body.provider || 'localtunnel';
     if (!enabled) await stopTunnel();
-    else await startTunnel(PORT, provider);
+    else await startTunnel(PORT, provider, useSSL);
     res.json(getTunnelStatus());
   } catch (err) {
     res.status(500).json({ error: err?.message || 'Tunnel sync failed' });
@@ -1076,7 +1076,7 @@ server.listen(PORT, HOST, () => {
     const enabled = db.prepare("SELECT value FROM server_settings WHERE key = 'tunnel_enabled'").get()?.value === 'true';
     const provider = db.prepare("SELECT value FROM server_settings WHERE key = 'tunnel_provider'").get()?.value || 'localtunnel';
     if (enabled) {
-      startTunnel(PORT, provider).then((s) => {
+      startTunnel(PORT, provider, useSSL).then((s) => {
         if (s.active) console.log(`🧭 Tunnel active (${s.provider}): ${s.url}`);
         else if (s.error) console.log(`🧭 Tunnel failed: ${s.error}`);
       });
