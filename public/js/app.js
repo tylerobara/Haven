@@ -2730,10 +2730,26 @@ class HavenApp {
     const toggle = document.getElementById('push-notif-enabled');
     const statusEl = document.getElementById('push-notif-status');
 
+    // Wire dismiss button for push error modal
+    document.getElementById('push-error-dismiss-btn')?.addEventListener('click', () => {
+      document.getElementById('push-error-modal').style.display = 'none';
+      localStorage.setItem('haven_push_error_dismissed', 'true');
+    });
+
+    // Detect browser
+    const isBrave = navigator.brave && (await navigator.brave.isBrave?.()) || false;
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
     // Check browser support
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       if (toggle) toggle.disabled = true;
-      if (statusEl) statusEl.textContent = 'Not supported in this browser';
+      let reason = 'Your browser does not support push notifications.';
+      if (isIOS) reason = 'Push notifications are not supported on iOS Safari or iOS browsers.';
+      if (statusEl) statusEl.textContent = 'Not supported';
+      // Show once on page load if not dismissed, always show on toggle attempt
+      this._pushErrorReason = reason;
+      if (!localStorage.getItem('haven_push_error_dismissed')) this._showPushError(reason);
       return;
     }
 
@@ -2741,8 +2757,9 @@ class HavenApp {
     const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if (!isSecure) {
       if (toggle) toggle.disabled = true;
-      if (statusEl) statusEl.textContent = 'Requires HTTPS — see Guide for setup';
-      console.warn('Push notifications require HTTPS. Access Haven via https:// or localhost.');
+      if (statusEl) statusEl.textContent = 'Requires HTTPS';
+      this._pushErrorReason = 'Push notifications require a secure (HTTPS) connection. Check the Haven setup guide for SSL configuration.';
+      if (!localStorage.getItem('haven_push_error_dismissed')) this._showPushError(this._pushErrorReason);
       return;
     }
 
@@ -2752,13 +2769,17 @@ class HavenApp {
     } catch (err) {
       console.error('SW registration failed:', err);
       if (toggle) toggle.disabled = true;
-      let hint = '';
+      let reason = `Service worker registration failed: ${err.message}`;
       if (err.name === 'SecurityError' || (err.message && err.message.includes('SSL'))) {
-        hint = ' — valid SSL certificate required (self-signed certs are not supported by browsers for push notifications)';
-      } else if (location.protocol !== 'https:') {
-        hint = ' (HTTPS required)';
+        reason = 'Push notifications require a valid SSL certificate. Self-signed certificates are not supported by browsers for push.';
       }
-      if (statusEl) statusEl.textContent = 'Service worker failed' + hint;
+      if (isBrave) {
+        reason = 'Brave Browser blocks push notification services by default as part of its privacy protections. ' +
+          'Try: Settings → Privacy → Use Google Services for Push → Enable. If that doesn\'t work, use Chrome or Edge instead.';
+      }
+      if (statusEl) statusEl.textContent = 'Registration failed';
+      this._pushErrorReason = reason;
+      if (!localStorage.getItem('haven_push_error_dismissed')) this._showPushError(reason);
       return;
     }
 
@@ -2770,7 +2791,23 @@ class HavenApp {
     });
 
     // Check current subscription state
-    const existingSub = await this._swRegistration.pushManager.getSubscription();
+    let existingSub = null;
+    try {
+      existingSub = await this._swRegistration.pushManager.getSubscription();
+    } catch (err) {
+      console.error('Push getSubscription failed:', err);
+      if (isBrave) {
+        if (toggle) toggle.disabled = true;
+        if (statusEl) statusEl.textContent = 'Blocked by Brave';
+        this._pushErrorReason =
+          'Brave Browser\'s privacy shields are blocking push notifications. ' +
+          'Try: brave://settings/privacy → "Use Google Services for Push Messaging" → enable and restart Brave. ' +
+          'If that does not work, use Google Chrome or Microsoft Edge for push notification support.';
+        if (!localStorage.getItem('haven_push_error_dismissed')) this._showPushError(this._pushErrorReason);
+        return;
+      }
+    }
+
     this._pushSubscription = existingSub;
     if (toggle) toggle.checked = !!existingSub;
     if (statusEl) statusEl.textContent = existingSub ? 'Enabled' : 'Disabled';
@@ -2787,6 +2824,12 @@ class HavenApp {
     if (toggle) {
       toggle.addEventListener('change', async () => {
         if (toggle.checked) {
+          // If we have a stored error reason, show popup instead of trying
+          if (toggle.disabled && this._pushErrorReason) {
+            toggle.checked = false;
+            this._showPushError(this._pushErrorReason);
+            return;
+          }
           await this._subscribePush();
         } else {
           await this._unsubscribePush();
@@ -2795,15 +2838,27 @@ class HavenApp {
     }
   }
 
+  _showPushError(reason) {
+    const modal = document.getElementById('push-error-modal');
+    const reasonEl = document.getElementById('push-error-reason');
+    if (modal && reasonEl) {
+      reasonEl.textContent = reason;
+      modal.style.display = 'flex';
+    }
+  }
+
   async _subscribePush() {
     const statusEl = document.getElementById('push-notif-status');
+    const toggle = document.getElementById('push-notif-enabled');
     try {
       // Request notification permission
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        const toggle = document.getElementById('push-notif-enabled');
         if (toggle) toggle.checked = false;
         if (statusEl) statusEl.textContent = 'Permission denied';
+        this._showPushError(
+          'Notification permission was denied. Check your browser\'s site settings and allow notifications for this site, then try again.'
+        );
         return;
       }
 
@@ -2843,9 +2898,21 @@ class HavenApp {
       if (statusEl) statusEl.textContent = 'Subscribing...';
     } catch (err) {
       console.error('Push subscribe error:', err);
-      const toggle = document.getElementById('push-notif-enabled');
       if (toggle) toggle.checked = false;
-      if (statusEl) statusEl.textContent = 'Failed — ' + err.message;
+
+      const isBrave = navigator.brave && (await navigator.brave.isBrave?.()) || false;
+      let reason = `Push subscription failed: ${err.message}`;
+      if (isBrave) {
+        reason = 'Brave Browser blocked the push subscription. Go to brave://settings/privacy, ' +
+          'enable "Use Google Services for Push Messaging", and restart Brave. ' +
+          'Alternatively, use Chrome or Edge which support push notifications natively.';
+      } else if (err.message?.includes('push service')) {
+        reason = 'The browser\'s push service returned an error. This is usually a browser-level restriction. ' +
+          'Try Google Chrome or Microsoft Edge if this persists.';
+      }
+
+      if (statusEl) statusEl.textContent = 'Failed';
+      this._showPushError(reason);
     }
   }
 
@@ -4767,10 +4834,10 @@ class HavenApp {
         // Show audio/no-audio badge
         if (this.voice.screenHasAudio) {
           this._handleScreenAudio(this.user.id);
-          this._showToast('Sharing with audio — window audio only on Chrome 141+, full system audio on older browsers', 'success');
+          this._showToast('Screen sharing started with audio', 'success');
         } else {
           this._handleScreenNoAudio(this.user.id);
-          this._showToast('Sharing screen (video only — grant audio in the browser picker for sound)', 'info');
+          this._showToast('Screen sharing started (no audio — enable it in the browser picker)', 'info');
         }
       } else {
         this._showToast('Screen share cancelled or not supported', 'error');

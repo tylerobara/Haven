@@ -373,7 +373,7 @@
         <div id="voice-panel" class="voice-panel" style="display:none">
           <button id="voice-mute-btn" class="voice-panel-btn" title="Mute">🔇</button>
           <button id="voice-deafen-btn" class="voice-panel-btn" title="Deafen">🔈</button>
-          <button id="screen-share-btn" class="voice-panel-btn" title="Share Screen&#10;🔊 Audio: captures selected window's audio (Chrome 141+)&#10;⚠️ Older browsers may share all system audio">🖥️</button>
+          <button id="screen-share-btn" class="voice-panel-btn" title="Share Screen">🖥️</button>
           <button id="music-share-btn" class="voice-panel-btn" title="Listen Together">🎵</button>
           <button id="voice-settings-toggle" class="voice-panel-btn" title="Voice Settings">⚙️</button>
           <button id="voice-leave-sidebar-btn" class="voice-panel-btn voice-panel-leave" title="Leave Voice">✕</button>
@@ -1039,6 +1039,20 @@
 
   <!-- Stackable effect overlay container -->
   <div id="fx-layers"></div>
+
+  <!-- Push Notification Error Modal (center-screen, requires acknowledgement) -->
+  <div class="modal-overlay" id="push-error-modal" style="display:none">
+    <div class="modal" style="max-width:420px;text-align:center;padding:28px 24px;">
+      <div style="font-size:48px;margin-bottom:12px;">🔕</div>
+      <h3 style="margin:0 0 12px;color:var(--text-primary)">Push Notifications Unavailable</h3>
+      <p id="push-error-reason" style="color:var(--text-secondary);font-size:14px;line-height:1.5;margin:0 0 16px;"></p>
+      <p style="color:var(--text-muted);font-size:12px;line-height:1.5;margin:0 0 20px;">
+        <strong>Recommended browsers:</strong> Google Chrome, Microsoft Edge, or Opera on desktop.<br>
+        Push notifications are not supported on iOS or most mobile browsers.
+      </p>
+      <button class="btn-accent" id="push-error-dismiss-btn" style="width:100%;padding:10px;font-size:14px;font-weight:600;">Got It</button>
+    </div>
+  </div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/theme.js?v=1.6.0"></script>
