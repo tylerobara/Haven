@@ -32,6 +32,8 @@ class HavenApp {
     this.userStatusText = '';      // custom status text
     this.idleTimer = null;         // auto-away timer
     this.voiceCounts = {};         // { channelCode: count } for sidebar voice indicators
+    this.e2e = null;               // HavenE2E instance for DM encryption
+    this._dmPublicKeys = {};       // { userId → jwk } cache for DM partner public keys
 
     // Slash command definitions for autocomplete
     this.slashCommands = [
@@ -156,6 +158,9 @@ class HavenApp {
     this.socket.emit('get-preferences');
     this.socket.emit('get-high-scores', { game: 'flappy' });
 
+    // Init E2E encryption for DMs
+    this._initE2E();
+
     document.getElementById('current-user').textContent = this.user.displayName || this.user.username;
     const loginEl = document.getElementById('login-name');
     if (loginEl) loginEl.textContent = `@${this.user.username}`;
@@ -163,6 +168,8 @@ class HavenApp {
     if (this.user.isAdmin) {
       document.getElementById('admin-controls').style.display = 'block';
       document.getElementById('admin-mod-panel').style.display = 'block';
+      const organizeBtn = document.getElementById('organize-channels-btn');
+      if (organizeBtn) organizeBtn.style.display = '';
     }
 
     document.getElementById('mod-mode-settings-toggle')?.addEventListener('click', () => this.modMode?.toggle());
@@ -316,13 +323,18 @@ class HavenApp {
       this.switchChannel(channel.code);
     });
 
-    this.socket.on('message-history', (data) => {
+    this.socket.on('message-history', async (data) => {
       if (data.channelCode === this.currentChannel) {
+        // E2E: decrypt DM messages before rendering
+        await this._decryptMessages(data.messages);
         this._renderMessages(data.messages);
       }
     });
 
-    this.socket.on('new-message', (data) => {
+    this.socket.on('new-message', async (data) => {
+      // E2E: decrypt single message if encrypted
+      await this._decryptMessages([data.message]);
+
       if (data.channelCode === this.currentChannel) {
         this._appendMessage(data.message);
         this._markRead(data.message.id);
@@ -464,6 +476,10 @@ class HavenApp {
         this.channels.push(data);
         this._renderChannels();
       }
+      // E2E: pre-fetch partner's public key for new DMs
+      if (data.is_dm && data.dm_target) {
+        this._fetchDMPartnerKey(data);
+      }
       // Auto-expand DM section when a DM opens
       const dmList = document.getElementById('dm-list');
       if (dmList && dmList.style.display === 'none') {
@@ -582,13 +598,27 @@ class HavenApp {
     });
 
     // ── Message edit / delete ──────────────────────────
-    this.socket.on('message-edited', (data) => {
+    this.socket.on('message-edited', async (data) => {
       if (data.channelCode === this.currentChannel) {
         const msgEl = document.querySelector(`[data-msg-id="${data.messageId}"]`);
         if (!msgEl) return;
         const contentEl = msgEl.querySelector('.message-content');
         if (contentEl) {
-          contentEl.innerHTML = this._formatContent(data.content);
+          // E2E: decrypt if needed
+          let displayContent = data.content;
+          if (HavenE2E.isEncrypted(data.content)) {
+            const partner = this._getE2EPartner();
+            if (partner) {
+              try {
+                const plain = await this.e2e.decrypt(data.content, partner.userId, partner.publicKeyJwk);
+                if (plain !== null) displayContent = plain;
+                else displayContent = '🔒 Unable to decrypt';
+              } catch { displayContent = '🔒 Unable to decrypt'; }
+            } else {
+              displayContent = '🔒 Unable to decrypt';
+            }
+          }
+          contentEl.innerHTML = this._formatContent(displayContent);
           // Add or update edited indicator
           let editedTag = msgEl.querySelector('.edited-tag');
           if (!editedTag) {
@@ -946,16 +976,20 @@ class HavenApp {
     });
     document.getElementById('organize-done-btn')?.addEventListener('click', () => {
       document.getElementById('organize-modal').style.display = 'none';
+      if (this._organizeServerLevel) this._renderChannels();
       this._organizeParentCode = null;
       this._organizeList = null;
       this._organizeSelected = null;
+      this._organizeServerLevel = false;
     });
     document.getElementById('organize-modal')?.addEventListener('click', (e) => {
       if (e.target.id === 'organize-modal') {
         document.getElementById('organize-modal').style.display = 'none';
+        if (this._organizeServerLevel) this._renderChannels();
         this._organizeParentCode = null;
         this._organizeList = null;
         this._organizeSelected = null;
+        this._organizeServerLevel = false;
       }
     });
     // Slow mode
@@ -1600,6 +1634,21 @@ class HavenApp {
         this._syncTunnelState();
       });
     }
+
+    // ── Server invite code (immediate — not part of Save flow) ──
+    document.getElementById('generate-server-code-btn')?.addEventListener('click', () => {
+      this.socket.emit('generate-server-code');
+    });
+    document.getElementById('clear-server-code-btn')?.addEventListener('click', () => {
+      if (!confirm('Clear the server invite code? Anyone with the old code won\'t be able to use it.')) return;
+      this.socket.emit('clear-server-code');
+    });
+    document.getElementById('copy-server-code-btn')?.addEventListener('click', () => {
+      const code = document.getElementById('server-code-value')?.textContent;
+      if (code && code !== '—') {
+        navigator.clipboard.writeText(code).then(() => this._showToast('Server code copied!', 'success'));
+      }
+    });
   }
 
   // ═══════════════════════════════════════════════════════
@@ -3226,6 +3275,9 @@ class HavenApp {
     this.socket.emit('get-channel-members', { code });
     this.socket.emit('request-voice-users', { code });
     this._clearReply();
+
+    // E2E: fetch DM partner's public key when entering a DM
+    if (isDm && channel) this._fetchDMPartnerKey(channel);
   }
 
   _updateTopicBar(topic) {
@@ -3375,18 +3427,41 @@ class HavenApp {
 
   /* ── Organize sub-channels modal ─────────────────────── */
 
-  _openOrganizeModal(parentCode) {
+  _openOrganizeModal(parentCode, serverLevel) {
+    if (serverLevel) {
+      // Server-level mode: organize top-level channels
+      const parents = this.channels.filter(c => !c.parent_channel_id && !c.is_dm);
+      this._organizeParentCode = '__server__';
+      this._organizeParentId = null;
+      this._organizeServerLevel = true;
+      this._organizeList = [...parents].sort((a, b) => (a.position || 0) - (b.position || 0));
+      this._organizeSelected = null;
+      this._organizeTagSorts = JSON.parse(localStorage.getItem('haven_tag_sorts___server__') || '{}');
+
+      document.getElementById('organize-modal-title').textContent = '📋 Organize Channels';
+      document.getElementById('organize-modal-parent-name').textContent = 'Reorder channels and assign category tags';
+      // No global sort for server-level (always manual by position)
+      const sortSel = document.getElementById('organize-global-sort');
+      sortSel.value = 'manual';
+      document.getElementById('organize-tag-input').value = '';
+      this._renderOrganizeList();
+      document.getElementById('organize-modal').style.display = 'flex';
+      return;
+    }
+
     const parent = this.channels.find(c => c.code === parentCode);
     if (!parent) return;
 
     const subs = this.channels.filter(c => c.parent_channel_id === parent.id);
     this._organizeParentCode = parentCode;
     this._organizeParentId = parent.id;
+    this._organizeServerLevel = false;
     this._organizeList = [...subs].sort((a, b) => (a.position || 0) - (b.position || 0));
     this._organizeSelected = null;
     // Per-tag sort overrides: tag → 'manual'|'alpha'|'created'|'oldest' (persisted in localStorage)
     this._organizeTagSorts = JSON.parse(localStorage.getItem(`haven_tag_sorts_${parentCode}`) || '{}');
 
+    document.getElementById('organize-modal-title').textContent = '📋 Organize Sub-channels';
     document.getElementById('organize-modal-parent-name').textContent = `# ${parent.name}`;
     // Map sort_alphabetical: 0=manual, 1=alpha, 2=created
     const sortSel = document.getElementById('organize-global-sort');
@@ -3458,8 +3533,9 @@ class HavenApp {
       for (const ch of group.items) {
         const sel = this._organizeSelected === ch.code;
         const tagBadge = ch.category ? `<span class="organize-tag-badge">${this._escapeHtml(ch.category)}</span>` : '';
+        const icon = this._organizeServerLevel ? '#' : (ch.is_private ? '🔒' : '↳');
         html += `<div class="organize-item${sel ? ' selected' : ''}" data-code="${ch.code}">
-          <span style="opacity:0.5">${ch.is_private ? '🔒' : '↳'}</span>
+          <span style="opacity:0.5">${icon}</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escapeHtml(ch.name)}</span>
           ${tagBadge}
         </div>`;
@@ -3467,7 +3543,7 @@ class HavenApp {
     }
 
     if (!displayList.length) {
-      html = '<div style="padding:24px;text-align:center;opacity:0.4;font-size:0.9rem">No sub-channels yet</div>';
+      html = '<div style="padding:24px;text-align:center;opacity:0.4;font-size:0.9rem">' + (this._organizeServerLevel ? 'No channels yet' : 'No sub-channels yet') + '</div>';
     }
 
     listEl.innerHTML = html;
@@ -3690,7 +3766,9 @@ class HavenApp {
     // Set up channels toggle click (only once)
     if (!this._channelsToggleBound) {
       this._channelsToggleBound = true;
-      document.getElementById('channels-toggle')?.addEventListener('click', () => {
+      document.getElementById('channels-toggle')?.addEventListener('click', (e) => {
+        // Ignore clicks on the organize button inside the header
+        if (e.target.closest('#organize-channels-btn')) return;
         const nowCollapsed = list.style.display !== 'none';
         list.style.display = nowCollapsed ? 'none' : '';
         const arrow = document.getElementById('channels-toggle-arrow');
@@ -3708,6 +3786,11 @@ class HavenApp {
           channelsPane.style.flex = `${ratio} 1 0`;
           dmPane.style.flex = `${1 - ratio} 1 0`;
         }
+      });
+      // Organize Channels button (admin only)
+      document.getElementById('organize-channels-btn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this._openOrganizeModal(null, true); // server-level mode
       });
     }
     if (channelsCollapsed) {
@@ -3939,7 +4022,20 @@ class HavenApp {
 
     // Send text message if there is one
     if (content) {
-      this.socket.emit('send-message', payload);
+      // E2E: encrypt DM messages
+      const partner = this._getE2EPartner();
+      if (partner) {
+        this.e2e.encrypt(content, partner.userId, partner.publicKeyJwk).then(encrypted => {
+          payload.content = encrypted;
+          payload.encrypted = true;
+          this.socket.emit('send-message', payload);
+        }).catch(() => {
+          // Fallback: send unencrypted
+          this.socket.emit('send-message', payload);
+        });
+      } else {
+        this.socket.emit('send-message', payload);
+      }
     }
 
     // Upload queued images
@@ -4013,6 +4109,7 @@ class HavenApp {
     const reactionsHtml = this._renderReactions(msg.id, msg.reactions || []);
     const editedHtml = msg.edited_at ? `<span class="edited-tag" title="Edited at ${new Date(msg.edited_at).toLocaleString()}">(edited)</span>` : '';
     const pinnedTag = msg.pinned ? '<span class="pinned-tag" title="Pinned message">📌</span>' : '';
+    const e2eTag = msg._e2e ? '<span class="e2e-tag" title="End-to-end encrypted">🔒</span>' : '';
 
     // Build toolbar with context-aware buttons
     let toolbarBtns = `<button data-action="react" title="React">😀</button><button data-action="reply" title="Reply">↩️</button>`;
@@ -4042,7 +4139,7 @@ class HavenApp {
       if (msg.pinned) el.dataset.pinned = '1';
       el.innerHTML = `
         <span class="compact-time">${new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
-        <div class="message-content">${pinnedTag}${this._formatContent(msg.content)}${editedHtml}</div>
+        <div class="message-content">${pinnedTag}${e2eTag}${this._formatContent(msg.content)}${editedHtml}</div>
         ${toolbarHtml}
         ${reactionsHtml}
       `;
@@ -4083,6 +4180,7 @@ class HavenApp {
             ${msgRoleBadge}
             <span class="message-time">${this._formatTime(msg.created_at)}</span>
             ${pinnedTag}
+            ${e2eTag}
           </div>
           <div class="message-content">${this._formatContent(msg.content)}${editedHtml}</div>
           ${reactionsHtml}
@@ -6826,12 +6924,23 @@ class HavenApp {
       e.preventDefault();
       cancel();
     });
-    btnRow.querySelector('.edit-save-btn').addEventListener('click', (e) => {
+    btnRow.querySelector('.edit-save-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       e.preventDefault();
-      const newContent = textarea.value.trim();
+      let newContent = textarea.value.trim();
       if (!newContent) return cancel();
       if (newContent === rawText) return cancel();
+
+      // E2E: encrypt edited DM content
+      const partner = this._getE2EPartner();
+      if (partner) {
+        try {
+          newContent = await this.e2e.encrypt(newContent, partner.userId, partner.publicKeyJwk);
+        } catch (err) {
+          console.warn('[E2E] Failed to encrypt edited message:', err);
+        }
+      }
+
       this.socket.emit('edit-message', { messageId: msgId, content: newContent });
       cancel(); // will be updated by the server event
     });
@@ -6994,6 +7103,14 @@ class HavenApp {
         tunnelProvider.value = this.serverSettings.tunnel_provider;
       }
       this._refreshTunnelStatus();
+
+      // Server invite code (live state, not part of Save/Cancel flow)
+      const serverCodeEl = document.getElementById('server-code-value');
+      if (serverCodeEl) {
+        const code = this.serverSettings.server_code;
+        serverCodeEl.textContent = code || '—';
+        serverCodeEl.style.opacity = code ? '1' : '0.4';
+      }
 
       this._renderPermThresholds();
     }
@@ -8370,6 +8487,83 @@ class HavenApp {
       if (rv < lv) return false;
     }
     return false;
+  }
+
+  /* ── E2E Encryption Helpers ──────────────────────────── */
+
+  async _initE2E() {
+    if (typeof HavenE2E === 'undefined') return;
+    try {
+      this.e2e = new HavenE2E();
+      const ok = await this.e2e.init();
+      if (ok) {
+        // Publish our public key to the server
+        this.socket.emit('publish-public-key', { jwk: this.e2e.publicKeyJwk });
+        // Listen for public key responses
+        this.socket.on('public-key-result', (data) => {
+          if (data.jwk) {
+            this._dmPublicKeys[data.userId] = data.jwk;
+          }
+        });
+        console.log('[E2E] Initialized, public key published');
+      }
+    } catch (err) {
+      console.warn('[E2E] Init failed:', err);
+      this.e2e = null;
+    }
+  }
+
+  /**
+   * Get the E2E partner user ID for the current channel (if it's a DM).
+   * Returns { userId, publicKeyJwk } or null.
+   */
+  _getE2EPartner() {
+    if (!this.e2e || !this.e2e.ready) return null;
+    const ch = this.channels.find(c => c.code === this.currentChannel);
+    if (!ch || !ch.is_dm || !ch.dm_target) return null;
+    const partnerId = ch.dm_target.id;
+    const jwk = this._dmPublicKeys[partnerId];
+    return jwk ? { userId: partnerId, publicKeyJwk: jwk } : null;
+  }
+
+  /**
+   * Fetch and cache the DM partner's public key when entering a DM channel.
+   */
+  _fetchDMPartnerKey(channel) {
+    if (!this.e2e || !this.e2e.ready) return;
+    if (!channel || !channel.is_dm || !channel.dm_target) return;
+    const partnerId = channel.dm_target.id;
+    if (this._dmPublicKeys[partnerId]) return; // already cached
+    this.socket.emit('get-public-key', { userId: partnerId });
+  }
+
+  /**
+   * Decrypt any E2E-encrypted messages in an array (mutates in place).
+   * For messages the current user sent, uses the partner's public key.
+   * For messages the partner sent, also uses the partner's public key.
+   * Both sides derive the same shared secret (ECDH is symmetric).
+   */
+  async _decryptMessages(messages) {
+    if (!this.e2e || !this.e2e.ready || !messages || !messages.length) return;
+    const ch = this.channels.find(c => c.code === this.currentChannel);
+    if (!ch || !ch.is_dm || !ch.dm_target) return;
+
+    const partnerId = ch.dm_target.id;
+    const partnerJwk = this._dmPublicKeys[partnerId];
+    if (!partnerJwk) return; // no key yet — messages stay as ciphertext
+
+    for (const msg of messages) {
+      if (HavenE2E.isEncrypted(msg.content)) {
+        const plain = await this.e2e.decrypt(msg.content, partnerId, partnerJwk);
+        if (plain !== null) {
+          msg.content = plain;
+          msg._e2e = true; // flag for UI indicator
+        } else {
+          msg.content = '🔒 [Encrypted message — unable to decrypt]';
+          msg._e2e = true;
+        }
+      }
+    }
   }
 }
 

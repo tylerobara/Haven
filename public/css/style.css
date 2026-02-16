@@ -4756,6 +4756,14 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   user-select: none;
 }
 
+.e2e-tag {
+  font-size: 10px;
+  margin-left: 4px;
+  opacity: 0.5;
+  cursor: default;
+  user-select: none;
+}
+
 
 /* ═══════════════════════════════════════════════════════════
    INLINE EDIT TEXTAREA

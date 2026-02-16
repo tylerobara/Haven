@@ -11,6 +11,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [1.8.0] — 2026-02-17
+
+### Added
+- **End-to-end encrypted DMs** — DM messages are now encrypted client-side using ECDH P-256 + AES-256-GCM. Private keys never leave the browser (stored with `extractable: false` in IndexedDB). Not even the server host can read DM content. Encrypted messages display a lock icon (🔒). Editing a DM re-encrypts the content. Falls back to unencrypted if either party hasn't generated keys yet.
+- **Server-wide invite code** — admins can generate a single code that grants access to every channel and sub-channel in the server at once. Generate, copy, and clear from Admin Settings.
+- **Channel organize modal** — parent channels can now be reordered, categorized, and sorted just like sub-channels. New "Organize" button in the Channels sidebar header (admin-only).
+- **Cloudflare Tunnel documentation** — comprehensive setup guide in GUIDE.md covering installation, configuration, and troubleshooting.
+
+---
+
 ## [1.7.0] — 2026-02-16
 
 ### Added

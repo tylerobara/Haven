@@ -270,7 +270,78 @@ https://YOUR_PUBLIC_IP:3000
 
 ---
 
-## 🔧 Router-Specific Tips
+## � Cloudflare Tunnel (No Port Forwarding)
+
+If you don't want to mess with port forwarding or expose your home IP, you can use a **Cloudflare Tunnel** to securely share your Haven server over the internet. Cloudflare gives your server a public URL and handles all the networking — no router config needed.
+
+### Step 1 — Install Cloudflared
+
+**Windows (via winget):**
+```powershell
+winget install cloudflare.cloudflared
+```
+
+**macOS (via Homebrew):**
+```bash
+brew install cloudflared
+```
+
+**Linux:**
+```bash
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+chmod +x /usr/local/bin/cloudflared
+```
+
+Verify it installed:
+```bash
+cloudflared --version
+```
+
+### Step 2 — Enable the Tunnel in Haven
+
+1. Start Haven normally (`Start Haven.bat`)
+2. Log in as admin
+3. Open **⚙️ Settings** → scroll to the **Tunnel** section
+4. Select **Cloudflare** as the tunnel provider
+5. Flip the toggle **on**
+6. Haven will start cloudflared and display your public URL (e.g. `https://abc-def-123.trycloudflare.com`)
+
+### Step 3 — Share the URL
+
+Copy the tunnel URL and send it to your friends. That's it — no port forwarding, no firewall rules, no IP address sharing. The URL changes each time you restart the tunnel, so you'll need to re-share it.
+
+### How It Works
+
+- Haven runs **cloudflared** as a child process that creates an encrypted tunnel to Cloudflare's network
+- Cloudflare assigns a random public URL and proxies traffic through the tunnel to your local server
+- Your home IP is **never exposed** to visitors — they only see Cloudflare's IP
+- Since Haven runs HTTPS with a self-signed cert, the tunnel connects to `https://localhost:3000` with TLS verification disabled (the Cloudflare→You leg is already encrypted by the tunnel itself)
+
+### Tunnel vs. Port Forwarding
+
+| | Port Forwarding | Cloudflare Tunnel |
+|---|---|---|
+| **Router config** | Required | None |
+| **Exposes home IP** | Yes | No |
+| **Firewall rules** | Required | None |
+| **Stable URL** | Your IP (may change) | Random URL (changes on restart) |
+| **Push notifications** | ✅ (if HTTPS) | ✅ |
+| **Voice chat** | ✅ | ✅ |
+
+> 💡 **Tip:** For a permanent URL, you can set up a free Cloudflare account and use a named tunnel with your own domain. See [Cloudflare's tunnel docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) for details.
+
+### Troubleshooting Tunnels
+
+| Problem | Solution |
+|---------|----------|
+| "cloudflared not found" | Restart your terminal after installing, or add it to your PATH manually |
+| Tunnel shows "502 Bad Gateway" | Make sure Haven is running before enabling the tunnel |
+| URL changes every restart | Normal for quick tunnels. Use a named tunnel + custom domain for permanence |
+| "Connection refused" in tunnel logs | Haven isn't running on port 3000, or it's running HTTP instead of HTTPS |
+
+---
+
+## �🔧 Router-Specific Tips
 
 ### Xfinity / Comcast (XB7 Gateway)
 

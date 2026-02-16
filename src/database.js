@@ -157,6 +157,7 @@ function initDatabase() {
   insertSetting.run('server_name', 'HAVEN');           // displayed in sidebar header + server bar
   insertSetting.run('server_icon', '');                // path to uploaded server icon image
   insertSetting.run('permission_thresholds', '{}');    // JSON: { permission: minLevel } — auto-grant perms at level
+  insertSetting.run('server_code', '');                // server-wide invite code (joins all channels)
 
   // ── Migration: pinned_messages table ──────────────────
   db.exec(`
@@ -434,6 +435,13 @@ function initDatabase() {
   ];
   for (const col of channelQolCols) {
     try { db.prepare(`SELECT ${col.name} FROM channels LIMIT 0`).get(); } catch { db.exec(col.sql); }
+  }
+
+  // ── Migration: E2E public key on users ──────────────────
+  try {
+    db.prepare("SELECT public_key FROM users LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE users ADD COLUMN public_key TEXT DEFAULT NULL");
   }
 
   return db;

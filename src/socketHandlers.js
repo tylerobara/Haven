@@ -681,6 +681,36 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Invalid channel code format');
       }
 
+      // ── Check if this is a server-wide invite code ─────
+      const serverCodeRow = db.prepare("SELECT value FROM server_settings WHERE key = 'server_code'").get();
+      if (serverCodeRow && serverCodeRow.value && serverCodeRow.value === code) {
+        // Server code: add user to ALL top-level non-DM channels and their non-private sub-channels
+        const allParents = db.prepare('SELECT id, code FROM channels WHERE parent_channel_id IS NULL AND is_dm = 0').all();
+        const insertMember = db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)');
+        let joinedCount = 0;
+
+        const txn = db.transaction(() => {
+          for (const parent of allParents) {
+            insertMember.run(parent.id, socket.user.id);
+            socket.join(`channel:${parent.code}`);
+            joinedCount++;
+            // Also add to non-private sub-channels
+            const subs = db.prepare('SELECT id, code FROM channels WHERE parent_channel_id = ? AND is_private = 0').all(parent.id);
+            for (const sub of subs) {
+              insertMember.run(sub.id, socket.user.id);
+              socket.join(`channel:${sub.code}`);
+              joinedCount++;
+            }
+          }
+        });
+        txn();
+
+        // Refresh their channel list
+        socket.emit('channels-list', getEnrichedChannels(socket.user.id, socket.user.isAdmin, (room) => socket.join(room)));
+        socket.emit('error-msg', `Server code accepted — joined ${joinedCount} channel${joinedCount !== 1 ? 's' : ''}`);
+        return;
+      }
+
       const channel = db.prepare('SELECT * FROM channels WHERE code = ?').get(code);
       if (!channel) {
         return socket.emit('error-msg', 'Invalid channel code — double-check it');
@@ -2124,7 +2154,7 @@ function setupSocketHandlers(io, db) {
     socket.on('get-server-settings', () => {
       const rows = db.prepare('SELECT key, value FROM server_settings').all();
       const settings = {};
-      const sensitiveKeys = ['giphy_api_key'];
+      const sensitiveKeys = ['giphy_api_key', 'server_code'];
       rows.forEach(r => {
         if (sensitiveKeys.includes(r.key) && !socket.user.isAdmin) return;
         settings[r.key] = r.value;
@@ -2269,7 +2299,7 @@ function setupSocketHandlers(io, db) {
       const key = typeof data.key === 'string' ? data.key.trim() : '';
       const value = typeof data.value === 'string' ? data.value.trim() : '';
 
-      const allowedKeys = ['member_visibility', 'cleanup_enabled', 'cleanup_max_age_days', 'cleanup_max_size_mb', 'giphy_api_key', 'server_name', 'server_icon', 'permission_thresholds', 'tunnel_enabled', 'tunnel_provider'];
+      const allowedKeys = ['member_visibility', 'cleanup_enabled', 'cleanup_max_age_days', 'cleanup_max_size_mb', 'giphy_api_key', 'server_name', 'server_icon', 'permission_thresholds', 'tunnel_enabled', 'tunnel_provider', 'server_code'];
       if (!allowedKeys.includes(key)) return;
 
       if (key === 'member_visibility' && !['all', 'online', 'none'].includes(value)) return;
@@ -2294,6 +2324,10 @@ function setupSocketHandlers(io, db) {
       }
       if (key === 'tunnel_enabled' && !['true', 'false'].includes(value)) return;
       if (key === 'tunnel_provider' && !['localtunnel', 'cloudflared'].includes(value)) return;
+      if (key === 'server_code') {
+        // Server code is managed via generate/rotate events, not directly
+        return;
+      }
       if (key === 'permission_thresholds') {
         // Validate JSON: must be object with permission → integer level
         try {
@@ -2326,6 +2360,27 @@ function setupSocketHandlers(io, db) {
           emitOnlineUsers(code);
         }
       }
+    });
+
+    // ═══════════════ SERVER-WIDE INVITE CODE ════════════════
+
+    socket.on('generate-server-code', () => {
+      if (!socket.user.isAdmin) {
+        return socket.emit('error-msg', 'Only admins can manage server codes');
+      }
+      const code = generateChannelCode();
+      db.prepare('INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)').run('server_code', code);
+      io.emit('server-setting-changed', { key: 'server_code', value: code });
+      socket.emit('error-msg', `Server invite code generated: ${code}`);
+    });
+
+    socket.on('clear-server-code', () => {
+      if (!socket.user.isAdmin) {
+        return socket.emit('error-msg', 'Only admins can manage server codes');
+      }
+      db.prepare('INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)').run('server_code', '');
+      io.emit('server-setting-changed', { key: 'server_code', value: '' });
+      socket.emit('error-msg', 'Server invite code cleared');
     });
 
     // ═══════════════ ADMIN: RUN CLEANUP NOW ═════════════════
@@ -2682,6 +2737,36 @@ function setupSocketHandlers(io, db) {
         oldCode,
         newCode
       });
+    });
+
+    // ═══════════════ E2E PUBLIC KEY EXCHANGE ═════════════════
+
+    socket.on('publish-public-key', (data) => {
+      if (!data || typeof data !== 'object') return;
+      const jwk = data.jwk;
+      if (!jwk || typeof jwk !== 'object' || jwk.kty !== 'EC' || jwk.crv !== 'P-256') {
+        return socket.emit('error-msg', 'Invalid public key format');
+      }
+      // Store only the public components
+      const publicJwk = { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y };
+      try {
+        db.prepare('UPDATE users SET public_key = ? WHERE id = ?')
+          .run(JSON.stringify(publicJwk), socket.user.id);
+        socket.emit('public-key-published');
+      } catch (err) {
+        console.error('Publish public key error:', err);
+        socket.emit('error-msg', 'Failed to store public key');
+      }
+    });
+
+    socket.on('get-public-key', (data) => {
+      if (!data || typeof data !== 'object') return;
+      const userId = typeof data.userId === 'number' ? data.userId : parseInt(data.userId);
+      if (!userId || isNaN(userId)) return;
+
+      const row = db.prepare('SELECT public_key FROM users WHERE id = ?').get(userId);
+      const jwk = row && row.public_key ? JSON.parse(row.public_key) : null;
+      socket.emit('public-key-result', { userId, jwk });
     });
 
     // ═══════════════ DIRECT MESSAGES ═══════════════════════

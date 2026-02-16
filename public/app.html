@@ -10,7 +10,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <title>Haven</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cG9seWdvbiBwb2ludHM9IjUwLDMgOTMsMjggOTMsNzIgNTAsOTcgNyw3MiA3LDI4IiBmaWxsPSJub25lIiBzdHJva2U9IiM2YjRmZGIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjx0ZXh0IHg9IjUwIiB5PSI2MyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLEhlbHZldGljYSxzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIzOCIgZmlsbD0iIzZiNGZkYiIgb3BhY2l0eT0iMC45NSI+SDwvdGV4dD48L3N2Zz4=">
-  <link rel="stylesheet" href="/css/style.css?v=1.7.0">
+  <link rel="stylesheet" href="/css/style.css?v=1.8.0">
   <script src="/js/theme-init.js"></script>
 </head>
 <body>
@@ -72,7 +72,7 @@
 
           <div class="sidebar-split" id="sidebar-split" data-mod-id="channels">
           <div class="sidebar-section channel-section" id="channels-pane">
-            <h5 class="section-label channels-toggle" id="channels-toggle" style="cursor:pointer;user-select:none"><span class="channels-toggle-arrow" id="channels-toggle-arrow">▾</span> Channels</h5>
+            <h5 class="section-label channels-toggle" id="channels-toggle" style="cursor:pointer;user-select:none"><span class="channels-toggle-arrow" id="channels-toggle-arrow">▾</span> Channels <button class="icon-btn small admin-only" id="organize-channels-btn" title="Organize channels" style="display:none;margin-left:auto;font-size:0.7rem;padding:0 4px;opacity:0.5">📋</button></h5>
             <div class="channel-list" id="channel-list"></div>
           </div>
           <div class="sidebar-split-handle" id="sidebar-split-handle" title="Drag to resize"></div>
@@ -757,7 +757,21 @@
           </div>
         </div>
         <div class="admin-settings" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle">�🗑️ Auto-Cleanup</h5>
+          <h5 class="settings-section-subtitle">🌐 Server Invite Code</h5>
+          <small class="settings-hint">A single code that adds people to every channel &amp; sub-channel on the server</small>
+          <div style="margin-top:8px;">
+            <div id="server-code-display" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+              <code id="server-code-value" style="font-family:monospace;font-size:1rem;letter-spacing:0.05em;opacity:0.7">—</code>
+              <button class="btn-sm" id="copy-server-code-btn" title="Copy code">📋</button>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button class="btn-sm btn-accent" id="generate-server-code-btn">Generate</button>
+              <button class="btn-sm" id="clear-server-code-btn">Clear</button>
+            </div>
+          </div>
+        </div>
+        <div class="admin-settings" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+          <h5 class="settings-section-subtitle">🗑️ Auto-Cleanup</h5>
           <label class="toggle-row">
             <span>Enabled</span>
             <input type="checkbox" id="cleanup-enabled">
@@ -933,7 +947,7 @@
   <!-- Organize Sub-channels Modal -->
   <div class="modal-overlay" id="organize-modal" style="display:none">
     <div class="modal" style="max-width:500px">
-      <h3>📋 Organize Sub-channels</h3>
+      <h3 id="organize-modal-title">📋 Organize</h3>
       <p class="modal-desc" id="organize-modal-parent-name"></p>
 
       <div class="organize-toolbar">
@@ -1082,11 +1096,12 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/theme.js?v=1.7.0"></script>
-  <script src="/js/notifications.js?v=1.7.0"></script>
-  <script src="/js/servers.js?v=1.7.0"></script>
-  <script src="/js/voice.js?v=1.7.0"></script>
-  <script src="/js/modmode.js?v=1.7.0"></script>
-  <script src="/js/app.js?v=1.7.0"></script>
+  <script src="/js/theme.js?v=1.8.0"></script>
+  <script src="/js/notifications.js?v=1.8.0"></script>
+  <script src="/js/servers.js?v=1.8.0"></script>
+  <script src="/js/voice.js?v=1.8.0"></script>
+  <script src="/js/modmode.js?v=1.8.0"></script>
+  <script src="/js/e2e.js?v=1.8.0"></script>
+  <script src="/js/app.js?v=1.8.0"></script>
 </body>
 </html>
