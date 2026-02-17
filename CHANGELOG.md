@@ -11,6 +11,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [1.8.2] — 2026-02-17
+
+### Fixed
+- **PiP reverted to native browser system** — the in-page overlay approach has been dropped in favor of the native Picture-in-Picture API (draggable to other screens). The overlay is now a slim fallback only when native PiP isn't supported. Fullscreen button removed.
+- **YouTube playlist controls** — next, previous, and shuffle now work for YouTube playlists. The embed URL preserves the `list=` parameter so the IFrame API has playlist context. Controls are hidden for single videos (where they had no effect).
+- **YouTube auto-advance** — when a video ends in a playlist, the next one plays automatically instead of showing end-screen suggestions that open new tabs.
+- **Bot "Updated" toast was red** — server was emitting via the error channel. Now uses a dedicated `bot-updated` event with green success styling.
+- **Toast hidden behind modals** — toast container z-index raised above modals so notifications are always visible.
+- **Bot channel dropdown unordered** — channels now appear in server order with sub-channels indented under their parents.
+- **Uncategorized DMs not collapsible** — the Uncategorized section now collapses/expands on click with state saved to localStorage, matching tagged DM categories.
+- **HTTPS redirect hardcoded to localhost** — remote users hitting the HTTP port were redirected to `https://localhost` instead of the actual server host.
+- **Duplicate avatar upload route** — two `/api/upload-avatar` handlers were registered; the first lacked the 2 MB size check. Removed the duplicate, added the size check to the primary handler.
+- **Duplicate `get-webhooks` socket handler** — global and per-channel handlers both fired for every event. Added a guard so each only handles its own scope.
+- **E2E safety number only 30 digits** — verification codes were half the documented length due to SHA-256 producing only 32 bytes. Switched to SHA-512 (64 bytes) for the full 60-digit output.
+- **YouTube playlist flag not reset for Spotify** — sharing a Spotify link after a YouTube playlist left stale state, incorrectly showing track controls for Spotify.
+
+### Added
+- **Release tarball with fixed directory name** — GitHub Actions workflow now attaches a `haven.tar.gz` to each release that always extracts to `haven/` (no version in the path), so headless server users don't need to rename or update systemd paths on every update.
+
+---
+
 ## [1.8.1] — 2026-02-16
 
 ### Fixed

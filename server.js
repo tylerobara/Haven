@@ -184,6 +184,10 @@ app.post('/api/upload-avatar', uploadLimiter, (req, res) => {
   upload.single('avatar')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    if (req.file.size > 2 * 1024 * 1024) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Avatar must be under 2 MB' });
+    }
 
     // Validate file magic bytes
     try {
@@ -268,6 +272,68 @@ app.post('/api/set-avatar-shape', express.json(), (req, res) => {
   }
 });
 
+// ── Webhook/Bot avatar upload endpoint ──
+app.post('/api/upload-webhook-avatar', uploadLimiter, (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  const user = token ? verifyToken(token) : null;
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+  // Only admins can manage webhooks
+  const { getDb } = require('./src/database');
+  const dbUser = getDb().prepare('SELECT is_admin FROM users WHERE id = ?').get(user.id);
+  if (!dbUser || !dbUser.is_admin) return res.status(403).json({ error: 'Admin only' });
+
+  upload.single('avatar')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    // Validate file magic bytes
+    try {
+      const fd = fs.openSync(req.file.path, 'r');
+      const hdr = Buffer.alloc(12);
+      fs.readSync(fd, hdr, 0, 12, 0);
+      fs.closeSync(fd);
+      let validMagic = false;
+      if (req.file.mimetype === 'image/jpeg') validMagic = hdr[0] === 0xFF && hdr[1] === 0xD8 && hdr[2] === 0xFF;
+      else if (req.file.mimetype === 'image/png') validMagic = hdr[0] === 0x89 && hdr[1] === 0x50 && hdr[2] === 0x4E && hdr[3] === 0x47;
+      else if (req.file.mimetype === 'image/gif') validMagic = hdr.slice(0, 6).toString().startsWith('GIF8');
+      else if (req.file.mimetype === 'image/webp') validMagic = hdr.slice(0, 4).toString() === 'RIFF' && hdr.slice(8, 12).toString() === 'WEBP';
+      if (!validMagic) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'File content does not match image type' });
+      }
+    } catch {
+      try { fs.unlinkSync(req.file.path); } catch {}
+      return res.status(400).json({ error: 'Failed to validate file' });
+    }
+
+    const mimeToExt = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/gif': '.gif', 'image/webp': '.webp' };
+    const safeExt = mimeToExt[req.file.mimetype];
+    if (!safeExt) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Invalid file type' });
+    }
+    const currentExt = path.extname(req.file.filename).toLowerCase();
+    let finalName = req.file.filename;
+    if (currentExt !== safeExt) {
+      finalName = req.file.filename.replace(/\.[^.]+$/, '') + safeExt;
+      fs.renameSync(req.file.path, path.join(uploadDir, finalName));
+    }
+    const avatarUrl = `/uploads/${finalName}`;
+
+    // Update the webhook's avatar in DB
+    const webhookId = parseInt(req.body?.webhookId || req.query?.webhookId);
+    if (!isNaN(webhookId)) {
+      try {
+        getDb().prepare('UPDATE webhooks SET avatar_url = ? WHERE id = ?').run(avatarUrl, webhookId);
+      } catch (dbErr) {
+        console.error('Webhook avatar DB error:', dbErr);
+      }
+    }
+    res.json({ url: avatarUrl });
+  });
+});
+
 // ── Serve pages ──────────────────────────────────────────
 
 // ── Tunnel API (Admin only) ──────────────────────────────
@@ -309,9 +375,16 @@ app.get('/games/flappy', (req, res) => {
 // ── Health check (CORS allowed for multi-server status pings) ──
 app.get('/api/health', (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
+  let name = process.env.SERVER_NAME || 'Haven';
+  try {
+    const { getDb } = require('./src/database');
+    const db = getDb();
+    const row = db.prepare("SELECT value FROM server_settings WHERE key = 'server_name'").get();
+    if (row && row.value) name = row.value;
+  } catch {}
   res.json({
     status: 'online',
-    name: process.env.SERVER_NAME || 'Haven'
+    name
     // version intentionally omitted — don't fingerprint the server for attackers
   });
 });
@@ -477,42 +550,7 @@ app.post('/api/install-flash-roms', async (req, res) => {
   res.json({ results });
 });
 
-// ── Avatar upload (authenticated, image only, max 2 MB) ──
-app.post('/api/upload-avatar', uploadLimiter, (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  const user = token ? verifyToken(token) : null;
-  if (!user) { console.log('[Avatar] Upload rejected: no valid token'); return res.status(401).json({ error: 'Unauthorized' }); }
-
-  upload.single('image')(req, res, (err) => {
-    if (err) { console.log(`[Avatar] Multer error for ${user.username}: ${err.message}`); return res.status(400).json({ error: err.message }); }
-    if (!req.file) { console.log(`[Avatar] No file received for ${user.username}`); return res.status(400).json({ error: 'No file uploaded' }); }
-    console.log(`[Avatar] File received for ${user.username}: ${req.file.originalname} (${req.file.size} bytes, ${req.file.mimetype})`);
-    if (req.file.size > 2 * 1024 * 1024) {
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ error: 'Avatar must be under 2 MB' });
-    }
-
-    // Validate magic bytes
-    try {
-      const fd = fs.openSync(req.file.path, 'r');
-      const hdr = Buffer.alloc(12);
-      fs.readSync(fd, hdr, 0, 12, 0);
-      fs.closeSync(fd);
-      let validMagic = false;
-      if (req.file.mimetype === 'image/jpeg') validMagic = hdr[0] === 0xFF && hdr[1] === 0xD8 && hdr[2] === 0xFF;
-      else if (req.file.mimetype === 'image/png') validMagic = hdr[0] === 0x89 && hdr[1] === 0x50 && hdr[2] === 0x4E && hdr[3] === 0x47;
-      else if (req.file.mimetype === 'image/gif') validMagic = hdr.slice(0, 6).toString().startsWith('GIF8');
-      else if (req.file.mimetype === 'image/webp') validMagic = hdr.slice(0, 4).toString() === 'RIFF' && hdr.slice(8, 12).toString() === 'WEBP';
-      if (!validMagic) { fs.unlinkSync(req.file.path); return res.status(400).json({ error: 'Invalid image' }); }
-    } catch { try { fs.unlinkSync(req.file.path); } catch {} return res.status(400).json({ error: 'Failed to validate' }); }
-
-    const avatarUrl = `/uploads/${req.file.filename}`;
-    const { getDb } = require('./src/database');
-    getDb().prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatarUrl, user.id);
-    console.log(`[Avatar] Saved for ${user.username}: ${avatarUrl}`);
-    res.json({ url: avatarUrl });
-  });
-});
+// (duplicate avatar handler removed — handled above at /api/upload-avatar)
 
 // ── Sound upload (admin only, wav/mp3/ogg, max 1 MB) ────
 const soundUpload = multer({
@@ -996,7 +1034,8 @@ if (useSSL) {
     httpRedirect.all('*', (req, res) => {
       // Sanitize: only allow path portion, strip host manipulation
       const safePath = (req.url || '/').replace(/[\r\n]/g, '');
-      res.redirect(301, `https://localhost:${safePort}${safePath}`);
+      const host = (req.headers.host || `localhost:${safePort}`).replace(/:\d+$/, '') + ':' + safePort;
+      res.redirect(301, `https://${host}${safePath}`);
     });
     const HTTP_REDIRECT_PORT = safePort + 1; // 3001
     const httpRedirectServer = createServer(httpRedirect);

@@ -36,20 +36,73 @@ async function resolveSpotifyToYouTube(spotifyUrl) {
     const title = oembed.title; // e.g. "Thank You - Dido"
     if (!title) return null;
 
-    // 2. Search YouTube for the track (return first result)
-    const results = await searchYouTube(title + ' official audio', 1);
-    return results.length > 0 ? `https://www.youtube.com/watch?v=${results[0].videoId}` : null;
+    // 2. Search YouTube — try refined query first, then broader
+    const queries = [
+      title + ' official audio',
+      title + ' audio',
+      title
+    ];
+    for (const q of queries) {
+      const results = await searchYouTube(q, 1);
+      if (results.length > 0) {
+        return `https://www.youtube.com/watch?v=${results[0].videoId}`;
+      }
+    }
+    return null;
   } catch {
     return null;
   }
 }
 
 // ── YouTube search helper ─────────────────────────────────
-// Scrapes YouTube search results HTML and extracts video info.
+// Uses YouTube's InnerTube API (primary) with HTML scraping fallback.
 // Returns array of { videoId, title, channel, duration, thumbnail }
-const YT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const YT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 async function searchYouTube(query, count = 5, offset = 0) {
+  // ── Method 1: InnerTube API (structured, reliable) ──────────
+  try {
+    const resp = await fetch('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': YT_UA
+      },
+      body: JSON.stringify({
+        query,
+        context: {
+          client: { clientName: 'WEB', clientVersion: '2.20241120.01.00', hl: 'en', gl: 'US' }
+        },
+        params: 'EgIQAQ%3D%3D'  // filter: videos only
+      })
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const contents = data?.contents?.twoColumnSearchResultsRenderer
+        ?.primaryContents?.sectionListRenderer?.contents;
+      if (contents) {
+        const videos = [];
+        for (const section of contents) {
+          const items = section?.itemSectionRenderer?.contents;
+          if (!items) continue;
+          for (const item of items) {
+            const vr = item.videoRenderer;
+            if (!vr || !vr.videoId) continue;
+            videos.push({
+              videoId: vr.videoId,
+              title: vr.title?.runs?.[0]?.text || 'Unknown',
+              channel: vr.ownerText?.runs?.[0]?.text || '',
+              duration: vr.lengthText?.simpleText || '',
+              thumbnail: vr.thumbnail?.thumbnails?.[0]?.url || ''
+            });
+          }
+        }
+        if (videos.length > 0) return videos.slice(offset, offset + count);
+      }
+    }
+  } catch { /* InnerTube failed, fall through to HTML scraping */ }
+
+  // ── Method 2: HTML scraping (legacy fallback) ───────────────
   try {
     const res = await fetch(
       `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`,
@@ -81,7 +134,7 @@ async function searchYouTube(query, count = 5, offset = 0) {
               });
             }
           }
-          return videos.slice(offset, offset + count);
+          if (videos.length > 0) return videos.slice(offset, offset + count);
         }
       } catch { /* JSON parse failed, fall through to regex */ }
     }
@@ -356,6 +409,8 @@ function setupSocketHandlers(io, db) {
   const activeMusic = new Map();
   // Active screen sharers per voice room:  code → Set<userId>
   const activeScreenSharers = new Map();
+  // Stream viewers:  "code:sharerId" → Set<viewerUserId>
+  const streamViewers = new Map();
   // Slow mode tracker:  "slow:{userId}:{channelId}" → timestamp of last message
   const slowModeTracker = new Map();
   // Clean up old slow mode entries every 5 minutes
@@ -795,6 +850,9 @@ function setupSocketHandlers(io, db) {
         topic: channel.topic || '',
         is_dm: channel.is_dm || 0
       });
+
+      // Refresh full channel list so sub-channels also appear
+      socket.emit('channels-list', getEnrichedChannels(socket.user.id, socket.user.isAdmin, (room) => socket.join(room)));
     });
 
     // ── Switch active channel ───────────────────────────────
@@ -1266,6 +1324,74 @@ function setupSocketHandlers(io, db) {
       handleVoiceLeave(socket, data.code);
     });
 
+    // ── Voice Kick (mod/admin can remove lower-level users from voice) ──
+
+    socket.on('voice-kick', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      if (!isInt(data.userId)) return;
+      if (data.userId === socket.user.id) return; // can't kick yourself
+
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+
+      const target = voiceRoom.get(data.userId);
+      if (!target) return socket.emit('error-msg', 'User is not in voice');
+
+      // Permission check: must have kick_user permission
+      const kickCh = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+      const channelId = kickCh ? kickCh.id : null;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'kick_user', channelId)) {
+        return socket.emit('error-msg', 'You don\'t have permission to kick users from voice');
+      }
+
+      // Level check: can only kick users with a LOWER effective level
+      const myLevel = getUserEffectiveLevel(socket.user.id, channelId);
+      const targetLevel = getUserEffectiveLevel(data.userId, channelId);
+      if (targetLevel >= myLevel) {
+        return socket.emit('error-msg', 'You can\'t kick a user with equal or higher rank');
+      }
+
+      // Force the target out of the voice room
+      voiceRoom.delete(data.userId);
+      const targetSocket = io.sockets.sockets.get(target.socketId);
+      if (targetSocket) {
+        targetSocket.leave(`voice:${data.code}`);
+      }
+
+      // Untrack screen sharer if they were sharing
+      const sharers = activeScreenSharers.get(data.code);
+      if (sharers) { sharers.delete(data.userId); if (sharers.size === 0) activeScreenSharers.delete(data.code); }
+
+      // Clean up stream viewer entries
+      const viewerKey = `${data.code}:${data.userId}`;
+      streamViewers.delete(viewerKey);
+      for (const [key, viewers] of streamViewers) {
+        if (key.startsWith(data.code + ':')) {
+          viewers.delete(data.userId);
+          if (viewers.size === 0) streamViewers.delete(key);
+        }
+      }
+
+      // Notify the kicked user
+      io.to(target.socketId).emit('voice-kicked', {
+        channelCode: data.code,
+        kickedBy: socket.user.displayName
+      });
+
+      // Notify remaining voice users
+      for (const [, user] of voiceRoom) {
+        io.to(user.socketId).emit('voice-user-left', {
+          channelCode: data.code,
+          user: { id: data.userId, username: target.username }
+        });
+      }
+
+      broadcastVoiceUsers(data.code);
+      broadcastStreamInfo(data.code);
+      socket.emit('error-msg', `Kicked ${target.username} from voice`);
+    });
+
     // ── Screen Sharing Signaling ──────────────────────────
 
     socket.on('screen-share-started', (data) => {
@@ -1294,6 +1420,8 @@ function setupSocketHandlers(io, db) {
           });
         }
       }
+      // Broadcast stream viewer/sharer info
+      broadcastStreamInfo(data.code);
     });
 
     socket.on('screen-share-stopped', (data) => {
@@ -1304,6 +1432,9 @@ function setupSocketHandlers(io, db) {
       // Untrack screen sharer
       const sharers = activeScreenSharers.get(data.code);
       if (sharers) { sharers.delete(socket.user.id); if (sharers.size === 0) activeScreenSharers.delete(data.code); }
+      // Clean up any viewer entries for this sharer's stream
+      const viewerKey = `${data.code}:${socket.user.id}`;
+      streamViewers.delete(viewerKey);
       for (const [uid, user] of voiceRoom) {
         if (uid !== socket.user.id) {
           io.to(user.socketId).emit('screen-share-stopped', {
@@ -1312,7 +1443,65 @@ function setupSocketHandlers(io, db) {
           });
         }
       }
+      // Broadcast updated viewer/sharer info
+      broadcastStreamInfo(data.code);
     });
+
+    // ── Stream Viewer Tracking ──────────────────────────
+
+    socket.on('stream-watch', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      if (!isInt(data.sharerId)) return;
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const key = `${data.code}:${data.sharerId}`;
+      if (!streamViewers.has(key)) streamViewers.set(key, new Set());
+      streamViewers.get(key).add(socket.user.id);
+      broadcastStreamInfo(data.code);
+    });
+
+    socket.on('stream-unwatch', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      if (!isInt(data.sharerId)) return;
+      const viewers = streamViewers.get(`${data.code}:${data.sharerId}`);
+      if (viewers) {
+        viewers.delete(socket.user.id);
+        if (viewers.size === 0) streamViewers.delete(`${data.code}:${data.sharerId}`);
+      }
+      broadcastStreamInfo(data.code);
+    });
+
+    function broadcastStreamInfo(code) {
+      const voiceRoom = voiceUsers.get(code);
+      if (!voiceRoom) return;
+      const sharers = activeScreenSharers.get(code);
+      // Build per-stream viewer info
+      const streams = [];
+      if (sharers) {
+        for (const sharerId of sharers) {
+          const sharerInfo = voiceRoom.get(sharerId);
+          const viewers = streamViewers.get(`${code}:${sharerId}`);
+          const viewerList = [];
+          if (viewers) {
+            for (const vid of viewers) {
+              const vInfo = voiceRoom.get(vid);
+              if (vInfo) viewerList.push({ id: vid, username: vInfo.username });
+            }
+          }
+          streams.push({
+            sharerId,
+            sharerName: sharerInfo ? sharerInfo.username : 'Unknown',
+            viewers: viewerList
+          });
+        }
+      }
+      // Send to all voice participants
+      for (const [, user] of voiceRoom) {
+        io.to(user.socketId).emit('stream-viewers-update', { channelCode: code, streams });
+      }
+    }
 
     // ── Music Sharing ───────────────────────────────────
 
@@ -1332,13 +1521,17 @@ function setupSocketHandlers(io, db) {
       let playUrl = data.url;
       let resolvedFrom = null;
 
-      // Convert Spotify tracks → YouTube for universal full playback + sync
-      const spotifyTrack = data.url.match(/open\.spotify\.com\/(track)\/([a-zA-Z0-9]+)/);
-      if (spotifyTrack) {
+      // Convert Spotify URLs → YouTube for universal full playback + sync
+      // Spotify embeds are 30-second preview only (non-premium) with no external API
+      const isSpotify = /open\.spotify\.com\/(track|album|playlist|episode|show)\/[a-zA-Z0-9]+/.test(data.url);
+      if (isSpotify) {
         const ytUrl = await resolveSpotifyToYouTube(data.url);
         if (ytUrl) {
           playUrl = ytUrl;
           resolvedFrom = 'spotify';
+        } else {
+          // Resolution failed — notify the sharer instead of passing a broken embed
+          return socket.emit('error-msg', 'Could not resolve Spotify link to YouTube. Try sharing a YouTube link directly.');
         }
       }
 
@@ -1376,12 +1569,13 @@ function setupSocketHandlers(io, db) {
       }
     });
 
-    // Music playback control sync (play/pause)
+    // Music playback control sync (play/pause/next/prev/shuffle)
     socket.on('music-control', (data) => {
       if (!data || typeof data !== 'object') return;
       if (!isString(data.code, 8, 8)) return;
       const action = data.action;
-      if (action !== 'play' && action !== 'pause') return;
+      const allowed = ['play', 'pause', 'next', 'prev', 'shuffle'];
+      if (!allowed.includes(action)) return;
       const voiceRoom = voiceUsers.get(data.code);
       if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
       for (const [uid, user] of voiceRoom) {
@@ -2433,6 +2627,9 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Only admins can manage webhooks');
       }
       if (!data || typeof data !== 'object') return;
+      // This handler is for the bot management modal (uses channel_id integer)
+      // Per-channel modal sends channelCode instead — skip in that case
+      if (data.channelCode) return;
       const name = typeof data.name === 'string' ? data.name.trim().slice(0, 32) : '';
       const channelId = parseInt(data.channel_id);
       const avatarUrl = typeof data.avatar_url === 'string' ? data.avatar_url.trim().slice(0, 512) : null;
@@ -2461,7 +2658,8 @@ function setupSocketHandlers(io, db) {
       socket.emit('error-msg', `Webhook "${name}" created for #${channel.name}`);
     });
 
-    socket.on('get-webhooks', () => {
+    socket.on('get-webhooks', (data) => {
+      if (data && typeof data === 'object' && data.channelCode) return; // per-channel handler
       if (!socket.user.isAdmin) return;
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
@@ -2509,6 +2707,48 @@ function setupSocketHandlers(io, db) {
         ORDER BY w.created_at DESC
       `).all();
       socket.emit('webhooks-list', { webhooks });
+    });
+
+    socket.on('update-webhook', (data) => {
+      if (!socket.user.isAdmin) {
+        return socket.emit('error-msg', 'Only admins can manage webhooks');
+      }
+      if (!data || typeof data !== 'object') return;
+      const webhookId = parseInt(data.id);
+      if (isNaN(webhookId)) return;
+
+      const wh = db.prepare('SELECT * FROM webhooks WHERE id = ?').get(webhookId);
+      if (!wh) return socket.emit('error-msg', 'Webhook not found');
+
+      // Update name if provided
+      if (typeof data.name === 'string' && data.name.trim()) {
+        db.prepare('UPDATE webhooks SET name = ? WHERE id = ?').run(data.name.trim().slice(0, 32), webhookId);
+      }
+      // Update channel if provided
+      if (data.channel_id !== undefined) {
+        const channelId = parseInt(data.channel_id);
+        if (!isNaN(channelId)) {
+          const channel = db.prepare('SELECT id FROM channels WHERE id = ?').get(channelId);
+          if (channel) {
+            db.prepare('UPDATE webhooks SET channel_id = ? WHERE id = ?').run(channelId, webhookId);
+          }
+        }
+      }
+      // Update avatar if provided (set via upload endpoint, or cleared)
+      if (data.avatar_url !== undefined) {
+        const av = typeof data.avatar_url === 'string' ? data.avatar_url.trim().slice(0, 512) : null;
+        db.prepare('UPDATE webhooks SET avatar_url = ? WHERE id = ?').run(av || null, webhookId);
+      }
+
+      // Return updated list
+      const webhooks = db.prepare(`
+        SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               c.name as channel_name, c.code as channel_code
+        FROM webhooks w JOIN channels c ON w.channel_id = c.id
+        ORDER BY w.created_at DESC
+      `).all();
+      socket.emit('webhooks-list', { webhooks });
+      socket.emit('bot-updated', 'Bot updated');
     });
 
     // ═══════════════ USER STATUS ════════════════════════════
@@ -3074,6 +3314,16 @@ function setupSocketHandlers(io, db) {
       const sharers = activeScreenSharers.get(code);
       if (sharers) { sharers.delete(socket.user.id); if (sharers.size === 0) activeScreenSharers.delete(code); }
 
+      // Clean up stream viewer entries for this user (as sharer or viewer)
+      const viewerKey = `${code}:${socket.user.id}`;
+      streamViewers.delete(viewerKey);  // remove their stream's viewer list
+      for (const [key, viewers] of streamViewers) {
+        if (key.startsWith(code + ':')) {
+          viewers.delete(socket.user.id);  // remove them from other streams
+          if (viewers.size === 0) streamViewers.delete(key);
+        }
+      }
+
       // Tell remaining peers to close connection to this user
       for (const [, user] of voiceRoom) {
         io.to(user.socketId).emit('voice-user-left', {
@@ -3083,6 +3333,7 @@ function setupSocketHandlers(io, db) {
       }
 
       broadcastVoiceUsers(code);
+      broadcastStreamInfo(code);
     }
 
     function broadcastVoiceUsers(code) {

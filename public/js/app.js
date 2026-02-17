@@ -133,7 +133,6 @@ class HavenApp {
     this._setupWebhookManagement();
     this._initRoleManagement();
     this._initServerBranding();
-    this._initPermThresholds();
     this._setupResizableSidebars();
     this.modMode = typeof ModMode === 'function' ? new ModMode() : null;
     this.modMode?.init();
@@ -347,6 +346,11 @@ class HavenApp {
     });
 
     this.socket.on('new-message', async (data) => {
+      // E2E: ensure partner key is available before decrypting
+      const msgCh = this.channels.find(c => c.code === data.channelCode);
+      if (msgCh && msgCh.is_dm && msgCh.dm_target && !this._dmPublicKeys[msgCh.dm_target.id]) {
+        this._fetchDMPartnerKey(msgCh);
+      }
       // E2E: decrypt single message if encrypted
       await this._decryptMessages([data.message]);
 
@@ -472,6 +476,29 @@ class HavenApp {
       this._showMusicSearchResults(data);
     });
 
+    // ── Voice kicked ────────────────────────────────
+    this.socket.on('voice-kicked', (data) => {
+      // Server forcibly removed us from voice — tear down locally
+      if (this.voice && this.voice.inVoice) {
+        this.voice.leave();
+        this._updateVoiceButtons(false);
+        this._updateVoiceStatus(false);
+        this._updateVoiceBar();
+        this._showToast(`Kicked from voice by ${data.kickedBy || 'a moderator'}`, 'error');
+      }
+    });
+
+    // ── Stream viewer tracking ───────────────────────
+    this._streamInfo = []; // Array of { sharerId, sharerName, viewers: [{ id, username }] }
+    this.socket.on('stream-viewers-update', (data) => {
+      this._streamInfo = data.streams || [];
+      this._updateStreamViewerBadges();
+      // Re-render voice users to show streaming/watching indicators
+      if (data.channelCode === this.currentChannel && this._lastVoiceUsers) {
+        this._renderVoiceUsers(this._lastVoiceUsers);
+      }
+    });
+
     // ── Channel members (for @mentions) ────────────────
     this.socket.on('channel-members', (data) => {
       if (data.channelCode === this.currentChannel) {
@@ -569,6 +596,9 @@ class HavenApp {
     this.socket.on('webhook-toggled', (data) => {
       const code = document.getElementById('webhook-modal')._channelCode;
       if (code) this.socket.emit('get-webhooks', { channelCode: code });
+    });
+    this.socket.on('bot-updated', (msg) => {
+      this._showToast(msg, 'success');
     });
 
     // ── Status updated ──────────────────────────────
@@ -746,6 +776,19 @@ class HavenApp {
     // ── Webhooks list ──────────────────────────────────
     this.socket.on('webhooks-list', (data) => {
       this._renderWebhooksList(data.webhooks || []);
+      // Also update bot modal sidebar if open
+      if (document.getElementById('bot-modal')?.style.display === 'flex') {
+        this._renderBotSidebar(data.webhooks || []);
+        // Re-show detail panel if a bot was selected
+        if (this._selectedBotId) {
+          const stillExists = (data.webhooks || []).find(w => w.id === this._selectedBotId);
+          if (stillExists) this._showBotDetail(this._selectedBotId);
+          else {
+            this._selectedBotId = null;
+            document.getElementById('bot-detail-panel').innerHTML = '<p class="muted-text" style="padding:20px;text-align:center">Select a bot to edit, or create a new one</p>';
+          }
+        }
+      }
     });
 
     // ── User preferences (persistent theme etc.) ───────
@@ -954,9 +997,15 @@ class HavenApp {
     document.getElementById('organize-global-sort')?.addEventListener('change', (e) => {
       if (!this._organizeParentCode) return;
       const sortMode = e.target.value; // 'manual', 'alpha', 'created', 'oldest'
-      this.socket.emit('set-sort-alphabetical', { code: this._organizeParentCode, enabled: sortMode === 'alpha', mode: sortMode });
-      const parent = this.channels.find(c => c.code === this._organizeParentCode);
-      if (parent) parent.sort_alphabetical = sortMode === 'alpha' ? 1 : sortMode === 'created' ? 2 : sortMode === 'oldest' ? 3 : 0;
+      if (this._organizeServerLevel) {
+        // Server-level sort: store in localStorage (no parent channel to hold it)
+        localStorage.setItem('haven_server_sort_mode', sortMode);
+      } else {
+        // Sub-channel sort: store on the parent channel (server-side)
+        this.socket.emit('set-sort-alphabetical', { code: this._organizeParentCode, enabled: sortMode === 'alpha', mode: sortMode });
+        const parent = this.channels.find(c => c.code === this._organizeParentCode);
+        if (parent) parent.sort_alphabetical = sortMode === 'alpha' ? 1 : sortMode === 'created' ? 2 : sortMode === 'oldest' ? 3 : 0;
+      }
       this._renderOrganizeList();
     });
     document.getElementById('organize-move-up')?.addEventListener('click', () => {
@@ -1015,6 +1064,67 @@ class HavenApp {
         this._organizeList = null;
         this._organizeSelected = null;
         this._organizeServerLevel = false;
+      }
+    });
+    // ── DM Organize Modal ──
+    document.getElementById('organize-dms-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation(); // don't toggle DM collapse
+      this._openDmOrganizeModal();
+    });
+    document.getElementById('dm-organize-sort')?.addEventListener('change', () => {
+      const mode = document.getElementById('dm-organize-sort').value;
+      localStorage.setItem('haven_dm_sort_mode', mode);
+      this._renderDmOrganizeList();
+    });
+    document.getElementById('dm-organize-move-up')?.addEventListener('click', () => {
+      if (!this._dmOrganizeSelected) return;
+      const idx = this._dmOrganizeList.findIndex(c => c.code === this._dmOrganizeSelected);
+      if (idx <= 0) return;
+      [this._dmOrganizeList[idx], this._dmOrganizeList[idx - 1]] = [this._dmOrganizeList[idx - 1], this._dmOrganizeList[idx]];
+      this._saveDmOrder();
+      this._renderDmOrganizeList();
+    });
+    document.getElementById('dm-organize-move-down')?.addEventListener('click', () => {
+      if (!this._dmOrganizeSelected) return;
+      const idx = this._dmOrganizeList.findIndex(c => c.code === this._dmOrganizeSelected);
+      if (idx < 0 || idx >= this._dmOrganizeList.length - 1) return;
+      [this._dmOrganizeList[idx], this._dmOrganizeList[idx + 1]] = [this._dmOrganizeList[idx + 1], this._dmOrganizeList[idx]];
+      this._saveDmOrder();
+      this._renderDmOrganizeList();
+    });
+    document.getElementById('dm-organize-set-tag')?.addEventListener('click', () => {
+      if (!this._dmOrganizeSelected) return;
+      const tag = document.getElementById('dm-organize-tag-input').value.trim();
+      if (!tag) return;
+      const assignments = JSON.parse(localStorage.getItem('haven_dm_assignments') || '{}');
+      assignments[this._dmOrganizeSelected] = tag;
+      localStorage.setItem('haven_dm_assignments', JSON.stringify(assignments));
+      // Ensure category entry exists
+      const cats = JSON.parse(localStorage.getItem('haven_dm_categories') || '{}');
+      if (!cats[tag]) cats[tag] = { collapsed: false };
+      localStorage.setItem('haven_dm_categories', JSON.stringify(cats));
+      this._renderDmOrganizeList();
+    });
+    document.getElementById('dm-organize-remove-tag')?.addEventListener('click', () => {
+      if (!this._dmOrganizeSelected) return;
+      const assignments = JSON.parse(localStorage.getItem('haven_dm_assignments') || '{}');
+      delete assignments[this._dmOrganizeSelected];
+      localStorage.setItem('haven_dm_assignments', JSON.stringify(assignments));
+      document.getElementById('dm-organize-tag-input').value = '';
+      this._renderDmOrganizeList();
+    });
+    document.getElementById('dm-organize-done-btn')?.addEventListener('click', () => {
+      document.getElementById('dm-organize-modal').style.display = 'none';
+      this._dmOrganizeList = null;
+      this._dmOrganizeSelected = null;
+      this._renderChannels();
+    });
+    document.getElementById('dm-organize-modal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'dm-organize-modal') {
+        document.getElementById('dm-organize-modal').style.display = 'none';
+        this._dmOrganizeList = null;
+        this._dmOrganizeSelected = null;
+        this._renderChannels();
       }
     });
     // Slow mode
@@ -1160,6 +1270,9 @@ class HavenApp {
     });
     document.getElementById('music-popout-btn').addEventListener('click', () => this._popOutMusicPlayer());
     document.getElementById('music-play-pause-btn').addEventListener('click', () => this._toggleMusicPlayPause());
+    document.getElementById('music-prev-btn').addEventListener('click', () => this._musicTrackControl('prev'));
+    document.getElementById('music-next-btn').addEventListener('click', () => this._musicTrackControl('next'));
+    document.getElementById('music-shuffle-btn').addEventListener('click', () => this._musicTrackControl('shuffle'));
     document.getElementById('music-mute-btn').addEventListener('click', () => this._toggleMusicMute());
     document.getElementById('music-volume-slider').addEventListener('input', (e) => {
       this._setMusicVolume(parseInt(e.target.value));
@@ -1181,6 +1294,9 @@ class HavenApp {
     });
     document.getElementById('music-link-input').addEventListener('input', (e) => {
       this._previewMusicLink(e.target.value.trim());
+    });
+    document.getElementById('music-link-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); this._shareMusic(); }
     });
 
     // Voice controls — now pinned at bottom of right sidebar
@@ -1767,9 +1883,9 @@ class HavenApp {
 
     document.getElementById('add-server-btn').addEventListener('click', () => {
       document.getElementById('add-server-modal').style.display = 'flex';
-      document.getElementById('server-name-input').value = '';
+      document.getElementById('add-server-name-input').value = '';
       document.getElementById('server-url-input').value = '';
-      document.getElementById('server-name-input').focus();
+      document.getElementById('add-server-name-input').focus();
     });
 
     document.getElementById('cancel-server-btn').addEventListener('click', () => {
@@ -1855,7 +1971,7 @@ class HavenApp {
   }
 
   _addServer() {
-    const name = document.getElementById('server-name-input').value.trim();
+    const name = document.getElementById('add-server-name-input').value.trim();
     const url = document.getElementById('server-url-input').value.trim();
     if (!name || !url) return this._showToast('Name and address are both required', 'error');
 
@@ -2749,22 +2865,195 @@ class HavenApp {
   // ═══════════════════════════════════════════════════════
 
   _setupWebhookManagement() {
-    const createBtn = document.getElementById('webhook-create-btn');
-    if (!createBtn) return;
-
-    createBtn.addEventListener('click', () => {
-      const name = document.getElementById('webhook-name-input')?.value.trim();
-      const channelId = document.getElementById('webhook-channel-select')?.value;
-      const avatarUrl = document.getElementById('webhook-avatar-input')?.value.trim() || null;
-      if (!name) return this._showToast('Enter a bot name', 'error');
-      if (!channelId) return this._showToast('Select a channel', 'error');
-
-      this.socket.emit('create-webhook', { name, channel_id: parseInt(channelId), avatar_url: avatarUrl });
-
-      // Clear inputs
-      document.getElementById('webhook-name-input').value = '';
-      document.getElementById('webhook-avatar-input').value = '';
+    // Open bot management modal
+    const openBtn = document.getElementById('open-bot-editor-btn');
+    if (openBtn) {
+      openBtn.addEventListener('click', () => this._openBotModal());
+    }
+    // Close bot modal
+    document.getElementById('close-bot-modal-btn')?.addEventListener('click', () => {
+      document.getElementById('bot-modal').style.display = 'none';
     });
+    document.getElementById('bot-modal')?.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+    });
+    // Create new bot
+    document.getElementById('create-bot-btn')?.addEventListener('click', () => {
+      this._createNewBot();
+    });
+  }
+
+  _openBotModal() {
+    document.getElementById('bot-modal').style.display = 'flex';
+    document.getElementById('bot-detail-panel').innerHTML = '<p class="muted-text" style="padding:20px;text-align:center">Select a bot to edit, or create a new one</p>';
+    // Request all webhooks for the sidebar
+    this.socket.emit('get-webhooks');
+  }
+
+  _createNewBot() {
+    const name = prompt('Enter bot name:');
+    if (!name || !name.trim()) return;
+    // Pick first non-DM channel as default
+    const firstChannel = this.channels.find(c => !c.is_dm);
+    if (!firstChannel) return this._showToast('No channels available', 'error');
+    this.socket.emit('create-webhook', { name: name.trim(), channel_id: firstChannel.id, avatar_url: null });
+  }
+
+  _renderBotSidebar(webhooks) {
+    const sidebar = document.getElementById('bot-list-sidebar');
+    if (!sidebar) return;
+    this._botWebhooks = webhooks; // cache for detail panel
+    sidebar.innerHTML = webhooks.map(wh => {
+      const avatarHtml = wh.avatar_url
+        ? `<img src="${this._escapeHtml(wh.avatar_url)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;flex-shrink:0">`
+        : `<span style="width:20px;height:20px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;color:#fff">🤖</span>`;
+      const activeClass = this._selectedBotId === wh.id ? ' active' : '';
+      return `<div class="role-sidebar-item${activeClass}" data-bot-id="${wh.id}">${avatarHtml}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escapeHtml(wh.name)}</span></div>`;
+    }).join('');
+
+    sidebar.querySelectorAll('.role-sidebar-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const botId = parseInt(item.dataset.botId);
+        this._selectedBotId = botId;
+        // Highlight active
+        sidebar.querySelectorAll('.role-sidebar-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        this._showBotDetail(botId);
+      });
+    });
+  }
+
+  _showBotDetail(botId) {
+    const wh = (this._botWebhooks || []).find(w => w.id === botId);
+    if (!wh) return;
+    const panel = document.getElementById('bot-detail-panel');
+    const baseUrl = window.location.origin;
+    const webhookUrl = `${baseUrl}/api/webhooks/${wh.token}`;
+    const maskedToken = wh.token.slice(0, 12) + '••••••••••••';
+    const channelOptions = this._getBotChannelOptions(wh.channel_id);
+
+    panel.innerHTML = `
+      <div class="role-detail-form">
+        <label class="settings-label">Avatar</label>
+        <div class="bot-avatar-row" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div class="bot-avatar-preview" style="width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid var(--border);background:var(--bg-tertiary);flex-shrink:0;display:flex;align-items:center;justify-content:center">
+            ${wh.avatar_url ? `<img src="${this._escapeHtml(wh.avatar_url)}" style="width:100%;height:100%;object-fit:cover">` : '<span style="font-size:24px">🤖</span>'}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <button class="btn-xs btn-accent" id="bot-upload-avatar-btn">📷 Upload</button>
+            <button class="btn-xs" id="bot-remove-avatar-btn" ${wh.avatar_url ? '' : 'disabled'}>Remove</button>
+          </div>
+          <input type="file" id="bot-avatar-file-input" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
+        </div>
+
+        <label class="settings-label">Name</label>
+        <input type="text" id="bot-detail-name" value="${this._escapeHtml(wh.name)}" maxlength="32" class="settings-text-input" style="width:100%;margin-bottom:8px">
+
+        <label class="settings-label">Channel</label>
+        <select id="bot-detail-channel" class="settings-select" style="width:100%;margin-bottom:8px">${channelOptions}</select>
+
+        <label class="settings-label">Status</label>
+        <label class="toggle-row" style="margin-bottom:8px">
+          <span>${wh.is_active ? '🟢 Active' : '🔴 Disabled'}</span>
+          <button class="btn-xs" id="bot-detail-toggle">${wh.is_active ? 'Disable' : 'Enable'}</button>
+        </label>
+
+        <label class="settings-label">Webhook URL</label>
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px">
+          <code style="flex:1;font-size:11px;padding:6px 8px;background:var(--bg-input);border-radius:4px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escapeHtml(webhookUrl)}</code>
+          <button class="btn-xs" id="bot-detail-copy-url" title="Copy URL">📋</button>
+        </div>
+
+        <label class="settings-label">Token</label>
+        <div style="font-size:11px;font-family:monospace;padding:4px 8px;background:var(--bg-input);border-radius:4px;color:var(--text-muted);margin-bottom:12px">${maskedToken}</div>
+
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn-sm btn-accent" id="bot-detail-save" style="flex:1">💾 Save Changes</button>
+          <button class="btn-sm btn-danger" id="bot-detail-delete">🗑️ Delete</button>
+        </div>
+      </div>
+    `;
+
+    // Wire up handlers
+    panel.querySelector('#bot-upload-avatar-btn').addEventListener('click', () => {
+      panel.querySelector('#bot-avatar-file-input').click();
+    });
+    panel.querySelector('#bot-avatar-file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      this._uploadBotAvatar(botId, file);
+    });
+    panel.querySelector('#bot-remove-avatar-btn').addEventListener('click', () => {
+      this.socket.emit('update-webhook', { id: botId, avatar_url: '' });
+    });
+    panel.querySelector('#bot-detail-save').addEventListener('click', () => {
+      const name = panel.querySelector('#bot-detail-name').value.trim();
+      const channelId = parseInt(panel.querySelector('#bot-detail-channel').value);
+      if (!name) return this._showToast('Name is required', 'error');
+      this.socket.emit('update-webhook', { id: botId, name, channel_id: channelId });
+    });
+    panel.querySelector('#bot-detail-toggle').addEventListener('click', () => {
+      this.socket.emit('toggle-webhook', { id: botId });
+    });
+    panel.querySelector('#bot-detail-copy-url').addEventListener('click', () => {
+      navigator.clipboard.writeText(webhookUrl).then(() => {
+        panel.querySelector('#bot-detail-copy-url').textContent = '✅';
+        setTimeout(() => {
+          const btn = panel.querySelector('#bot-detail-copy-url');
+          if (btn) btn.textContent = '📋';
+        }, 1500);
+      });
+    });
+    panel.querySelector('#bot-detail-delete').addEventListener('click', () => {
+      if (confirm(`Delete bot "${wh.name}"? This cannot be undone.`)) {
+        this._selectedBotId = null;
+        this.socket.emit('delete-webhook', { id: botId });
+      }
+    });
+  }
+
+  /** Build channel <option> list ordered like the sidebar (parents first, sub-channels indented) */
+  _getBotChannelOptions(selectedId) {
+    const regular = this.channels.filter(c => !c.is_dm);
+    const parents = regular.filter(c => !c.parent_channel_id);
+    const subMap = {};
+    regular.filter(c => c.parent_channel_id).forEach(c => {
+      if (!subMap[c.parent_channel_id]) subMap[c.parent_channel_id] = [];
+      subMap[c.parent_channel_id].push(c);
+    });
+    let html = '';
+    for (const p of parents) {
+      const sel = p.id === selectedId ? ' selected' : '';
+      html += `<option value="${p.id}"${sel}># ${this._escapeHtml(p.name)}</option>`;
+      const subs = subMap[p.id] || [];
+      for (const s of subs) {
+        const sSel = s.id === selectedId ? ' selected' : '';
+        html += `<option value="${s.id}"${sSel}>&nbsp;&nbsp;&nbsp;&nbsp;↳ ${this._escapeHtml(s.name)}</option>`;
+      }
+    }
+    return html;
+  }
+
+  async _uploadBotAvatar(botId, file) {
+    const form = new FormData();
+    form.append('avatar', file);
+    form.append('webhookId', botId);
+    try {
+      const resp = await fetch('/api/upload-webhook-avatar', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${this.token}` },
+        body: form
+      });
+      const json = await resp.json();
+      if (json.url) {
+        this.socket.emit('update-webhook', { id: botId, avatar_url: json.url });
+        this._showToast('Bot avatar updated', 'success');
+      } else {
+        this._showToast(json.error || 'Upload failed', 'error');
+      }
+    } catch (err) {
+      this._showToast('Upload failed', 'error');
+    }
   }
 
   // ═══════════════════════════════════════════════════════
@@ -3703,9 +3992,10 @@ class HavenApp {
 
       document.getElementById('organize-modal-title').textContent = '📋 Organize Channels';
       document.getElementById('organize-modal-parent-name').textContent = 'Reorder channels and assign category tags';
-      // No global sort for server-level (always manual by position)
+      // Server-level sort is stored in localStorage (no single parent channel to hold it)
       const sortSel = document.getElementById('organize-global-sort');
-      sortSel.value = 'manual';
+      const savedSort = localStorage.getItem('haven_server_sort_mode') || 'manual';
+      sortSel.value = savedSort;
       document.getElementById('organize-tag-input').value = '';
       this._renderOrganizeList();
       document.getElementById('organize-modal').style.display = 'flex';
@@ -3849,6 +4139,116 @@ class HavenApp {
     document.getElementById('organize-remove-tag').disabled = !this._organizeSelected;
   }
 
+  /* ── DM Organize (client-side, localStorage) ─────────── */
+
+  _openDmOrganizeModal() {
+    const dmChannels = this.channels.filter(c => c.is_dm);
+    const order = JSON.parse(localStorage.getItem('haven_dm_order') || '[]');
+    const assignments = JSON.parse(localStorage.getItem('haven_dm_assignments') || '{}');
+
+    // Build list sorted by saved order, then alphabetical for unknowns
+    const ordered = [];
+    for (const code of order) {
+      const ch = dmChannels.find(c => c.code === code);
+      if (ch) ordered.push(ch);
+    }
+    for (const ch of dmChannels) {
+      if (!ordered.includes(ch)) ordered.push(ch);
+    }
+    this._dmOrganizeList = ordered;
+    this._dmOrganizeSelected = null;
+
+    const sortSel = document.getElementById('dm-organize-sort');
+    sortSel.value = localStorage.getItem('haven_dm_sort_mode') || 'manual';
+    document.getElementById('dm-organize-tag-input').value = '';
+    this._renderDmOrganizeList();
+    document.getElementById('dm-organize-modal').style.display = 'flex';
+  }
+
+  _saveDmOrder() {
+    localStorage.setItem('haven_dm_order', JSON.stringify(this._dmOrganizeList.map(c => c.code)));
+  }
+
+  _renderDmOrganizeList() {
+    const listEl = document.getElementById('dm-organize-list');
+    const sortMode = document.getElementById('dm-organize-sort').value;
+    const assignments = JSON.parse(localStorage.getItem('haven_dm_assignments') || '{}');
+
+    let displayList = [...(this._dmOrganizeList || [])];
+
+    // Collect unique tags
+    const allTags = [...new Set(displayList.map(c => assignments[c.code]).filter(Boolean))].sort();
+    const hasTags = allTags.length > 0;
+
+    const getDmName = (ch) => ch.dm_target ? ch.dm_target.username : 'Unknown';
+
+    const sortGroup = (arr, mode) => {
+      if (mode === 'alpha') {
+        arr.sort((a, b) => getDmName(a).localeCompare(getDmName(b)));
+      } else if (mode === 'recent') {
+        arr.sort((a, b) => (b.last_activity || 0) - (a.last_activity || 0));
+      }
+      // manual = keep current order
+      return arr;
+    };
+
+    let grouped = [];
+    if (hasTags) {
+      for (const tag of allTags) {
+        const tagItems = sortGroup(displayList.filter(c => assignments[c.code] === tag), sortMode);
+        grouped.push({ tag, items: tagItems });
+      }
+      const untagged = displayList.filter(c => !assignments[c.code]);
+      if (untagged.length) {
+        grouped.push({ tag: '', items: sortGroup(untagged, sortMode) });
+      }
+    } else {
+      grouped.push({ tag: '', items: sortGroup(displayList, sortMode) });
+    }
+
+    let html = '';
+    for (const group of grouped) {
+      if (group.tag) {
+        html += `<div class="organize-tag-header">🏷️ ${this._escapeHtml(group.tag)}</div>`;
+      } else if (hasTags) {
+        html += `<div class="organize-tag-header" style="opacity:0.5">Uncategorized</div>`;
+      }
+      for (const ch of group.items) {
+        const name = getDmName(ch);
+        const sel = ch.code === this._dmOrganizeSelected ? ' selected' : '';
+        const tagBadge = assignments[ch.code] ? `<span class="organize-tag-badge">${this._escapeHtml(assignments[ch.code])}</span>` : '';
+        html += `<div class="organize-item${sel}" data-code="${ch.code}">
+          <span class="organize-item-name">@ ${this._escapeHtml(name)}</span>
+          ${tagBadge}
+        </div>`;
+      }
+    }
+    listEl.innerHTML = html || '<p class="muted-text">No DMs to organize</p>';
+
+    // Click to select
+    listEl.querySelectorAll('.organize-item').forEach(el => {
+      el.addEventListener('click', () => {
+        this._dmOrganizeSelected = el.dataset.code;
+        listEl.querySelectorAll('.organize-item').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        // Pre-fill tag input with current tag
+        const currentTag = assignments[el.dataset.code] || '';
+        document.getElementById('dm-organize-tag-input').value = currentTag;
+        this._updateDmOrganizeButtons();
+      });
+    });
+    this._updateDmOrganizeButtons();
+  }
+
+  _updateDmOrganizeButtons() {
+    const sortMode = document.getElementById('dm-organize-sort').value;
+    const isManual = sortMode === 'manual';
+    document.getElementById('dm-organize-move-up').disabled = !isManual || !this._dmOrganizeSelected;
+    document.getElementById('dm-organize-move-down').disabled = !isManual || !this._dmOrganizeSelected;
+    document.getElementById('dm-organize-set-tag').disabled = !this._dmOrganizeSelected;
+    document.getElementById('dm-organize-remove-tag').disabled = !this._dmOrganizeSelected;
+  }
+
   _openWebhookModal(channelCode) {
     const ch = this.channels.find(c => c.code === channelCode);
     const modal = document.getElementById('webhook-modal');
@@ -3962,8 +4362,40 @@ class HavenApp {
       }
     });
 
-    // Sort parent channels by position, then name
-    parentChannels.sort((a, b) => (a.position || 0) - (b.position || 0) || a.name.localeCompare(b.name));
+    // Sort parent channels — respect server-level sort mode & per-tag overrides
+    const serverSortMode = localStorage.getItem('haven_server_sort_mode') || 'manual';
+    const serverTagOverrides = JSON.parse(localStorage.getItem('haven_tag_sorts___server__') || '{}');
+    const parentHasTags = parentChannels.some(c => c.category);
+
+    const serverSortByMode = (a, b, mode) => {
+      if (mode === 'alpha') return a.name.localeCompare(b.name);
+      if (mode === 'created') return (b.id || 0) - (a.id || 0);
+      if (mode === 'oldest') return (a.id || 0) - (b.id || 0);
+      return (a.position || 0) - (b.position || 0) || a.name.localeCompare(b.name); // manual
+    };
+
+    if (parentHasTags) {
+      const tagGroup = (a, b) => {
+        const tagA = (a.category || '').toLowerCase();
+        const tagB = (b.category || '').toLowerCase();
+        if (tagA !== tagB) {
+          if (!tagA) return 1;
+          if (!tagB) return -1;
+          return tagA.localeCompare(tagB);
+        }
+        return 0;
+      };
+      parentChannels.sort((a, b) => {
+        const g = tagGroup(a, b);
+        if (g !== 0) return g;
+        const tag = a.category || '__untagged__';
+        const override = serverTagOverrides[tag];
+        const effectiveMode = override !== undefined ? override : serverSortMode;
+        return serverSortByMode(a, b, effectiveMode);
+      });
+    } else {
+      parentChannels.sort((a, b) => serverSortByMode(a, b, serverSortMode));
+    }
 
     const renderChannelItem = (ch, isSub) => {
       const el = document.createElement('div');
@@ -4120,7 +4552,8 @@ class HavenApp {
       // Set up DM toggle click (only once)
       if (!this._dmToggleBound) {
         this._dmToggleBound = true;
-        document.getElementById('dm-toggle-header')?.addEventListener('click', () => {
+        document.getElementById('dm-toggle-header')?.addEventListener('click', (e) => {
+          if (e.target.closest('#organize-dms-btn')) return;
           const nowCollapsed = dmList.style.display !== 'none';
           dmList.style.display = nowCollapsed ? 'none' : '';
           const arrow = document.getElementById('dm-toggle-arrow');
@@ -4148,27 +4581,114 @@ class HavenApp {
       const dmPane = document.getElementById('dm-pane');
       if (dmPane) dmPane.style.display = dmChannels.length ? '' : 'none';
 
-      dmChannels.forEach(ch => {
+      // ── DM categorization (client-side localStorage) ──
+      const dmAssignments = JSON.parse(localStorage.getItem('haven_dm_assignments') || '{}');
+      const dmCategories = JSON.parse(localStorage.getItem('haven_dm_categories') || '{}');
+      const dmSortMode = localStorage.getItem('haven_dm_sort_mode') || 'manual';
+      const dmOrder = JSON.parse(localStorage.getItem('haven_dm_order') || '[]');
+
+      const getDmName = (ch) => ch.dm_target ? ch.dm_target.username : 'Unknown';
+
+      // Sort DMs by saved order first, then append any new ones
+      let sortedDms = [];
+      if (dmSortMode === 'manual' && dmOrder.length) {
+        for (const code of dmOrder) {
+          const ch = dmChannels.find(c => c.code === code);
+          if (ch) sortedDms.push(ch);
+        }
+        for (const ch of dmChannels) {
+          if (!sortedDms.includes(ch)) sortedDms.push(ch);
+        }
+      } else if (dmSortMode === 'alpha') {
+        sortedDms = [...dmChannels].sort((a, b) => getDmName(a).localeCompare(getDmName(b)));
+      } else if (dmSortMode === 'recent') {
+        sortedDms = [...dmChannels].sort((a, b) => (b.last_activity || 0) - (a.last_activity || 0));
+      } else {
+        sortedDms = [...dmChannels];
+      }
+
+      // Collect active tag names from assigned DMs
+      const activeTags = [...new Set(sortedDms.map(c => dmAssignments[c.code]).filter(Boolean))].sort();
+      const hasDmTags = activeTags.length > 0;
+
+      const renderDmItem = (ch) => {
         const el = document.createElement('div');
         el.className = 'channel-item dm-item' + (ch.code === this.currentChannel ? ' active' : '');
         el.dataset.code = ch.code;
-        const dmName = ch.dm_target ? ch.dm_target.username : 'Unknown';
+        const dmName = getDmName(ch);
         el.innerHTML = `
           <span class="channel-hash">@</span>
           <span class="channel-name">${this._escapeHtml(dmName)}</span>
         `;
-
         const count = this.unreadCounts[ch.code] || ch.unreadCount || 0;
         if (count > 0) {
-          const badge = document.createElement('span');
-          badge.className = 'channel-badge';
-          badge.textContent = count > 99 ? '99+' : count;
-          el.appendChild(badge);
+          const bdg = document.createElement('span');
+          bdg.className = 'channel-badge';
+          bdg.textContent = count > 99 ? '99+' : count;
+          el.appendChild(bdg);
         }
-
         el.addEventListener('click', () => this.switchChannel(ch.code));
-        dmList.appendChild(el);
-      });
+        return el;
+      };
+
+      if (hasDmTags) {
+        // Render by category groups
+        for (const tag of activeTags) {
+          const tagDms = sortedDms.filter(c => dmAssignments[c.code] === tag);
+          if (!tagDms.length) continue;
+
+          const catState = dmCategories[tag] || {};
+          const isCollapsed = catState.collapsed || false;
+
+          // Category header
+          const header = document.createElement('div');
+          header.className = 'dm-category-header';
+          header.innerHTML = `<span class="dm-category-arrow${isCollapsed ? ' collapsed' : ''}">▾</span> <span class="dm-category-name">${this._escapeHtml(tag)}</span>`;
+          header.style.cursor = 'pointer';
+          header.addEventListener('click', () => {
+            const cats = JSON.parse(localStorage.getItem('haven_dm_categories') || '{}');
+            if (!cats[tag]) cats[tag] = {};
+            cats[tag].collapsed = !cats[tag].collapsed;
+            localStorage.setItem('haven_dm_categories', JSON.stringify(cats));
+            this._renderChannels();
+          });
+          dmList.appendChild(header);
+
+          for (const ch of tagDms) {
+            const el = renderDmItem(ch);
+            if (isCollapsed) el.style.display = 'none';
+            el.dataset.dmTag = tag;
+            dmList.appendChild(el);
+          }
+        }
+        // Untagged DMs
+        const untagged = sortedDms.filter(c => !dmAssignments[c.code]);
+        if (untagged.length) {
+          const uncatCats = JSON.parse(localStorage.getItem('haven_dm_categories') || '{}');
+          const uncatCollapsed = uncatCats['__uncategorized__']?.collapsed || false;
+          const header = document.createElement('div');
+          header.className = 'dm-category-header';
+          header.style.opacity = '0.5';
+          header.style.cursor = 'pointer';
+          header.innerHTML = `<span class="dm-category-arrow${uncatCollapsed ? ' collapsed' : ''}">▾</span> <span class="dm-category-name">Uncategorized</span>`;
+          header.addEventListener('click', () => {
+            const cats = JSON.parse(localStorage.getItem('haven_dm_categories') || '{}');
+            if (!cats['__uncategorized__']) cats['__uncategorized__'] = {};
+            cats['__uncategorized__'].collapsed = !cats['__uncategorized__'].collapsed;
+            localStorage.setItem('haven_dm_categories', JSON.stringify(cats));
+            this._renderChannels();
+          });
+          dmList.appendChild(header);
+          for (const ch of untagged) {
+            const el = renderDmItem(ch);
+            if (uncatCollapsed) el.style.display = 'none';
+            dmList.appendChild(el);
+          }
+        }
+      } else {
+        // No tags — flat list (original behavior)
+        sortedDms.forEach(ch => dmList.appendChild(renderDmItem(ch)));
+      }
     }
 
     // Render voice indicators for channels with active voice users
@@ -4227,7 +4747,7 @@ class HavenApp {
 
   // ── Messages ──────────────────────────────────────────
 
-  _sendMessage() {
+  async _sendMessage() {
     const input = document.getElementById('message-input');
     const content = input.value.trim();
     const hasImages = this._imageQueue && this._imageQueue.length > 0;
@@ -4292,35 +4812,51 @@ class HavenApp {
       payload.replyTo = this.replyingTo.id;
     }
 
-    // Send text message if there is one
-    if (content) {
-      // E2E: encrypt DM messages
-      const partner = this._getE2EPartner();
-      if (partner) {
-        this.e2e.encrypt(content, partner.userId, partner.publicKeyJwk).then(encrypted => {
-          payload.content = encrypted;
-          payload.encrypted = true;
-          this.socket.emit('send-message', payload);
-        }).catch(() => {
-          // Fallback: send unencrypted
-          this.socket.emit('send-message', payload);
-        });
-      } else {
-        this.socket.emit('send-message', payload);
-      }
-    }
-
-    // Upload queued images
-    if (hasImages) {
-      this._flushImageQueue();
-    }
-
+    // Clear UI immediately (before any async E2E work)
     input.value = '';
     input.style.height = 'auto';
     input.focus();
     this._clearReply();
     this._hideMentionDropdown();
     this._hideSlashDropdown();
+
+    // Send text message if there is one
+    if (content) {
+      // E2E: encrypt DM messages
+      const ch = this.channels.find(c => c.code === this.currentChannel);
+      const isDm = ch && ch.is_dm && ch.dm_target;
+      let partner = this._getE2EPartner();
+
+      // If DM but partner key not yet cached, request it and wait briefly
+      if (isDm && !partner && this.e2e && this.e2e.ready) {
+        this.socket.emit('get-public-key', { userId: ch.dm_target.id });
+        for (let i = 0; i < 20; i++) {
+          await new Promise(r => setTimeout(r, 100));
+          partner = this._getE2EPartner();
+          if (partner) break;
+        }
+        if (!partner) {
+          this._showToast('Encryption key unavailable — message sent without E2E', 'warning');
+        }
+      }
+
+      if (partner) {
+        try {
+          const encrypted = await this.e2e.encrypt(content, partner.userId, partner.publicKeyJwk);
+          payload.content = encrypted;
+          payload.encrypted = true;
+        } catch (err) {
+          console.warn('[E2E] Encryption failed:', err);
+          this._showToast('Encryption failed — message sent without E2E', 'warning');
+        }
+      }
+      this.socket.emit('send-message', payload);
+    }
+
+    // Upload queued images
+    if (hasImages) {
+      this._flushImageQueue();
+    }
   }
 
   _renderMessages(messages) {
@@ -4409,8 +4945,10 @@ class HavenApp {
       el.dataset.time = msg.created_at;
       el.dataset.msgId = msg.id;
       if (msg.pinned) el.dataset.pinned = '1';
+      if (msg._e2e) el.dataset.e2e = '1';
       el.innerHTML = `
         <span class="compact-time">${new Date(msg.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span>
+        ${e2eTag}
         <div class="message-content">${pinnedTag}${this._formatContent(msg.content)}${editedHtml}</div>
         ${toolbarHtml}
         ${reactionsHtml}
@@ -4441,6 +4979,7 @@ class HavenApp {
     el.dataset.time = msg.created_at;
     el.dataset.msgId = msg.id;
     if (msg.pinned) el.dataset.pinned = '1';
+    if (msg._e2e) el.dataset.e2e = '1';
     el.innerHTML = `
       ${replyHtml}
       <div class="message-row">
@@ -4483,9 +5022,7 @@ class HavenApp {
     const reactionsEl = compactEl.querySelector('.reactions');
     const reactionsHtml = reactionsEl ? reactionsEl.outerHTML : '';
     const pinnedTag = isPinned ? '<span class="pinned-tag" title="Pinned message">📌</span>' : '';
-    // Check if this DM channel has E2E
-    const ch = this.channels.find(c => c.code === this.currentChannel);
-    const e2eTag = (ch && ch.is_dm) ? '<span class="e2e-tag" title="End-to-end encrypted">🔒</span>' : '';
+    const e2eTag = compactEl.dataset.e2e === '1' ? '<span class="e2e-tag" title="End-to-end encrypted">🔒</span>' : '';
 
     const color = this._getUserColor(username);
     const initial = username.charAt(0).toUpperCase();
@@ -5073,20 +5610,39 @@ class HavenApp {
   // ── Voice Users ───────────────────────────────────────
 
   _renderVoiceUsers(users) {
+    this._lastVoiceUsers = users; // Cache for re-render on stream info updates
     const el = document.getElementById('voice-users');
     if (users.length === 0) {
       el.innerHTML = '<p class="muted-text">No one in voice</p>';
       return;
     }
+    const streams = this._streamInfo || [];
     el.innerHTML = users.map(u => {
       const isSelf = u.id === this.user.id;
       const talking = this.voice && ((isSelf && this.voice.talkingState.get('self')) || this.voice.talkingState.get(u.id));
       const dotColor = u.roleColor || '';
       const dotStyle = dotColor ? ` style="background:${dotColor};--voice-dot-color:${dotColor}"` : '';
+
+      // Stream indicators: is this user streaming? watching?
+      const isStreaming = streams.some(s => s.sharerId === u.id);
+      const watchingStreams = streams.filter(s => s.viewers.some(v => v.id === u.id));
+      const isWatching = watchingStreams.length > 0;
+      let streamBadge = '';
+      if (isStreaming) {
+        const myStream = streams.find(s => s.sharerId === u.id);
+        const viewerCount = myStream ? myStream.viewers.length : 0;
+        streamBadge = `<span class="voice-stream-badge live" title="Streaming${viewerCount ? ' · ' + viewerCount + ' viewer' + (viewerCount > 1 ? 's' : '') : ''}">🔴 LIVE${viewerCount ? ' · ' + viewerCount : ''}</span>`;
+      }
+      if (isWatching) {
+        const watchNames = watchingStreams.map(s => s.sharerName).join(', ');
+        streamBadge += `<span class="voice-stream-badge watching" title="Watching ${watchNames}">👁</span>`;
+      }
+
       return `
         <div class="user-item voice-user-item${talking ? ' talking' : ''}" data-user-id="${u.id}"${dotColor ? ` style="--voice-dot-color:${dotColor}"` : ''}>
           <span class="user-dot voice"${dotStyle}></span>
           <span class="user-item-name">${this._escapeHtml(u.username)}</span>
+          ${streamBadge}
           ${isSelf ? '<span class="you-tag">you</span>' : `<button class="voice-user-menu-btn" data-user-id="${u.id}" data-username="${this._escapeHtml(u.username)}" title="User options">⋯</button>`}
         </div>
       `;
@@ -5109,6 +5665,8 @@ class HavenApp {
     const savedVol = this._getVoiceVolume(userId);
     const isMuted = savedVol === 0;
     const isDeafened = this.voice ? this.voice.isUserDeafened(userId) : false;
+    // Show voice kick for admins and mods with kick_user permission
+    const canKick = this._hasPerm('kick_user');
     const menu = document.createElement('div');
     menu.className = 'voice-user-menu';
     menu.innerHTML = `
@@ -5121,6 +5679,7 @@ class HavenApp {
       <div class="voice-user-menu-actions">
         <button class="voice-user-menu-action" data-action="mute-user">${isMuted ? '🔊 Unmute' : '🔇 Mute'}</button>
         <button class="voice-user-menu-action ${isDeafened ? 'active' : ''}" data-action="deafen-user">${isDeafened ? '🔊 Undeafen' : '🔇 Deafen'}</button>
+        ${canKick ? `<button class="voice-user-menu-action danger" data-action="voice-kick" title="Remove from voice channel">🚪 Voice Kick</button>` : ''}
       </div>
       <div class="voice-user-menu-hint">
         <small>Mute = you can't hear them</small><br>
@@ -5177,6 +5736,12 @@ class HavenApp {
               btn.classList.add('active');
               this._showToast(`${this._escapeHtml(username)} can no longer hear you`, 'info');
             }
+          }
+        } else if (btn.dataset.action === 'voice-kick') {
+          // Voice Kick: remove this user from voice (server enforces level check)
+          if (this.voice && this.voice.inVoice) {
+            this.socket.emit('voice-kick', { code: this.voice.currentChannel, userId });
+            this._closeVoiceUserMenu();
           }
         }
       });
@@ -5534,6 +6099,25 @@ class HavenApp {
       videoEl.play().catch(() => {});
       // Also re-play when metadata loads (handles late-arriving tracks)
       videoEl.onloadedmetadata = () => { videoEl.play().catch(() => {}); };
+
+      // WebRTC video tracks often arrive muted (no frames yet). Retry playback
+      // until the video actually has dimensions, which means frames are flowing.
+      let _retries = 0;
+      const _retryPlay = () => {
+        if (!videoEl.srcObject || _retries > 20) return;
+        if (videoEl.videoWidth === 0) {
+          _retries++;
+          // Re-trigger srcObject assignment to prod the decoder
+          if (_retries % 5 === 0) {
+            const s = videoEl.srcObject;
+            videoEl.srcObject = null;
+            videoEl.srcObject = s;
+          }
+          videoEl.play().catch(() => {});
+          setTimeout(_retryPlay, 500);
+        }
+      };
+      setTimeout(_retryPlay, 600);
       // Auto-show container (even if minimized) when new stream arrives
       container.style.display = 'flex';
       this._screenShareMinimized = false;
@@ -5546,8 +6130,13 @@ class HavenApp {
         grid.style.maxHeight = (vh - 2) + 'vh';
         document.querySelectorAll('.screen-share-tile video').forEach(v => { v.style.maxHeight = (vh - 4) + 'vh'; });
       }
-      const count = grid.children.length;
-      label.textContent = `🖥️ ${count} stream${count > 1 ? 's' : ''}`;
+      // Update label accounting for hidden tiles, and refresh hidden streams bar
+      this._updateHiddenStreamsBar();
+      this._updateScreenShareVisibility();
+      // Notify server we're watching this stream
+      if (this.voice && this.voice.inVoice && userId && userId !== this.user.id) {
+        this.socket.emit('stream-watch', { code: this.voice.currentChannel, sharerId: userId });
+      }
     } else {
       // Stream ended — remove this tile
       const tileId = `screen-tile-${userId || 'self'}`;
@@ -5557,6 +6146,21 @@ class HavenApp {
         if (vid) vid.srcObject = null;
         tile.remove();
       }
+      // If our OWN stream ended (e.g. browser "Stop sharing" button),
+      // reset the screen-share button so it doesn't stay in "stop" state
+      if (userId === this.user.id || userId === 'self') {
+        const ssBtn = document.getElementById('screen-share-btn');
+        if (ssBtn) {
+          ssBtn.textContent = '🖥️';
+          ssBtn.title = 'Share Screen';
+          ssBtn.classList.remove('sharing');
+        }
+      }
+      // Notify server we stopped watching
+      if (this.voice && this.voice.inVoice && userId && userId !== this.user.id) {
+        this.socket.emit('stream-unwatch', { code: this.voice.currentChannel, sharerId: userId });
+      }
+      this._updateHiddenStreamsBar();
       this._updateScreenShareVisibility();
     }
   }
@@ -5645,8 +6249,15 @@ class HavenApp {
     tile.dataset.hidden = 'true';
     if (muteAudio) {
       tile.dataset.muted = 'true';
-      // Mute this stream's audio
+      // Mute this stream's audio via gain node + audio element
       this.voice.setStreamVolume(userId, 0);
+      // Also pause the underlying audio element to guarantee silence
+      const audioEl = document.getElementById(`voice-audio-screen-${userId}`);
+      if (audioEl) { audioEl.volume = 0; try { audioEl.pause(); } catch {} }
+    }
+    // Notify server we stopped watching this stream
+    if (this.voice && this.voice.inVoice && userId && userId !== this.user.id) {
+      this.socket.emit('stream-unwatch', { code: this.voice.currentChannel, sharerId: userId });
     }
     this._updateHiddenStreamsBar();
     this._updateScreenShareVisibility();
@@ -5660,9 +6271,24 @@ class HavenApp {
       // Restore audio if it was muted by close
       if (tile.dataset.muted === 'true') {
         delete tile.dataset.muted;
-        const volSlider = tile.querySelector('.stream-vol-slider');
-        const vol = volSlider ? parseInt(volSlider.value) / 100 : 1;
-        if (userId) this.voice.setStreamVolume(userId, vol);
+        // Resume the audio element that was paused when hiding
+        const audioEl = document.getElementById(`voice-audio-screen-${userId}`);
+        if (audioEl && audioEl.paused) { try { audioEl.play(); } catch {} }
+        // Check if the user had manually muted the stream before closing —
+        // if so, keep it muted instead of restoring volume
+        const muteBtn = tile.querySelector('.stream-mute-btn');
+        if (muteBtn && muteBtn.dataset.muted === 'true') {
+          // User had it muted — re-mute
+          if (userId) this.voice.setStreamVolume(userId, 0);
+        } else {
+          const volSlider = tile.querySelector('.stream-vol-slider');
+          const vol = volSlider ? parseInt(volSlider.value) / 100 : 1;
+          if (userId) this.voice.setStreamVolume(userId, vol);
+        }
+      }
+      // Notify server we're watching this stream again
+      if (this.voice && this.voice.inVoice && userId && userId !== this.user.id) {
+        this.socket.emit('stream-watch', { code: this.voice.currentChannel, sharerId: userId });
       }
     }
     this._updateHiddenStreamsBar();
@@ -5695,13 +6321,26 @@ class HavenApp {
       hiddenTiles.forEach(t => {
         t.style.display = '';
         delete t.dataset.hidden;
+        const uid = t.id.replace('screen-tile-', '');
         // Restore audio if it was muted by close
         if (t.dataset.muted === 'true') {
           delete t.dataset.muted;
-          const uid = t.id.replace('screen-tile-', '');
-          const volSlider = t.querySelector('.stream-vol-slider');
-          const vol = volSlider ? parseInt(volSlider.value) / 100 : 1;
-          this.voice.setStreamVolume(uid, vol);
+          // Resume the audio element that was paused when hiding
+          const audioEl = document.getElementById(`voice-audio-screen-${uid}`);
+          if (audioEl && audioEl.paused) { try { audioEl.play(); } catch {} }
+          // Check if the user had manually muted before closing
+          const muteBtn = t.querySelector('.stream-mute-btn');
+          if (muteBtn && muteBtn.dataset.muted === 'true') {
+            this.voice.setStreamVolume(uid, 0);
+          } else {
+            const volSlider = t.querySelector('.stream-vol-slider');
+            const vol = volSlider ? parseInt(volSlider.value) / 100 : 1;
+            this.voice.setStreamVolume(uid, vol);
+          }
+        }
+        // Notify server we're watching again
+        if (this.voice && this.voice.inVoice && uid !== String(this.user?.id)) {
+          this.socket.emit('stream-watch', { code: this.voice.currentChannel, sharerId: parseInt(uid) || uid });
         }
       });
       this._updateHiddenStreamsBar();
@@ -5726,6 +6365,10 @@ class HavenApp {
       const uid = t.id.replace('screen-tile-', '');
       t.dataset.muted = 'true';
       this.voice.setStreamVolume(uid, 0);
+      // Notify server we stopped watching
+      if (this.voice && this.voice.inVoice && uid !== String(this.user.id)) {
+        this.socket.emit('stream-unwatch', { code: this.voice.currentChannel, sharerId: parseInt(uid) || uid });
+      }
     });
 
     container.style.display = 'none';
@@ -5803,6 +6446,34 @@ class HavenApp {
     if (controls) controls.style.display = 'none';
   }
 
+  // ── Stream Viewer Badges ─────────────────────────────
+
+  _updateStreamViewerBadges() {
+    const grid = document.getElementById('screen-share-grid');
+    if (!grid) return;
+    const streams = this._streamInfo || [];
+
+    grid.querySelectorAll('.screen-share-tile').forEach(tile => {
+      const uid = tile.id.replace('screen-tile-', '');
+      const numericUid = parseInt(uid);
+      const streamInfo = streams.find(s => s.sharerId === numericUid || String(s.sharerId) === uid);
+
+      // Remove old viewer badge
+      tile.querySelector('.stream-viewer-badge')?.remove();
+
+      const viewers = streamInfo ? streamInfo.viewers : [];
+      if (viewers.length === 0) return;
+
+      const badge = document.createElement('div');
+      badge.className = 'stream-viewer-badge';
+      const names = viewers.map(v => v.username).join(', ');
+      const eyeCount = viewers.length;
+      badge.innerHTML = `<span class="viewer-eye">👁</span> ${eyeCount}`;
+      badge.title = `Watching: ${names}`;
+      tile.appendChild(badge);
+    });
+  }
+
   // ── Stream Focus & Pop-out ──────────────────────────
 
   _toggleStreamFocus(tile) {
@@ -5834,6 +6505,15 @@ class HavenApp {
     }
   }
 
+  /** Collapse the stream container when all tiles are popped out (no visible streams) */
+  _updateStreamContainerCollapse() {
+    const container = document.querySelector('.screen-share-container');
+    if (!container) return;
+    const tiles = container.querySelectorAll('.screen-share-tile');
+    const allPopped = tiles.length > 0 && [...tiles].every(t => t.classList.contains('stream-popped-out'));
+    container.classList.toggle('all-streams-popped', allPopped);
+  }
+
   _popOutStream(tile, userId) {
     const video = tile.querySelector('video');
     if (!video || !video.srcObject) return;
@@ -5844,28 +6524,24 @@ class HavenApp {
       return;
     }
 
-    // If already popped out to a window, don't open another
+    // If already popped out, don't open another
     if (tile.classList.contains('stream-popped-out')) return;
 
-    // Try native Picture-in-Picture first
+    // Try native Picture-in-Picture first (OS-level window, can be dragged to other screens)
     if (document.pictureInPictureEnabled && !video.disablePictureInPicture) {
-      video.requestPictureInPicture().then(pipWindow => {
-        // Update button to show "pop back in"
+      video.requestPictureInPicture().then(() => {
         const popoutBtn = tile.querySelector('.stream-popout-btn');
-        if (popoutBtn) {
-          popoutBtn.textContent = '⧈';
-          popoutBtn.title = 'Pop in stream';
-        }
+        if (popoutBtn) { popoutBtn.textContent = '\u29C8'; popoutBtn.title = 'Pop in stream'; }
         tile.classList.add('stream-popped-out');
+        this._updateStreamContainerCollapse();
 
         video.addEventListener('leavepictureinpicture', () => {
-          if (popoutBtn) {
-            popoutBtn.textContent = '⧉';
-            popoutBtn.title = 'Pop out stream';
-          }
+          if (popoutBtn) { popoutBtn.textContent = '\u29C9'; popoutBtn.title = 'Pop out stream'; }
           tile.classList.remove('stream-popped-out');
+          this._updateStreamContainerCollapse();
         }, { once: true });
       }).catch(() => {
+        // Fallback to in-page overlay if native PiP fails
         this._popOutStreamWindow(tile, userId);
       });
     } else {
@@ -5894,15 +6570,13 @@ class HavenApp {
     pip.style.minHeight = '320px';
 
     pip.innerHTML = `
-      <div class="music-pip-header stream-pip-drag">
-        <button class="music-pip-btn stream-pip-popin" title="Minimize (back to inline)">─</button>
-        <span class="music-pip-label">🖥️ ${who}</span>
-        <button class="music-pip-btn stream-pip-close" title="Close">✕</button>
-      </div>
       <div class="music-pip-embed stream-pip-video"></div>
       <div class="music-pip-controls">
+        <button class="music-pip-btn stream-pip-popin" title="Pop back in">⧈</button>
+        <span class="music-pip-label">🖥️ ${who}</span>
         <span class="music-pip-vol-icon stream-pip-opacity-icon" title="Window opacity">👁</span>
         <input type="range" class="music-pip-vol pip-opacity-slider stream-pip-opacity" min="20" max="100" value="${savedOpacity}">
+        <button class="music-pip-btn stream-pip-close" title="Close">✕</button>
       </div>
     `;
 
@@ -5921,19 +6595,26 @@ class HavenApp {
     const popoutBtn = tile.querySelector('.stream-popout-btn');
     if (popoutBtn) { popoutBtn.textContent = '⧈'; popoutBtn.title = 'Pop in stream'; }
     tile.classList.add('stream-popped-out');
+    this._updateStreamContainerCollapse();
 
     // Pop-in handler (minimize — return to inline grid)
     const popIn = () => {
       pip.remove();
       if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = 'Pop out stream'; }
       tile.classList.remove('stream-popped-out');
+      this._updateStreamContainerCollapse();
     };
 
-    // Close handler (destroy the PiP overlay)
+    // Close handler (destroy PiP overlay AND hide the inline tile)
     const closePip = () => {
       pip.remove();
       if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = 'Pop out stream'; }
       tile.classList.remove('stream-popped-out');
+      this._updateStreamContainerCollapse();
+      // Also hide the stream tile — user wants to close the stream, not just pop back in
+      const peer = this.voice.peers.get(userId);
+      const who2 = userId === null || userId === this.user.id ? 'You' : (peer ? peer.username : 'Stream');
+      this._hideStreamTile(tile, userId, who2, true);
     };
 
     pip.querySelector('.stream-pip-popin').addEventListener('click', popIn);
@@ -5946,8 +6627,8 @@ class HavenApp {
       localStorage.setItem('haven_pip_opacity', val);
     });
 
-    // Dragging
-    this._initPipDrag(pip, pip.querySelector('.stream-pip-drag'));
+    // Dragging (whole overlay is drag handle, except buttons/sliders)
+    this._initPipDrag(pip, pip);
 
     // Clean up if stream ends
     const streamTrack = stream.getVideoTracks()[0];
@@ -6160,6 +6841,16 @@ class HavenApp {
       if (muteBtn) { muteBtn.disabled = false; muteBtn.title = 'Mute/Unmute'; }
     }
 
+    // Show next/prev/shuffle for SoundCloud & YouTube playlists only (not single YT videos, not Spotify)
+    const isSoundCloud = data.url.includes('soundcloud.com');
+    const showTrackBtns = isSoundCloud || this._musicIsYTPlaylist;
+    const prevBtn = document.getElementById('music-prev-btn');
+    const nextBtn = document.getElementById('music-next-btn');
+    const shuffleBtn = document.getElementById('music-shuffle-btn');
+    if (prevBtn) prevBtn.style.display = showTrackBtns ? '' : 'none';
+    if (nextBtn) nextBtn.style.display = showTrackBtns ? '' : 'none';
+    if (shuffleBtn) shuffleBtn.style.display = showTrackBtns ? '' : 'none';
+
 
     // Initialize platform-specific APIs for volume & sync control
     const iframe = document.getElementById('music-iframe');
@@ -6218,6 +6909,15 @@ class HavenApp {
               this._musicPlaying = false;
               if (ppBtn) ppBtn.textContent = '▶';
               if (pipPP) pipPP.textContent = '▶';
+            } else if (e.data === YT.PlayerState.ENDED) {
+              // Auto-advance: if YouTube playlist, play the next video
+              if (this._musicIsYTPlaylist) {
+                try { e.target.nextVideo(); } catch {}
+              } else {
+                this._musicPlaying = false;
+                if (ppBtn) ppBtn.textContent = '▶';
+                if (pipPP) pipPP.textContent = '▶';
+              }
             }
           }
         }
@@ -6249,9 +6949,32 @@ class HavenApp {
   _createSCWidget(iframe, volume) {
     try {
       this._musicSCWidget = SC.Widget(iframe);
+      this._musicSCShuffle = false;
+      this._musicSCTrackCount = 0;
+      this._musicSCCurrentIndex = 0;
       this._musicSCWidget.bind(SC.Widget.Events.READY, () => {
         this._musicSCWidget.setVolume(volume);
         this._startMusicTimeTracking();
+        // Get track count for shuffle support
+        this._musicSCWidget.getSounds((sounds) => {
+          this._musicSCTrackCount = sounds ? sounds.length : 0;
+        });
+      });
+      // Auto-advance on track finish (supports shuffle)
+      this._musicSCWidget.bind(SC.Widget.Events.FINISH, () => {
+        if (this._musicSCShuffle && this._musicSCTrackCount > 1) {
+          // Pick a random track that isn't the current one
+          let next;
+          do { next = Math.floor(Math.random() * this._musicSCTrackCount); } while (next === this._musicSCCurrentIndex);
+          this._musicSCCurrentIndex = next;
+          this._musicSCWidget.skip(next);
+        } else {
+          this._musicSCWidget.next();
+        }
+      });
+      // Track current index for shuffle
+      this._musicSCWidget.bind(SC.Widget.Events.PLAY, () => {
+        this._musicSCWidget.getCurrentSoundIndex((idx) => { this._musicSCCurrentIndex = idx; });
       });
     } catch { /* iframe may already be destroyed */ }
   }
@@ -6274,6 +6997,12 @@ class HavenApp {
     } else if (data.action === 'play') {
       this._playMusicEmbed();
       this._musicPlaying = true;
+    } else if (data.action === 'next') {
+      this._musicNextTrack();
+    } else if (data.action === 'prev') {
+      this._musicPrevTrack();
+    } else if (data.action === 'shuffle') {
+      this._musicToggleShuffle();
     }
     const ppBtn = document.getElementById('music-play-pause-btn');
     if (ppBtn) ppBtn.textContent = this._musicPlaying ? '⏸' : '▶';
@@ -6296,6 +7025,60 @@ class HavenApp {
         action: this._musicPlaying ? 'play' : 'pause'
       });
     }
+  }
+
+  _musicTrackControl(action) {
+    // Execute locally
+    if (action === 'next') this._musicNextTrack();
+    else if (action === 'prev') this._musicPrevTrack();
+    else if (action === 'shuffle') this._musicToggleShuffle();
+    // Broadcast to others in voice
+    if (this.voice && this.voice.inVoice) {
+      this.socket.emit('music-control', {
+        code: this.voice.currentChannel,
+        action
+      });
+    }
+  }
+
+  _musicNextTrack() {
+    try {
+      if (this._musicYTPlayer && this._musicYTPlayer.nextVideo) {
+        this._musicYTPlayer.nextVideo();
+      } else if (this._musicSCWidget) {
+        this._musicSCWidget.next();
+      }
+    } catch { /* player may not support next */ }
+  }
+
+  _musicPrevTrack() {
+    try {
+      if (this._musicYTPlayer && this._musicYTPlayer.previousVideo) {
+        this._musicYTPlayer.previousVideo();
+      } else if (this._musicSCWidget) {
+        this._musicSCWidget.prev();
+      }
+    } catch { /* player may not support prev */ }
+  }
+
+  _musicToggleShuffle() {
+    try {
+      this._musicSCShuffle = !this._musicSCShuffle;
+      const btn = document.getElementById('music-shuffle-btn');
+      if (btn) btn.classList.toggle('active', this._musicSCShuffle);
+      // YouTube has native shuffle support for playlists
+      if (this._musicYTPlayer && this._musicYTPlayer.setShuffle) {
+        this._musicYTPlayer.setShuffle(this._musicSCShuffle);
+      }
+      // SoundCloud: immediately skip to a random track when shuffle is turned ON
+      if (this._musicSCShuffle && this._musicSCWidget && this._musicSCTrackCount > 1) {
+        let next;
+        do { next = Math.floor(Math.random() * this._musicSCTrackCount); } while (next === this._musicSCCurrentIndex);
+        this._musicSCCurrentIndex = next;
+        this._musicSCWidget.skip(next);
+      }
+      this._showToast(this._musicSCShuffle ? 'Shuffle on' : 'Shuffle off', 'info');
+    } catch { /* player may not support shuffle */ }
   }
 
   _playMusicEmbed() {
@@ -6386,6 +7169,7 @@ class HavenApp {
       <div class="music-pip-header" id="music-pip-drag">
         <button class="music-pip-btn" id="music-pip-popin" title="Minimize (back to panel)">─</button>
         <span class="music-pip-label">🎵 ${platform}</span>
+        <button class="music-pip-btn" id="music-pip-fullscreen" title="Fullscreen">⤢</button>
         <button class="music-pip-btn" id="music-pip-close" title="Close / stop music">✕</button>
       </div>
       <div class="music-pip-embed" id="music-pip-embed"></div>
@@ -6446,6 +7230,27 @@ class HavenApp {
       localStorage.setItem('haven_pip_opacity', val);
     });
 
+    // ── Fullscreen ──
+    const toggleMusicFS = () => {
+      const el = pip;
+      if (document.fullscreenElement === el) {
+        document.exitFullscreen().catch(() => {});
+      } else {
+        (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen).call(el).catch(() => {});
+      }
+    };
+    document.getElementById('music-pip-fullscreen').addEventListener('click', toggleMusicFS);
+    document.getElementById('music-pip-embed').addEventListener('dblclick', toggleMusicFS);
+    document.addEventListener('fullscreenchange', () => {
+      const fsBtn = document.getElementById('music-pip-fullscreen');
+      if (!fsBtn) return;
+      if (document.fullscreenElement === pip) {
+        fsBtn.textContent = '⤡'; fsBtn.title = 'Exit fullscreen';
+      } else {
+        fsBtn.textContent = '⤢'; fsBtn.title = 'Fullscreen';
+      }
+    });
+
     // ── Dragging ──
     this._initPipDrag(pip, document.getElementById('music-pip-drag'));
   }
@@ -6483,6 +7288,7 @@ class HavenApp {
   _initPipDrag(pip, handle) {
     let dragging = false, startX, startY, origX, origY;
     handle.addEventListener('mousedown', (e) => {
+      if (e.target.closest('button')) return; // don't interfere with button clicks
       dragging = true;
       startX = e.clientX; startY = e.clientY;
       const rect = pip.getBoundingClientRect();
@@ -6626,13 +7432,19 @@ class HavenApp {
   }
 
   _getMusicEmbed(url) {
+    this._musicIsYTPlaylist = false;
     if (!url) return null;
     const spotifyMatch = url.match(/open\.spotify\.com\/(track|album|playlist|episode|show)\/([a-zA-Z0-9]+)/);
     if (spotifyMatch) return `https://open.spotify.com/embed/${spotifyMatch[1]}/${spotifyMatch[2]}?theme=0&utm_source=generator&autoplay=1`;
+    // Extract YouTube playlist ID if present
+    const listMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+    const listParam = listMatch ? `&list=${listMatch[1]}` : '';
+    this._musicIsYTPlaylist = !!listMatch;
     const ytMusicMatch = url.match(/music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
-    if (ytMusicMatch) return `https://www.youtube.com/embed/${ytMusicMatch[1]}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}&rel=0`;
+    if (ytMusicMatch) return `https://www.youtube-nocookie.com/embed/${ytMusicMatch[1]}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}&rel=0${listParam}`;
     const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
-    if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}&rel=0`;
+    if (ytMatch) return `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}&rel=0${listParam}`;
+    this._musicIsYTPlaylist = false;
     if (url.includes('soundcloud.com/')) {
       return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=true&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=false`;
     }
@@ -7539,76 +8351,21 @@ class HavenApp {
 
   /* ── Admin settings save / cancel ───────────────────── */
 
-  // ── Webhook management methods ─────────────────────────
-  _populateWebhookChannelSelect() {
-    const select = document.getElementById('webhook-channel-select');
-    if (!select) return;
-    select.innerHTML = '';
-    const channels = this.channels || [];
-    for (const ch of channels) {
-      if (ch.is_dm) continue; // skip DM channels
-      const opt = document.createElement('option');
-      opt.value = ch.id;
-      opt.textContent = '#' + ch.name;
-      select.appendChild(opt);
-    }
-  }
-
   _renderWebhooksList(webhooks) {
     const container = document.getElementById('webhooks-list');
     if (!container) return;
     if (!webhooks.length) {
-      container.innerHTML = '<p class="muted-text">No webhooks configured</p>';
+      container.innerHTML = '<p class="muted-text">No bots configured</p>';
       return;
     }
+    // Simple preview list for server settings — full management is in the bot modal
     container.innerHTML = webhooks.map(wh => {
-      const baseUrl = window.location.origin;
-      const webhookUrl = `${baseUrl}/api/webhooks/${wh.token}`;
-      const statusClass = wh.is_active ? 'status-online' : 'status-offline';
-      const statusText = wh.is_active ? 'Active' : 'Inactive';
-      return `
-        <div class="webhook-item" data-webhook-id="${wh.id}">
-          <div class="webhook-item-header">
-            <span class="webhook-item-name">🤖 ${this._escapeHtml(wh.name)}</span>
-            <span class="webhook-item-channel">#${this._escapeHtml(wh.channel_name)}</span>
-            <span class="webhook-item-status ${statusClass}">${statusText}</span>
-          </div>
-          <div class="webhook-item-url">
-            <code class="webhook-url-text">${this._escapeHtml(webhookUrl)}</code>
-            <button class="btn-xs webhook-copy-btn" title="Copy webhook URL">📋</button>
-          </div>
-          <div class="webhook-item-actions">
-            <button class="btn-xs webhook-toggle-btn">${wh.is_active ? '⏸ Disable' : '▶️ Enable'}</button>
-            <button class="btn-xs btn-danger webhook-delete-btn">🗑 Delete</button>
-          </div>
-        </div>
-      `;
+      const statusDot = wh.is_active ? '🟢' : '🔴';
+      const avatarHtml = wh.avatar_url
+        ? `<img src="${this._escapeHtml(wh.avatar_url)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover">`
+        : '🤖';
+      return `<div class="role-preview-item">${avatarHtml} <span style="font-weight:600">${this._escapeHtml(wh.name)}</span> <span style="opacity:0.5;font-size:11px">#${this._escapeHtml(wh.channel_name)}</span> ${statusDot}</div>`;
     }).join('');
-
-    // Wire up event listeners
-    container.querySelectorAll('.webhook-copy-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const url = btn.closest('.webhook-item-url').querySelector('.webhook-url-text').textContent;
-        navigator.clipboard.writeText(url).then(() => {
-          btn.textContent = '✅';
-          setTimeout(() => btn.textContent = '📋', 1500);
-        });
-      });
-    });
-    container.querySelectorAll('.webhook-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = parseInt(btn.closest('.webhook-item').dataset.webhookId);
-        this.socket.emit('toggle-webhook', { id });
-      });
-    });
-    container.querySelectorAll('.webhook-delete-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = parseInt(btn.closest('.webhook-item').dataset.webhookId);
-        if (confirm('Delete this webhook? Any bots using it will stop working.')) {
-          this.socket.emit('delete-webhook', { id });
-        }
-      });
-    });
   }
 
   _snapshotAdminSettings() {
@@ -7621,10 +8378,9 @@ class HavenApp {
       whitelist_enabled: this.serverSettings.whitelist_enabled || 'false',
       max_upload_mb: this.serverSettings.max_upload_mb || '25'
     };
-    // Load webhooks list and populate channel dropdown for admin
+    // Load webhooks list for admin preview
     if (this.user?.isAdmin) {
       this.socket.emit('get-webhooks');
-      this._populateWebhookChannelSelect();
     }
   }
 
@@ -7821,59 +8577,6 @@ class HavenApp {
     document.getElementById('server-icon-remove-btn')?.addEventListener('click', () => {
       this.socket.emit('update-server-setting', { key: 'server_icon', value: '' });
       this._showToast('Server icon removed', 'success');
-    });
-  }
-
-  _initPermThresholds() {
-    this._renderPermThresholds();
-  }
-
-  _renderPermThresholds() {
-    const container = document.getElementById('perm-thresholds-list');
-    if (!container) return;
-
-    const allPerms = [
-      'edit_own_messages', 'delete_own_messages', 'delete_message', 'delete_lower_messages',
-      'pin_message', 'kick_user', 'mute_user', 'ban_user',
-      'rename_channel', 'rename_sub_channel', 'set_channel_topic', 'manage_sub_channels',
-      'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-      'promote_user', 'transfer_admin'
-    ];
-    const permLabels = {
-      edit_own_messages: 'Edit Own Messages', delete_own_messages: 'Delete Own Messages',
-      delete_message: 'Delete Any Message', delete_lower_messages: 'Delete Lower-level Messages',
-      pin_message: 'Pin Messages', kick_user: 'Kick Users', mute_user: 'Mute Users', ban_user: 'Ban Users',
-      rename_channel: 'Rename Channels', rename_sub_channel: 'Rename Sub-channels',
-      set_channel_topic: 'Set Channel Topic', manage_sub_channels: 'Manage Sub-channels',
-      upload_files: 'Upload Files', use_voice: 'Use Voice Chat',
-      manage_webhooks: 'Manage Webhooks', mention_everyone: 'Mention @everyone',
-      view_history: 'View Message History',
-      promote_user: 'Promote Users', transfer_admin: 'Transfer Admin'
-    };
-
-    let thresholds = {};
-    try { thresholds = JSON.parse(this.serverSettings.permission_thresholds || '{}'); } catch {}
-
-    container.innerHTML = `
-      <div class="perm-thresholds-grid">
-        ${allPerms.map(p => `
-          <div class="perm-threshold-row">
-            <span class="perm-threshold-label">${permLabels[p] || p}</span>
-            <input type="number" class="perm-threshold-input settings-number-input" data-perm="${p}" value="${thresholds[p] || ''}" min="0" max="100" placeholder="—" title="Min level to auto-grant (0 = disabled)">
-          </div>
-        `).join('')}
-      </div>
-      <button class="btn-sm btn-accent" id="save-perm-thresholds-btn" style="margin-top:8px;">Save Thresholds</button>
-    `;
-
-    document.getElementById('save-perm-thresholds-btn')?.addEventListener('click', () => {
-      const obj = {};
-      container.querySelectorAll('.perm-threshold-input').forEach(inp => {
-        const val = parseInt(inp.value);
-        if (val > 0 && val <= 100) obj[inp.dataset.perm] = val;
-      });
-      this.socket.emit('update-server-setting', { key: 'permission_thresholds', value: JSON.stringify(obj) });
-      this._showToast('Permission thresholds saved', 'success');
     });
   }
 
@@ -9012,6 +9715,9 @@ class HavenApp {
         this.socket.on('public-key-result', (data) => {
           if (data.jwk) {
             this._dmPublicKeys[data.userId] = data.jwk;
+            // Key just arrived — if we're viewing a DM with this user,
+            // re-fetch messages so they decrypt now that we have the key.
+            this._retryDecryptForUser(data.userId);
           }
         });
         console.log('[E2E] Initialized, public key published');
@@ -9034,6 +9740,18 @@ class HavenApp {
     const partnerId = ch.dm_target.id;
     const jwk = this._dmPublicKeys[partnerId];
     return jwk ? { userId: partnerId, publicKeyJwk: jwk } : null;
+  }
+
+  /**
+   * Re-decrypt visible messages when a DM partner's public key arrives late.
+   * Called from the public-key-result handler to fix the key/messages race.
+   */
+  _retryDecryptForUser(userId) {
+    const ch = this.channels.find(c => c.code === this.currentChannel);
+    if (!ch || !ch.is_dm || !ch.dm_target) return;
+    if (ch.dm_target.id !== userId) return;
+    // Re-fetch messages — key is now cached so _decryptMessages will succeed
+    this.socket.emit('get-messages', { code: this.currentChannel });
   }
 
   /**
@@ -9081,11 +9799,19 @@ class HavenApp {
           </p>
           <div class="e2e-safety-number" style="font-family:monospace;font-size:18px;letter-spacing:2px;line-height:2;padding:16px;background:var(--bg-secondary);border-radius:var(--radius-md);border:1px solid var(--border);user-select:all;word-break:break-all">${code}</div>
           <div style="margin-top:16px;display:flex;gap:8px;justify-content:center">
-            <button class="btn-sm btn-accent" onclick="navigator.clipboard.writeText('${code}');this.textContent='Copied!'">Copy Code</button>
-            <button class="btn-sm" onclick="this.closest('.modal-overlay').style.display='none'">Close</button>
+            <button class="btn-sm btn-accent" id="e2e-copy-code-btn">Copy Code</button>
+            <button class="btn-sm" id="e2e-close-verify-btn">Close</button>
           </div>
         </div>
       `;
+      // Attach listeners via JS (inline onclick is blocked by CSP)
+      overlay.querySelector('#e2e-copy-code-btn').addEventListener('click', () => {
+        navigator.clipboard.writeText(code);
+        overlay.querySelector('#e2e-copy-code-btn').textContent = 'Copied!';
+      });
+      overlay.querySelector('#e2e-close-verify-btn').addEventListener('click', () => {
+        overlay.style.display = 'none';
+      });
       overlay.style.display = 'flex';
     } catch (err) {
       this._showToast('Could not generate verification code', 'error');

@@ -278,6 +278,13 @@ class VoiceManager {
     this.isDeafened = false;
     this.screenSharers.clear();
     this.screenGainNodes.clear();
+    // Clear any pending disconnect-recovery timers
+    if (this._disconnectTimers) {
+      for (const key of Object.keys(this._disconnectTimers)) {
+        clearTimeout(this._disconnectTimers[key]);
+      }
+      this._disconnectTimers = {};
+    }
   }
 
   toggleMute() {
@@ -371,17 +378,25 @@ class VoiceManager {
   stopScreenShare() {
     if (!this.isScreenSharing || !this.screenStream) return;
 
-    // Remove screen tracks from all peer connections
+    const tracks = this.screenStream.getTracks();
+
+    // Remove screen tracks from all peer connections FIRST, then stop them.
+    // Stopping tracks before all peers have removed them causes renegotiation
+    // to reference dead tracks and corrupt audio.
     for (const [userId, peer] of this.peers) {
       const senders = peer.connection.getSenders();
-      this.screenStream.getTracks().forEach(track => {
+      tracks.forEach(track => {
         const sender = senders.find(s => s.track === track);
-        if (sender) peer.connection.removeTrack(sender);
-        track.stop();
+        if (sender) {
+          try { peer.connection.removeTrack(sender); } catch {}
+        }
       });
       // Renegotiate
       this._renegotiate(userId, peer.connection).catch(() => {});
     }
+
+    // Now safe to stop tracks — all peers have detached them
+    tracks.forEach(t => t.stop());
 
     this.screenStream = null;
     this.isScreenSharing = false;
@@ -440,9 +455,12 @@ class VoiceManager {
         if (this.onScreenStream) this.onScreenStream(userId, videoStream);
         track.onunmute = () => {
           // Create a fresh MediaStream so the video element detects a new srcObject
-          // (re-assigning the same object is a no-op in Chrome → black screen)
-          const freshStream = new MediaStream(videoStream.getTracks());
-          if (this.onScreenStream) this.onScreenStream(userId, freshStream);
+          // (re-assigning the same object is a no-op in Chrome → black screen).
+          // Small delay lets the track start producing frames before the UI grabs it.
+          setTimeout(() => {
+            const freshStream = new MediaStream(videoStream.getTracks());
+            if (this.onScreenStream) this.onScreenStream(userId, freshStream);
+          }, 120);
         };
         track.onmute = () => {
           // Track temporarily stopped sending — force video to re-render
@@ -492,9 +510,29 @@ class VoiceManager {
     };
 
     connection.onconnectionstatechange = () => {
-      if (connection.connectionState === 'failed' ||
-          connection.connectionState === 'disconnected') {
-        this._removePeer(userId);
+      const state = connection.connectionState;
+      if (state === 'failed') {
+        // Try ICE restart before giving up
+        this._restartIce(userId, connection);
+      } else if (state === 'disconnected') {
+        // 'disconnected' is often transient during renegotiation (e.g. after
+        // screen-share stops). Give the connection time to recover before
+        // tearing it down — Chrome frequently goes disconnected→connected.
+        if (!this._disconnectTimers) this._disconnectTimers = {};
+        if (this._disconnectTimers[userId]) clearTimeout(this._disconnectTimers[userId]);
+        this._disconnectTimers[userId] = setTimeout(() => {
+          if (connection.connectionState === 'disconnected' ||
+              connection.connectionState === 'failed') {
+            this._restartIce(userId, connection);
+          }
+          delete this._disconnectTimers[userId];
+        }, 8000);
+      } else if (state === 'connected') {
+        // Clear any pending disconnect timer — connection recovered
+        if (this._disconnectTimers?.[userId]) {
+          clearTimeout(this._disconnectTimers[userId]);
+          delete this._disconnectTimers[userId];
+        }
       }
     };
 
@@ -528,6 +566,21 @@ class VoiceManager {
       this.screenGainNodes.delete(userId);
       this.gainNodes.delete(userId);
       this.peers.delete(userId);
+    }
+  }
+
+  async _restartIce(userId, connection) {
+    try {
+      const offer = await connection.createOffer({ iceRestart: true });
+      await connection.setLocalDescription(offer);
+      this.socket.emit('voice-offer', {
+        code: this.currentChannel,
+        targetUserId: userId,
+        offer: offer
+      });
+    } catch (err) {
+      console.error('ICE restart failed for', userId, '— removing peer:', err);
+      this._removePeer(userId);
     }
   }
 
@@ -638,13 +691,18 @@ class VoiceManager {
   }
 
   setStreamVolume(userId, volume) {
-    const gainNode = this.screenGainNodes.get(userId);
+    // Map keys may be number or string depending on caller — try both
+    const gainNode = this.screenGainNodes.get(userId)
+      || this.screenGainNodes.get(String(userId))
+      || this.screenGainNodes.get(Number(userId));
+    const clampedGain = Math.max(0, Math.min(2, volume));
+    const clampedVol  = Math.max(0, Math.min(1, volume));
     if (gainNode) {
-      gainNode.gain.value = Math.max(0, Math.min(2, volume));
-    } else {
-      const audioEl = document.getElementById(`voice-audio-screen-${userId}`);
-      if (audioEl) audioEl.volume = Math.max(0, Math.min(1, volume));
+      gainNode.gain.value = clampedGain;
     }
+    // Always sync the underlying <audio> element too (belt-and-suspenders)
+    const audioEl = document.getElementById(`voice-audio-screen-${userId}`);
+    if (audioEl) audioEl.volume = clampedVol;
   }
 
   _getSavedStreamVolume(userId) {

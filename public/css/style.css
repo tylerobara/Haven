@@ -1365,11 +1365,20 @@
     linear-gradient(to top,    #ffffff 0, #ffffff 2px, transparent 2px),
     #bfbfbf !important;
 }
-/* Hide duplicate scrollbar arrows — keep only one button at each end */
+/* Hide duplicate scrollbar arrows — keep only one button at each end.
+   display:none alone is unreliable in some Chromium builds for scrollbar
+   pseudo-elements, so also collapse them to zero size. */
 [data-theme="win95"] ::-webkit-scrollbar-button:vertical:start:increment,
 [data-theme="win95"] ::-webkit-scrollbar-button:vertical:end:decrement,
 [data-theme="win95"] ::-webkit-scrollbar-button:horizontal:start:increment,
-[data-theme="win95"] ::-webkit-scrollbar-button:horizontal:end:decrement { display: none; }
+[data-theme="win95"] ::-webkit-scrollbar-button:horizontal:end:decrement {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: none !important;
+}
 [data-theme="win95"] ::-webkit-scrollbar-corner { background: #bfbfbf !important; }
 [data-theme="win95"] .server-bar { background: #bfbfbf; border-right: 3px outset #fff; }
 [data-theme="win95"] .server-bar .server-icon { border-radius: 0; }
@@ -2707,6 +2716,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 }
 
 .icon-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.icon-btn.active { color: var(--accent); background: rgba(var(--accent-rgb, 124,92,252), 0.15); }
 .icon-btn.small { font-size: 13px; }
 .icon-btn.danger:hover { color: var(--danger); }
 
@@ -3266,7 +3276,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 
 /* Avatar settings */
 .avatar-settings { padding: 4px 0; position: relative; z-index: 1; }
-.settings-section-subtitle { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.settings-section-subtitle { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; margin-top: 16px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 
 /* Avatar Upload Row (Anmire-style) */
 .avatar-upload-row { display: flex; align-items: center; gap: 8px; }
@@ -3377,6 +3387,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 
 .message-compact {
   display: flex;
+  position: relative;
   padding: 1px 8px 1px 56px;
   border-radius: var(--radius-sm);
   transition: background var(--transition);
@@ -3386,16 +3397,15 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 .message-compact:hover { background: rgba(255,255,255,0.02); }
 
 .message-compact .compact-time {
+  position: absolute;
+  left: 8px;
+  top: 2px;
   font-size: 10px;
   color: var(--text-muted);
-  min-width: 44px;
-  text-align: right;
-  margin-right: 8px;
-  padding-top: 2px;
-  visibility: hidden;
+  display: none;
 }
 
-.message-compact:hover .compact-time { visibility: visible; }
+.message-compact:hover .compact-time { display: block; }
 
 .system-message {
   padding: 4px 8px;
@@ -3868,7 +3878,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10000;
+  z-index: 200000;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5226,6 +5236,8 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   cursor: pointer;
   letter-spacing: 0.3px;
   transition: background 0.15s, transform 0.1s;
+  background: var(--accent);
+  color: white;
 }
 .btn-admin-save:hover { filter: brightness(1.15); }
 .btn-admin-save:active { transform: scale(0.97); }
@@ -5561,19 +5573,24 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 .settings-section:last-child { border-bottom: none; }
 
 .settings-section-title {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-muted);
-  margin-bottom: 12px;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
 }
 
 .settings-section-subtitle {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  margin-top: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
 }
 
 .settings-number-input {
@@ -6222,7 +6239,7 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 
   /* Disable hover-only interactions */
   .message:hover, .message-compact:hover { background: transparent; }
-  .message-compact:hover .compact-time { display: none; }
+  .message-compact:hover .compact-time { display: none !important; }
 
   /* Message toolbar — hidden until message is tapped */
   .msg-toolbar {
@@ -6670,6 +6687,55 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   opacity: 0.85;
 }
 
+/* ── Stream Viewer Badge (eye icon + count on tiles) ── */
+
+.stream-viewer-badge {
+  position: absolute;
+  bottom: 30px;
+  right: 6px;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 5;
+  backdrop-filter: blur(4px);
+}
+.stream-viewer-badge .viewer-eye {
+  font-size: 12px;
+}
+
+/* ── Voice User Stream Badges ─────────────────────── */
+
+.voice-stream-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  white-space: nowrap;
+  line-height: 1.2;
+  vertical-align: middle;
+}
+.voice-stream-badge.live {
+  background: rgba(255,0,0,0.18);
+  color: #ff4444;
+  font-weight: 600;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+.voice-stream-badge.watching {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-muted, #888);
+  font-size: 11px;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 /* ── Stream Focus Mode (double-click to expand) ──────── */
 
 .stream-focus-mode {
@@ -6822,6 +6888,16 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   font-size: 11px;
   font-weight: 500;
   background: var(--bg-tertiary);
+}
+
+/* When ALL tiles are popped out, collapse the entire container */
+.screen-share-container.all-streams-popped {
+  min-height: 0 !important;
+  max-height: none !important;
+  height: auto !important;
+}
+.screen-share-container.all-streams-popped .screen-share-grid {
+  max-height: none !important;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -7541,6 +7617,33 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 
 .dm-item .channel-hash {
   color: var(--accent);
+}
+
+/* ── DM Category Headers ──────────────────────────────── */
+.dm-category-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #888);
+  user-select: none;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.dm-category-header:hover {
+  color: var(--text-secondary);
+}
+.dm-category-arrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+  font-size: 9px;
+}
+.dm-category-arrow.collapsed {
+  transform: rotate(-90deg);
 }
 
 .user-dm-btn {
@@ -8364,7 +8467,8 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 .role-editor-layout {
   display: flex;
   gap: 16px;
-  min-height: 340px;
+  min-height: 280px;
+  max-height: 60vh;
   margin: 12px 0;
 }
 .role-sidebar {
@@ -8372,12 +8476,13 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   border-right: 1px solid var(--border, #333);
   padding-right: 12px;
   flex-shrink: 0;
+  overflow-y: auto;
 }
 .role-list-sidebar {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 280px;
+  max-height: 100%;
   overflow-y: auto;
 }
 .role-sidebar-item {
@@ -8406,6 +8511,8 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 .role-detail {
   flex: 1;
   min-width: 0;
+  overflow-y: auto;
+  padding-right: 14px;
 }
 .role-detail-form {
   display: flex;
@@ -9325,28 +9432,4 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   object-fit: cover;
 }
 
-/* Permission Thresholds */
-.perm-thresholds-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.perm-threshold-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 3px 0;
-}
-.perm-threshold-label {
-  font-size: 0.82rem;
-  color: var(--text-secondary);
-  flex: 1;
-  min-width: 0;
-}
-.perm-threshold-input {
-  width: 52px !important;
-  text-align: center;
-  padding: 2px 4px !important;
-  font-size: 0.8rem;
-}
+

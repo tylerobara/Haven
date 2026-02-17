@@ -330,10 +330,10 @@ class HavenE2E {
     const combined = new TextEncoder().encode(
       JSON.stringify(keys[0]) + JSON.stringify(keys[1])
     );
-    // SHA-256 → take first 30 bytes → convert to decimal groups
-    const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', combined));
+    // SHA-512 → 64 bytes → 12 groups of 5 digits (60 digits total)
+    const hash = new Uint8Array(await crypto.subtle.digest('SHA-512', combined));
     let code = '';
-    for (let i = 0; i < 30; i += 5) {
+    for (let i = 0; i < 60; i += 5) {
       // Each group: 5 bytes → 5-digit number (mod 100000, zero-padded)
       const num = ((hash[i] << 24) | (hash[i+1] << 16) | (hash[i+2] << 8) | hash[i+3]) >>> 0;
       const group = String(num % 100000).padStart(5, '0');

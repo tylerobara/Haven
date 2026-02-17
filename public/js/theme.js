@@ -143,31 +143,110 @@ function initRgbEditor() {
 }
 
 // ════════════════════════════════════════════════════════════
-// EFFECT SPEED SLIDER (for themes with CSS animations)
+// EFFECT SPEED SLIDERS (per-effect independent speed control)
 // ════════════════════════════════════════════════════════════
-const DYNAMIC_THEMES = ['crt','ffx','ice','nord','darksouls','bloodborne','matrix','cyberpunk','lotr'];
+const DYNAMIC_THEMES = ['crt','ffx','ice','nord','darksouls','bloodborne','matrix','cyberpunk','lotr','eldenring'];
+// Per-effect speed map: effectName → multiplier (1 = normal, >1 = faster)
+const _fxSpeedMap = {};
+// Global fallback (used when per-effect value not set)
+let _fxSpeedMult = 1.0;
+
+// Human-readable labels for effect speed sliders
+const _FX_LABELS = {
+  crt: '📺 CRT', ffx: '⚔️ Water', ice: '🧊 Frost', nord: '❄ Snow',
+  darksouls: '🔥 Embers', bloodborne: '🩸 Blood', matrix: 'Ⅿ Matrix',
+  cyberpunk: '⚡ Glitch', lotr: '⚜ Candle', eldenring: '✨ Golden Grace'
+};
+
+// Get speed for a specific effect (per-effect → global fallback → 1.0)
+function _getFxSpeed(effectName) {
+  if (_fxSpeedMap[effectName] !== undefined) return _fxSpeedMap[effectName];
+  return _fxSpeedMult;
+}
 
 function initEffectSpeedEditor() {
   const editor = document.getElementById('effect-speed-editor');
-  const slider = document.getElementById('effect-speed-slider');
-  if (!editor || !slider) return;
+  if (!editor) return;
 
-  // Restore saved multiplier
+  // Restore saved global multiplier (legacy — used as fallback)
   const saved = parseFloat(localStorage.getItem('haven_fx_mult'));
   if (!isNaN(saved)) {
-    slider.value = Math.round(saved * 100);
     document.documentElement.style.setProperty('--fx-mult', saved);
+    _fxSpeedMult = 2.15 - saved;
   }
 
-  slider.addEventListener('input', () => {
-    // slider 10-200 → multiplier 0.1-2.0  (lower = faster, higher = slower)
-    const mult = parseInt(slider.value, 10) / 100;
-    document.documentElement.style.setProperty('--fx-mult', mult);
-    localStorage.setItem('haven_fx_mult', mult);
-  });
+  // Restore per-effect speeds
+  try {
+    const perEffect = JSON.parse(localStorage.getItem('haven_fx_speeds') || '{}');
+    Object.assign(_fxSpeedMap, perEffect);
+  } catch {}
 
   editor._show = () => { editor.style.display = 'block'; };
   editor._hide = () => { editor.style.display = 'none'; };
+}
+
+// Rebuild per-effect speed sliders based on currently active effects
+function _rebuildEffectSpeedSliders() {
+  const editor = document.getElementById('effect-speed-editor');
+  if (!editor) return;
+
+  // Clear existing sliders
+  editor.innerHTML = '';
+
+  // Get active dynamic effects
+  const active = [..._activeFx].filter(fx => DYNAMIC_THEMES.includes(fx));
+  if (active.length === 0) return;
+
+  active.forEach(fx => {
+    const label = _FX_LABELS[fx] || fx;
+    const currentSpeed = _fxSpeedMap[fx] !== undefined ? _fxSpeedMap[fx] : 1.0;
+    const sliderVal = Math.round(currentSpeed * 100);
+
+    const row = document.createElement('label');
+    row.className = 'rgb-slider-row';
+    row.innerHTML = `
+      <span class="rgb-slider-label">${label}</span>
+      <input type="range" class="slider-sm rgb-slider fx-per-effect-slider" min="15" max="200" value="${sliderVal}" data-effect="${fx}">
+    `;
+    editor.appendChild(row);
+
+    const slider = row.querySelector('input');
+    slider.addEventListener('input', () => {
+      const raw = parseInt(slider.value, 10) / 100; // 0.15–2.0 (canvas: higher = faster)
+      _fxSpeedMap[fx] = raw;
+
+      // For CSS-based effects: set --fx-mult on overlay layer elements
+      const cssMult = 2.15 - raw; // invert for CSS (lower = faster)
+      _applyFxSpeedToLayers(fx, cssMult);
+
+      // Save per-effect speeds
+      localStorage.setItem('haven_fx_speeds', JSON.stringify(_fxSpeedMap));
+    });
+
+    // Apply initial speed to CSS layers
+    if (_fxSpeedMap[fx] !== undefined) {
+      _applyFxSpeedToLayers(fx, 2.15 - _fxSpeedMap[fx]);
+    }
+  });
+}
+
+// Set --fx-mult on the DOM overlay layers for a specific effect
+function _applyFxSpeedToLayers(effectName, cssMult) {
+  const layers = FX_LAYERS[effectName];
+  if (layers) {
+    layers.forEach(layer => {
+      const el = document.getElementById(layer.id);
+      if (el) el.style.setProperty('--fx-mult', cssMult);
+    });
+  }
+  // Matrix canvas + matrixbars CSS are paired — speed changes apply to both
+  if (effectName === 'matrix') {
+    const barLayers = FX_LAYERS['matrixbars'];
+    if (barLayers) barLayers.forEach(layer => {
+      const el = document.getElementById(layer.id);
+      if (el) el.style.setProperty('--fx-mult', cssMult);
+    });
+  }
 }
 
 function showEffectEditorIfDynamic(theme) {
@@ -175,6 +254,7 @@ function showEffectEditorIfDynamic(theme) {
   if (!editor) return;
   const hasDynamic = [..._activeFx].some(fx => DYNAMIC_THEMES.includes(fx));
   if (hasDynamic) {
+    _rebuildEffectSpeedSliders();
     if (editor._show) editor._show();
   } else {
     if (editor._hide) editor._hide();
@@ -587,7 +667,8 @@ function _startMatrixRain() {
       if (y > canvas.height && Math.random() > 0.975) {
         _matrixDrops[i] = 0;
       }
-      _matrixDrops[i] += 0.4 + Math.random() * 0.6;
+      const speedM = _getFxSpeed('matrix');
+      _matrixDrops[i] += (0.4 + Math.random() * 0.6) * speedM;
     }
     _matrixRAF = requestAnimationFrame(draw);
   }
@@ -653,19 +734,20 @@ function _startEmbers() {
     _emberCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Spawn fewer embers, concentrated in center
-    const spawnRate = Math.max(1, Math.floor(canvas.width / 200));
+    const speedM = _getFxSpeed('darksouls');
+    const spawnRate = Math.max(1, Math.floor(canvas.width / 200 * Math.max(0.5, speedM)));
     for (let s = 0; s < spawnRate; s++) {
       if (_embers.length < 35 && Math.random() > 0.7) spawnEmber();
     }
 
     for (let i = _embers.length - 1; i >= 0; i--) {
       const e = _embers[i];
-      e.flicker += 0.12;
-      e.x += e.vx + Math.sin(e.flicker) * e.driftAmp;
+      e.flicker += 0.12 * speedM;
+      e.x += (e.vx + Math.sin(e.flicker) * e.driftAmp) * speedM;
       // Center embers rise higher, edge embers die sooner
       const centerDist = Math.abs(e.x - canvas.width / 2) / (canvas.width / 2);
       const heightMult = 1 - centerDist * 0.4;
-      e.y += e.vy * heightMult;
+      e.y += e.vy * heightMult * speedM;
       e.life -= e.decay * (1 + centerDist * 0.8);
 
       if (e.life <= 0 || e.y < -10) { _embers.splice(i, 1); continue; }
@@ -769,17 +851,18 @@ function _startGraceEmbers() {
   function draw() {
     _graceCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const spawnRate = Math.max(1, Math.floor(canvas.width / 220));
+    const speedM = _getFxSpeed('eldenring');
+    const spawnRate = Math.max(1, Math.floor(canvas.width / 220 * Math.max(0.5, speedM)));
     for (let s = 0; s < spawnRate; s++) {
       if (_graceEmbers.length < 40 && Math.random() > 0.65) spawnGrace();
     }
 
     for (let i = _graceEmbers.length - 1; i >= 0; i--) {
       const e = _graceEmbers[i];
-      e.phase += 0.03;                             // slow shimmer, not frantic flicker
-      e.angle += 0.004;                             // very slow rotation
-      e.x += e.vx + Math.sin(e.phase) * e.driftAmp;
-      e.y += e.vy;
+      e.phase += 0.03 * speedM;                    // slow shimmer, not frantic flicker
+      e.angle += 0.004 * speedM;                    // very slow rotation
+      e.x += (e.vx + Math.sin(e.phase) * e.driftAmp) * speedM;
+      e.y += e.vy * speedM;
       e.life -= e.decay;
 
       if (e.life <= 0 || e.y < -10) { _graceEmbers.splice(i, 1); continue; }
@@ -861,8 +944,10 @@ function _startNordSnow() {
     _snowCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Spawn snowflakes at random intervals — density scales with width
-    const targetCount = Math.max(20, Math.floor(canvas.width / 18));
-    const spawnChance = _snowflakes.length < targetCount ? 0.35 : 0.05;
+    // Speed multiplier affects spawn rate and fall speed
+    const speedM = _getFxSpeed('nord');
+    const targetCount = Math.max(20, Math.floor(canvas.width / 18 * Math.max(0.5, speedM)));
+    const spawnChance = _snowflakes.length < targetCount ? 0.35 * speedM : 0.05;
     if (Math.random() < spawnChance && _snowflakes.length < targetCount * 1.5) {
       // Spawn 1-3 flakes at once for bursts
       const burst = 1 + Math.floor(Math.random() * 3);
@@ -871,9 +956,9 @@ function _startNordSnow() {
 
     for (let i = _snowflakes.length - 1; i >= 0; i--) {
       const f = _snowflakes[i];
-      f.drift += f.driftSpeed;
-      f.x += f.vx + Math.sin(f.drift) * f.driftAmp;
-      f.y += f.vy;
+      f.drift += f.driftSpeed * speedM;
+      f.x += (f.vx + Math.sin(f.drift) * f.driftAmp) * speedM;
+      f.y += f.vy * speedM;
 
       // Fade out near bottom to avoid sharp cut-off
       let alpha = f.opacity;

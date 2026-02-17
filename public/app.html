@@ -77,7 +77,7 @@
           </div>
           <div class="sidebar-split-handle" id="sidebar-split-handle" title="Drag to resize"></div>
           <div class="sidebar-section dm-section-pane" id="dm-pane">
-            <h5 class="section-label dm-section-label dm-toggle" id="dm-toggle-header" style="cursor:pointer;user-select:none"><span class="dm-toggle-arrow" id="dm-toggle-arrow">▾</span> Direct Messages <span class="dm-unread-count" id="dm-unread-badge" style="display:none"></span></h5>
+            <h5 class="section-label dm-section-label dm-toggle" id="dm-toggle-header" style="cursor:pointer;user-select:none"><span class="dm-toggle-arrow" id="dm-toggle-arrow">▾</span> Direct Messages <button class="icon-btn small" id="organize-dms-btn" title="Organize DMs" style="display:inline-flex;margin-left:auto;font-size:0.7rem;padding:0 4px;opacity:0.5">📋</button> <span class="dm-unread-count" id="dm-unread-badge" style="display:none"></span></h5>
             <div class="dm-list-scroll" id="dm-list"></div>
           </div>
         </div>
@@ -282,7 +282,10 @@
                 <span id="music-panel-label">🎵 Listening Together</span>
               </div>
               <div class="music-panel-controls">
+                <button id="music-prev-btn" class="icon-btn small" title="Previous track" style="display:none">⏮</button>
                 <button id="music-play-pause-btn" class="icon-btn small" title="Play/Pause">⏸</button>
+                <button id="music-next-btn" class="icon-btn small" title="Next track" style="display:none">⏭</button>
+                <button id="music-shuffle-btn" class="icon-btn small" title="Shuffle" style="display:none">🔀</button>
                 <span id="music-time-current" class="music-time">0:00</span>
                 <input type="range" id="music-seek-slider" class="music-seek-slider" min="0" max="100" value="0" step="0.1" title="Seek">
                 <span id="music-time-duration" class="music-time">0:00</span>
@@ -503,7 +506,7 @@
       <p class="modal-desc">Connect to a friend's Haven server</p>
       <div class="form-group">
         <label>Server Name</label>
-        <input type="text" id="server-name-input" placeholder='e.g. Jake&apos;s Haven' maxlength="30">
+        <input type="text" id="add-server-name-input" placeholder='e.g. Jake&apos;s Haven' maxlength="30">
       </div>
       <div class="form-group">
         <label>Server Address</label>
@@ -815,12 +818,6 @@
             </div>
           </div>
         </div>
-        <!-- Permission Thresholds (Admin only) -->
-        <div class="admin-settings" id="perm-thresholds-section" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle">🔐 Permission Thresholds</h5>
-          <small class="settings-hint">Auto-grant permissions when a user reaches a certain role level. Set to 0 or leave empty to disable.</small>
-          <div id="perm-thresholds-list" style="margin-top:8px;"></div>
-        </div>
         <!-- Role Management (Admin only) -->
         <div class="admin-settings" id="role-mgmt-section" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
           <h5 class="settings-section-subtitle">👑 Role Management</h5>
@@ -851,15 +848,12 @@
         <!-- Webhooks / Bots (Admin only) -->
         <div class="admin-settings" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
           <h5 class="settings-section-subtitle">🤖 Webhooks / Bots</h5>
-          <small class="settings-hint">Create webhooks to let external services post messages to channels (like Discord webhooks)</small>
-          <div class="whitelist-add-row" style="margin-top:8px;">
-            <input type="text" id="webhook-name-input" placeholder="Bot name..." maxlength="32" class="settings-text-input">
-            <select id="webhook-channel-select" class="settings-select" style="max-width:130px;"></select>
-            <button class="btn-sm btn-accent" id="webhook-create-btn">Create</button>
+          <small class="settings-hint">Create and manage webhook bots that can post messages to channels.</small>
+          <div style="margin-top:8px;">
+            <button class="btn-sm btn-full btn-accent" id="open-bot-editor-btn">⚙️ Manage Bots</button>
           </div>
-          <input type="text" id="webhook-avatar-input" placeholder="Avatar URL (optional)" class="settings-text-input" style="margin-top:4px;width:100%;max-width:100%;" maxlength="512">
           <div id="webhooks-list" style="margin-top:8px;">
-            <p class="muted-text">No webhooks configured</p>
+            <p class="muted-text">No bots configured</p>
           </div>
         </div>
         <!-- Mod Mode (Admin only) -->
@@ -920,6 +914,25 @@
       </div>
     </div>
   </div>
+  <!-- Bot Management Modal -->
+  <div class="modal-overlay" id="bot-modal" style="display:none">
+    <div class="modal modal-wide">
+      <h3>🤖 Bot Management</h3>
+      <div class="role-editor-layout">
+        <div class="role-sidebar">
+          <div id="bot-list-sidebar" class="role-list-sidebar"></div>
+          <button class="btn-sm btn-accent btn-full" id="create-bot-btn" style="margin-top:8px;">+ New Bot</button>
+        </div>
+        <div class="role-detail" id="bot-detail-panel">
+          <p class="muted-text" style="padding:20px;text-align:center">Select a bot to edit, or create a new one</p>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-sm" id="close-bot-modal-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="bans-modal" style="display:none">
     <div class="modal modal-wide">
       <h3>Banned Users</h3>
@@ -1002,6 +1015,40 @@
 
       <div class="modal-actions">
         <button class="btn-sm btn-accent" id="organize-done-btn">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DM Organize Modal -->
+  <div class="modal-overlay" id="dm-organize-modal" style="display:none">
+    <div class="modal" style="max-width:460px">
+      <h3>📋 Organize DMs</h3>
+      <p class="modal-desc">Tag your conversations into collapsible categories</p>
+
+      <div class="organize-toolbar">
+        <label class="organize-toolbar-label">Sort:</label>
+        <select id="dm-organize-sort" class="organize-select">
+          <option value="manual">Manual</option>
+          <option value="alpha">Alphabetical</option>
+          <option value="recent">Recent Activity</option>
+        </select>
+      </div>
+
+      <div id="dm-organize-list" class="organize-list"></div>
+
+      <div class="organize-controls">
+        <button class="btn-sm" id="dm-organize-move-up" title="Move up">⬆ Up</button>
+        <button class="btn-sm" id="dm-organize-move-down" title="Move down">⬇ Down</button>
+        <div class="organize-spacer"></div>
+        <div class="organize-tag-group">
+          <input type="text" id="dm-organize-tag-input" class="organize-tag-input" maxlength="30" placeholder="Category…">
+          <button class="btn-sm organize-tag-btn" id="dm-organize-set-tag" title="Apply category">🏷️ Set</button>
+          <button class="btn-sm organize-tag-btn danger" id="dm-organize-remove-tag" title="Remove category">✕</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-sm btn-accent" id="dm-organize-done-btn">Done</button>
       </div>
     </div>
   </div>
