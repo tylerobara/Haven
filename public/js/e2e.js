@@ -61,10 +61,21 @@ class HavenE2E {
         } else if (serverData.hasPublicKey) {
           // Server has a public key for us but NO encrypted backup!
           // The backup upload was lost (old race condition bug).
-          // Do NOT generate new keys — that would overwrite the server public key.
-          console.warn('[E2E] Server has public key but no encrypted backup — keys need reset');
-          this._needsPassword = true;
-          this._keyBackupLost = true;
+          if (password) {
+            // Password available (login form) — auto-reset now
+            console.warn('[E2E] Server has public key but no backup — auto-resetting keys');
+            const reset = await this.resetKeys(socket, password);
+            if (!reset) {
+              // Reset failed — fall back to manual recovery
+              this._needsPassword = true;
+              this._keyBackupLost = true;
+            }
+          } else {
+            // No password (token auto-login) — need user to enter it
+            console.warn('[E2E] Server has public key but no backup — need password to reset');
+            this._needsPassword = true;
+            this._keyBackupLost = true;
+          }
         }
         // else: server has neither → truly first-time user (fall through to generate)
       }

@@ -316,6 +316,9 @@ class HavenApp {
     this.socket.on('channels-list', (channels) => {
       this.channels = channels;
       this._renderChannels();
+      // Request fresh voice counts so sidebar indicators are always correct
+      // (covers cases where initial push arrived before DOM was ready)
+      this.socket.emit('get-voice-counts');
     });
 
     // Channel renamed — update header if we're in that channel
@@ -500,8 +503,9 @@ class HavenApp {
     this.socket.on('stream-viewers-update', (data) => {
       this._streamInfo = data.streams || [];
       this._updateStreamViewerBadges();
-      // Re-render voice users to show streaming/watching indicators
-      if (data.channelCode === this.currentChannel && this._lastVoiceUsers) {
+      // Always re-render voice users so the LIVE viewer count updates
+      // regardless of which text channel the user is viewing
+      if (this._lastVoiceUsers) {
         this._renderVoiceUsers(this._lastVoiceUsers);
       }
     });
@@ -10058,9 +10062,11 @@ class HavenApp {
   _e2eSetupListeners() {
     // Publish our public key to the server
     const publishData = { jwk: this.e2e.publicKeyJwk };
-    if (this._e2eForcePublish) {
+    // Check both app-level flag and e2e-level flag (set by resetKeys auto-reset)
+    if (this._e2eForcePublish || (this.e2e && this.e2e._forcePublish)) {
       publishData.force = true;
       this._e2eForcePublish = false;
+      if (this.e2e) this.e2e._forcePublish = false;
     }
     this.socket.emit('publish-public-key', publishData);
     // Listen for public key responses (only attach once)

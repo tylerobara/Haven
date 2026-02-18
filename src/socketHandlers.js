@@ -568,6 +568,13 @@ function setupSocketHandlers(io, db) {
       statusText: socket.user.statusText || ''
     });
 
+    // Send current voice counts so sidebar indicators are correct on connect
+    for (const [code, room] of voiceUsers) {
+      if (room.size > 0) {
+        socket.emit('voice-count-update', { code, count: room.size });
+      }
+    }
+
     // ── Per-socket flood protection ─────────────────────────
     const floodBuckets = { message: [], event: [] };
     const FLOOD_LIMITS = {
@@ -1235,6 +1242,7 @@ function setupSocketHandlers(io, db) {
 
       // Update voice user list for voice participants + text viewers
       broadcastVoiceUsers(code);
+      broadcastStreamInfo(code); // Ensure late joiner gets current stream viewer data
 
       // Send active music state to late joiner
       const music = activeMusic.get(code);
@@ -1497,10 +1505,9 @@ function setupSocketHandlers(io, db) {
           });
         }
       }
-      // Send to all voice participants
-      for (const [, user] of voiceRoom) {
-        io.to(user.socketId).emit('stream-viewers-update', { channelCode: code, streams });
-      }
+      // Send to voice participants AND text channel viewers (so non-voice users
+      // see stream info in the voice panel)
+      io.to(`voice:${code}`).to(`channel:${code}`).emit('stream-viewers-update', { channelCode: code, streams });
     }
 
     // ── Music Sharing ───────────────────────────────────
@@ -1771,6 +1778,16 @@ function setupSocketHandlers(io, db) {
       });
 
       broadcastVoiceUsers(code);
+      broadcastStreamInfo(code); // Ensure re-joined user gets current stream info
+    });
+
+    // Let clients explicitly request voice counts (fallback for missed push events)
+    socket.on('get-voice-counts', () => {
+      for (const [code, room] of voiceUsers) {
+        if (room.size > 0) {
+          socket.emit('voice-count-update', { code, count: room.size });
+        }
+      }
     });
 
     socket.on('get-channel-members', (data) => {
