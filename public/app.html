@@ -345,6 +345,7 @@
               <div class="gif-picker-footer">Powered by GIPHY</div>
             </div>
             <div id="mention-dropdown" class="mention-dropdown" style="display:none"></div>
+            <div id="emoji-dropdown" class="emoji-dropdown" style="display:none"></div>
             <div id="slash-dropdown" class="slash-dropdown" style="display:none"></div>
             <textarea id="message-input" placeholder="Type a message... (/ for commands)"
                       rows="1" maxlength="2000"></textarea>
@@ -655,6 +656,7 @@
           <button type="button" class="btn-sm" id="avatar-remove-btn">Clear</button>
           <input type="file" id="avatar-file-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none">
         </div>
+        <small class="muted-text" style="display:block;margin-top:-4px;margin-bottom:8px;opacity:0.6">JPG, PNG, GIF (animated!), WebP · Max 2 MB</small>
         <h5 class="settings-section-subtitle">Shape</h5>
         <div class="avatar-shape-picker" id="avatar-shape-picker">
           <button type="button" class="avatar-shape-btn active" data-shape="circle" title="Circle"><div class="shape-preview shape-circle"></div></button>
@@ -733,6 +735,7 @@
           <div class="settings-nav-item settings-nav-admin" data-target="section-roles" style="display:none">👑 Roles</div>
           <div class="settings-nav-item settings-nav-admin" data-target="section-tunnel" style="display:none">🧭 Tunnel</div>
           <div class="settings-nav-item settings-nav-admin" data-target="section-bots" style="display:none">🤖 Bots</div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-import" style="display:none">📦 Import</div>
           <div class="settings-nav-item settings-nav-admin" data-target="section-modmode" style="display:none">🔧 Mod Mode</div>
         </nav>
         <div class="settings-body">
@@ -752,6 +755,21 @@
           <button type="button" class="density-btn" data-density="spacious" title="Spacious — more breathing room">
             <span class="density-icon">⬛</span>
             <span class="density-label">Spacious</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Image Display Mode -->
+      <div class="settings-section" id="section-density" style="border-top: 1px solid var(--border-light); padding-top: 16px; margin-top: 8px;">
+        <h5 class="settings-section-title">🖼️ Image Display</h5>
+        <div class="density-picker" id="image-mode-picker">
+          <button type="button" class="density-btn active" data-image-mode="thumbnail" title="Thumbnail — small preview, click to enlarge">
+            <span class="density-icon">🔍</span>
+            <span class="density-label">Thumbnail</span>
+          </button>
+          <button type="button" class="density-btn" data-image-mode="full" title="Full — large inline images like Discord">
+            <span class="density-icon">🖼️</span>
+            <span class="density-label">Full</span>
           </button>
         </div>
       </div>
@@ -1001,6 +1019,14 @@
             <p class="muted-text">No bots configured</p>
           </div>
         </div>
+        <!-- Discord Import (Admin only) -->
+        <div class="admin-settings" id="section-import" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+          <h5 class="settings-section-subtitle">📦 Discord Import</h5>
+          <small class="settings-hint">Import channels and messages from a Discord export file</small>
+          <div style="margin-top:8px;">
+            <button class="btn-sm btn-full btn-accent" id="open-import-btn">📦 Import from Discord</button>
+          </div>
+        </div>
         <!-- Mod Mode (Admin only) -->
         <div class="admin-settings" id="section-modmode" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
           <h5 class="settings-section-subtitle">🔧 Mod Mode</h5>
@@ -1016,6 +1042,67 @@
       </div>
         </div><!-- /settings-body -->
       </div><!-- /settings-layout -->
+    </div>
+  </div>
+
+  <!-- Discord Import Modal -->
+  <div class="modal-overlay" id="import-modal" style="display:none">
+    <div class="modal" style="max-width:560px">
+      <h3>📦 Import from Discord</h3>
+
+      <!-- Step 1: Upload -->
+      <div id="import-step-upload">
+        <p class="settings-hint" style="margin-bottom:10px">
+          Upload a Discord export file to import channels and messages into Haven.
+        </p>
+        <div class="import-format-info">
+          <div class="import-format-row">
+            <strong>DiscordChatExporter</strong>
+            <span class="muted-text">— JSON or ZIP (recommended — includes all users)</span>
+          </div>
+          <div class="import-format-row">
+            <strong>Discord Data Package</strong>
+            <span class="muted-text">— ZIP from Settings → Privacy (your messages only)</span>
+          </div>
+        </div>
+        <div class="import-dropzone" id="import-dropzone">
+          <input type="file" id="import-file-input" accept=".json,.zip" style="display:none">
+          <div class="import-dropzone-content">
+            <span class="import-dropzone-icon">📁</span>
+            <span>Drop file here or <a href="#" id="import-browse-link">browse</a></span>
+            <span class="muted-text" style="font-size:11px">.json or .zip — up to 500 MB</span>
+          </div>
+        </div>
+        <div id="import-upload-progress" style="display:none">
+          <div class="import-progress-bar"><div class="import-progress-fill" id="import-progress-fill"></div></div>
+          <p class="muted-text" id="import-upload-status" style="margin-top:6px;text-align:center">Uploading...</p>
+        </div>
+      </div>
+
+      <!-- Step 2: Preview & Select -->
+      <div id="import-step-preview" style="display:none">
+        <div class="import-info-bar">
+          <span class="import-format-badge" id="import-format-badge"></span>
+          <span id="import-server-name" style="font-weight:600"></span>
+          <span class="muted-text" id="import-total-msgs"></span>
+        </div>
+        <p class="settings-hint" style="margin:8px 0 6px">Select channels to import. You can rename them before importing.</p>
+        <div class="import-channel-list" id="import-channel-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+          <button class="btn-sm" id="import-back-btn">← Back</button>
+          <button class="btn-sm btn-accent" id="import-execute-btn">📦 Import Selected</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Done -->
+      <div id="import-step-done" style="display:none;text-align:center;padding:20px 0">
+        <div style="font-size:48px;margin-bottom:12px">✅</div>
+        <p id="import-done-msg" style="font-size:14px">Import complete!</p>
+      </div>
+
+      <div class="modal-actions" style="margin-top:12px">
+        <button class="btn-sm" id="close-import-btn">Close</button>
+      </div>
     </div>
   </div>
 
@@ -1406,6 +1493,11 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Image Lightbox Overlay -->
+  <div id="image-lightbox" class="image-lightbox" style="display:none">
+    <img id="lightbox-img" class="lightbox-img" src="" alt="">
+  </div>
   <script src="/js/theme.js?v=1.8.0"></script>
   <script src="/js/notifications.js?v=1.8.0"></script>
   <script src="/js/servers.js?v=1.8.0"></script>

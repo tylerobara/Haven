@@ -1268,10 +1268,31 @@ function runAutoCleanup() {
     if (maxAgeDays > 0) {
       const uploadsDir = UPLOADS_DIR;
       if (require('fs').existsSync(uploadsDir)) {
+        // Build a set of protected filenames (server icon, avatars, emojis, sounds)
+        const protectedFiles = new Set();
+        const iconRow = db.prepare("SELECT value FROM server_settings WHERE key = 'server_icon'").get();
+        if (iconRow?.value) protectedFiles.add(path.basename(iconRow.value));
+        db.prepare("SELECT avatar FROM users WHERE avatar IS NOT NULL AND avatar != ''").all()
+          .forEach(r => protectedFiles.add(path.basename(r.avatar)));
+        try {
+          db.prepare("SELECT url FROM custom_emojis").all()
+            .forEach(r => protectedFiles.add(path.basename(r.url)));
+        } catch { /* table may not exist */ }
+        try {
+          db.prepare("SELECT url FROM custom_sounds").all()
+            .forEach(r => protectedFiles.add(path.basename(r.url)));
+        } catch { /* table may not exist */ }
+        // Webhook/bot avatars
+        try {
+          db.prepare("SELECT avatar_url FROM webhooks WHERE avatar_url IS NOT NULL AND avatar_url != ''").all()
+            .forEach(r => protectedFiles.add(path.basename(r.avatar_url)));
+        } catch { /* table may not exist */ }
+
         const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
         const files = require('fs').readdirSync(uploadsDir);
         let filesDeleted = 0;
         files.forEach(f => {
+          if (protectedFiles.has(f)) return; // never delete critical files
           try {
             const fpath = require('path').join(uploadsDir, f);
             const stat = require('fs').statSync(fpath);

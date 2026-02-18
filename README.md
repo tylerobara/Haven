@@ -5,7 +5,7 @@
 
 > **Your server. Your rules. No cloud. No accounts with Big Tech. No one reading your messages.**
 
-![Version](https://img.shields.io/badge/version-1.9.0-blue)
+![Version](https://img.shields.io/badge/version-1.9.2-blue)
 ![License](https://img.shields.io/badge/license-MIT--NC-green)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
@@ -18,6 +18,13 @@ Haven is a self-hosted Discord alternative. Run it on your machine. Invite frien
 
 ## Quick Start — Docker (Recommended)
 
+**Option A — Pre-built image** (fastest):
+```bash
+docker pull ghcr.io/ancsemi/haven:latest
+docker run -d -p 3000:3000 -v haven_data:/data ghcr.io/ancsemi/haven:latest
+```
+
+**Option B — Build from source**:
 ```bash
 git clone https://github.com/ancsemi/Haven.git
 cd Haven
@@ -82,12 +89,12 @@ Or manually: `npm install && node server.js`
 
 | Category | What You Get |
 |----------|-------------|
-| **Chat** | Real-time messaging, image uploads (paste/drag/drop), typing indicators, message editing, replies, emoji reactions, @mentions with autocomplete, message pinning (admin) |
-| **Voice** | Peer-to-peer audio chat, per-user volume sliders, mute/deafen, join/leave audio cues, talking indicators |
+| **Chat** | Real-time messaging, image uploads (paste/drag/drop) with click-to-enlarge lightbox, typing indicators, message editing, replies, emoji reactions, @mentions with autocomplete, `:emoji` autocomplete, message pinning (admin) |
+| **Voice** | Peer-to-peer audio chat, per-user volume sliders, mute/deafen, join/leave audio cues, talking indicators, click usernames for profile/DM |
 | **Screen Share** | Multi-stream screen sharing with tiled grid layout, per-user video tiles, one-click close |
 | **Channels** | Hierarchical channels with sub-channels, private (invite-only) sub-channels with 🔒 indicator, channel topics |
 | **Join Codes** | Per-channel invite codes with admin controls: public/private visibility, static/dynamic mode, time-based or join-based auto-rotation, manual rotation |
-| **Avatars** | Upload profile pictures, choose avatar shape (circle/square/hexagon/diamond), per-user shapes visible to everyone |
+| **Avatars** | Upload profile pictures (including animated GIFs!), choose avatar shape (circle/square/hexagon/diamond), per-user shapes visible to everyone |
 | **Formatting** | **Bold**, *italic*, ~~strikethrough~~, `code`, \|\|spoilers\|\|, auto-linked URLs, fenced code blocks with language labels, blockquotes |
 | **Link Previews** | Automatic OG metadata previews for shared URLs with title, description, and thumbnail |
 | **GIF Search** | GIPHY-powered GIF picker — search and send GIFs inline (admin-configurable API key) |
@@ -273,6 +280,7 @@ Haven **automatically generates self-signed SSL certificates** on first launch �
 | `Shift+Enter` | New line |
 | `Ctrl+F` | Search messages |
 | `@` | @mention autocomplete |
+| `:` | Emoji autocomplete (type 2+ chars) |
 | `/` | Slash command autocomplete |
 | `Tab` | Select autocomplete suggestion |
 

@@ -11,6 +11,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [1.9.2] — 2026-02-18
+
+### Added
+- **Image lightbox** — clicking an image opens a full-screen overlay instead of a new tab. Click anywhere or press Escape to close.
+- **Image display mode setting** — choose between compact thumbnails (default, 180px) or full-width Discord-style embeds in Settings › Layout.
+- **Emoji autocomplete** — type `:` followed by 2+ characters to search emojis by name. Custom server emojis appear first. Navigate with arrow keys, insert with Enter/Tab.
+- **Animated GIF avatars** — upload a GIF as your profile picture and it animates everywhere (messages, sidebar, profile popup). Format hint added to the upload UI.
+- **Voice chat profile clicks** — click a username in the voice panel to open their profile popup (bio, DM, etc.), same as clicking a name in the sidebar.
+- **Auto-focus message input** — the text box is automatically focused when switching channels or opening DMs.
+- **Docker image publishing** — pre-built Docker images are now automatically pushed to GitHub Container Registry on every release (`ghcr.io/ancsemi/haven:latest`). No build step needed.
+
+### Changed
+- **Website & docs** updated to v1.9.2 with version history entries for v1.9.1.
+- **README** — added Docker pull instructions, emoji autocomplete to keyboard shortcuts, updated feature descriptions.
+- **GUIDE** — added pre-built Docker image quick start option.
+
+### Fixed
+- **Auto-cleanup deleting server assets** (#32) — the file cleanup routine now protects server icons, user avatars, custom emojis, custom sounds, and webhook avatars from deletion.
+
+---
+
 ## [1.9.1] — 2026-02-18
 
 ### Added

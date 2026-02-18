@@ -4611,17 +4611,51 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
    CHAT IMAGES
    ═══════════════════════════════════════════════════════════ */
 
+/* Default: thumbnail mode */
 .chat-image {
-  max-width: 400px;
-  max-height: 300px;
+  max-width: 180px;
+  max-height: 180px;
   border-radius: var(--radius);
   margin-top: 4px;
   cursor: pointer;
   transition: opacity 0.15s ease;
   display: block;
+  object-fit: cover;
 }
 
 .chat-image:hover { opacity: 0.85; }
+
+/* Full inline mode (Discord-style, toggled via client setting) */
+.image-mode-full .chat-image {
+  max-width: min(400px, 70%);
+  max-height: 300px;
+  object-fit: contain;
+}
+
+/* Image lightbox overlay */
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  animation: lightbox-fade-in 0.15s ease;
+}
+.lightbox-img {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 6px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+  object-fit: contain;
+  user-select: none;
+}
+@keyframes lightbox-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
 
 
 /* ═══════════════════════════════════════════════════════════
@@ -5592,6 +5626,48 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 .mention-item:hover, .mention-item.active {
   background: var(--accent);
   color: white;
+}
+
+/* :emoji autocomplete dropdown */
+.emoji-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 48px;
+  margin-bottom: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  overflow-y: auto;
+  max-height: 320px;
+  min-width: 260px;
+  max-width: 380px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  z-index: 1000;
+  padding: 4px 0;
+}
+.emoji-ac-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.emoji-ac-item:hover, .emoji-ac-item.active {
+  background: var(--accent);
+  color: white;
+}
+.emoji-ac-preview {
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+.emoji-ac-preview-char {
+  font-size: 1.25rem;
+}
+.emoji-ac-name {
+  font-size: 0.92rem;
+  opacity: 0.85;
 }
 
 /* /slash command autocomplete dropdown */
@@ -6843,7 +6919,8 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   .message-compact { padding-left: 46px; }
 
   /* Chat images — full width on mobile */
-  .chat-image { max-width: 100%; max-height: 250px; }
+  .chat-image { max-width: 140px; max-height: 140px; }
+  .image-mode-full .chat-image { max-width: 100%; max-height: 250px; }
 
   /* Input area — touch-friendly, two-row layout */
   .message-input-area {
@@ -10311,6 +10388,123 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
+}
+
+/* ── Discord Import ────────────────────────────────── */
+.import-format-info {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.import-format-row { margin: 3px 0; }
+.import-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 32px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.import-dropzone:hover,
+.import-dropzone.drag-over {
+  border-color: var(--accent-color, #5865f2);
+  background: color-mix(in srgb, var(--accent-color, #5865f2) 8%, transparent);
+}
+.import-dropzone-content { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.import-dropzone-icon { font-size: 28px; }
+.import-dropzone a { color: var(--accent-color, #5865f2); text-decoration: underline; }
+.import-progress-bar {
+  height: 6px;
+  background: var(--bg-secondary);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.import-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-color, #5865f2);
+  border-radius: 3px;
+  transition: width .3s;
+}
+.import-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+.import-format-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #5865f2;
+  color: #fff;
+  letter-spacing: .3px;
+}
+.import-format-badge.official { background: #57f287; color: #000; }
+.import-channel-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 8px;
+}
+.import-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.import-channel-row:last-child { border-bottom: none; }
+.import-channel-row label { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; cursor: pointer; }
+.import-channel-row .import-ch-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.import-channel-row .import-ch-name input[type="text"] {
+  width: 100%;
+  padding: 2px 6px;
+  font-size: 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+}
+.import-channel-row .import-ch-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* DISCORD badge for imported messages */
+.discord-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #5865f2;
+  color: #fff;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.imported-message .message-avatar {
+  border: 2px solid #5865f2;
 }
 
 

@@ -19,6 +19,13 @@ If you'd rather run Haven in a container (great for NAS boxes, servers, or if yo
 
 ### Quick Start
 
+**Option A — Pre-built image** (fastest):
+```bash
+docker pull ghcr.io/ancsemi/haven:latest
+docker run -d -p 3000:3000 -v haven_data:/data ghcr.io/ancsemi/haven:latest
+```
+
+**Option B — Build from source**:
 ```bash
 git clone https://github.com/ancsemi/Haven.git
 cd Haven
