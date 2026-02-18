@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "haven.fullname" . }}
+  labels:
+    {{- include "haven.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "haven.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "haven.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "haven.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- with (concat .Values.global.env .Values.haven.env) }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+            - name: HOST
+              value: {{ .Values.haven.host | quote }}
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
+            - name: SERVER_NAME
+              value: {{ .Values.haven.server_name | quote }}
+            - name: ADMIN_USERNAME
+              value: {{ .Values.haven.admin_user | quote }}
+            {{ if .Values.haven.giphy_api_key }}
+            - name: GIPHY_API_KEY
+              value: {{ .Values.haven.giphy_api_key | quote }}
+            {{ end }}
+            {{ if .Values.haven.vapid_email }}
+            - name: VAPID_EMAIL
+              value: {{ .Values.haven.vapid_email | quote }}
+            {{ end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if and .Values.persistence.enabled  }}
+            - name: data
+              mountPath: /data
+            {{- end }}
+            {{- if gt (len .Values.haven.extraVolumes) 0 }}
+            {{- range .Values.haven.extraVolumes }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+            {{- end }}
+            {{- end }}
+      volumes:
+        {{- if gt (len .Values.haven.extraVolumes) 0 }}
+        {{- toYaml .Values.haven.extraVolumes | nindent 8 }}
+        {{- end }}
+        {{- if and .Values.persistence.enabled  }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.claimName }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
