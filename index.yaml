@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  haven:
+  - apiVersion: v2
+    appVersion: v1.9.1
+    created: "2026-02-18T17:12:22.151158164Z"
+    description: A Helm chart for Kubernetes
+    digest: 995e93ec6242bcd1bb195ecba0b406a89239f4feb3d9265c3422d48ef0590779
+    name: haven
+    type: application
+    urls:
+    - https://github.com/tylerobara/Haven/releases/download/haven-0.1.0/haven-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-02-18T17:12:22.151170187Z"
