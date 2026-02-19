@@ -514,8 +514,14 @@ function _collectScrambleTargets() {
   // 3. Channel names in sidebar
   document.querySelectorAll('.channel-name').forEach(addTarget);
 
-  // 4. Section labels
-  document.querySelectorAll('.section-label').forEach(addTarget);
+  // 4. Section labels — target the text span inside toggle headers to avoid
+  //    destroying child elements (buttons, badges) via textContent assignment.
+  //    For section labels that contain a .section-label-text span, scramble that;
+  //    otherwise fall back to the label itself (safe for simple labels).
+  document.querySelectorAll('.section-label').forEach(el => {
+    const textSpan = el.querySelector('.section-label-text');
+    addTarget(textSpan || el);
+  });
 
   // 5. Channel header name
   addTarget(document.getElementById('channel-header-name'));
