@@ -8,8 +8,8 @@ metadata:
     "helm.sh/hook": test
 spec:
   containers:
-    - name: wget
-      image: busybox
-      command: ['wget']
-      args: ['{{ include "haven.fullname" . }}:{{ .Values.service.port }}']
+    - name: curl
+      image: curlimages/curl:8.4.0
+      command: ['curl']
+      args: ['-sSf','http://{{ include "haven.fullname" . }}:{{ .Values.service.port }}']
   restartPolicy: Never
