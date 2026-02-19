@@ -482,6 +482,13 @@ function initDatabase() {
     db.exec("ALTER TABLE users ADD COLUMN e2e_key_salt TEXT DEFAULT NULL");
   }
 
+  // ── Migration: E2E account secret (device-independent key wrapping) ──
+  try {
+    db.prepare("SELECT e2e_secret FROM users LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE users ADD COLUMN e2e_secret TEXT DEFAULT NULL");
+  }
+
   // ── Migration: ensure create_channel default threshold ──
   try {
     const row = db.prepare("SELECT value FROM server_settings WHERE key = 'permission_thresholds'").get();
@@ -493,6 +500,20 @@ function initDatabase() {
       }
     }
   } catch { /* ignore */ }
+
+  // ── Migration: imported_from column on messages (Discord import) ──
+  try {
+    db.prepare("SELECT imported_from FROM messages LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE messages ADD COLUMN imported_from TEXT DEFAULT NULL");
+  }
+
+  // ── Migration: webhook_avatar column on messages (Discord import avatars) ──
+  try {
+    db.prepare("SELECT webhook_avatar FROM messages LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE messages ADD COLUMN webhook_avatar TEXT DEFAULT NULL");
+  }
 
   return db;
 }

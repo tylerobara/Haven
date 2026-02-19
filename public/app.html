@@ -75,12 +75,12 @@
 
           <div class="sidebar-split" id="sidebar-split" data-mod-id="channels">
           <div class="sidebar-section channel-section" id="channels-pane">
-            <h5 class="section-label channels-toggle" id="channels-toggle" style="cursor:pointer;user-select:none"><span class="channels-toggle-arrow" id="channels-toggle-arrow">▾</span> Channels <button class="icon-btn small admin-only" id="organize-channels-btn" title="Organize channels" style="display:none;margin-left:auto;font-size:0.7rem;padding:0 4px;opacity:0.5">📋</button></h5>
+            <h5 class="section-label channels-toggle" id="channels-toggle" style="cursor:pointer;user-select:none"><span class="channels-toggle-arrow" id="channels-toggle-arrow">▾</span><span class="section-label-text" style="flex:1">Channels</span><button class="icon-btn small admin-only" id="organize-channels-btn" title="Organize channels" style="display:none;font-size:0.85rem;padding:2px 6px;opacity:0.6;position:relative;z-index:2">📋</button></h5>
             <div class="channel-list" id="channel-list"></div>
           </div>
           <div class="sidebar-split-handle" id="sidebar-split-handle" title="Drag to resize"></div>
           <div class="sidebar-section dm-section-pane" id="dm-pane">
-            <h5 class="section-label dm-section-label dm-toggle" id="dm-toggle-header" style="cursor:pointer;user-select:none"><span class="dm-toggle-arrow" id="dm-toggle-arrow">▾</span> Direct Messages <button class="icon-btn small" id="organize-dms-btn" title="Organize DMs" style="display:inline-flex;margin-left:auto;font-size:0.7rem;padding:0 4px;opacity:0.5">📋</button> <span class="dm-unread-count" id="dm-unread-badge" style="display:none"></span></h5>
+            <h5 class="section-label dm-section-label dm-toggle" id="dm-toggle-header" style="cursor:pointer;user-select:none"><span class="dm-toggle-arrow" id="dm-toggle-arrow">▾</span><span class="section-label-text" style="flex:1">Direct Messages</span><span style="display:flex;align-items:center;gap:4px;position:relative;z-index:2"><span class="dm-unread-count" id="dm-unread-badge" style="display:none"></span><button class="icon-btn small" id="organize-dms-btn" title="Organize DMs" style="font-size:0.85rem;padding:2px 6px;opacity:0.6">📋</button></span></h5>
             <div class="dm-list-scroll" id="dm-list"></div>
           </div>
         </div>
@@ -995,10 +995,6 @@
         <!-- Tunnel settings (Admin only) -->
         <div class="admin-settings" id="section-tunnel" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
           <h5 class="settings-section-subtitle">🧭 Tunnel</h5>
-          <label class="toggle-row">
-            <span>Enabled</span>
-            <input type="checkbox" id="tunnel-enabled">
-          </label>
           <label class="select-row">
             <span>Provider</span>
             <select id="tunnel-provider-select">
@@ -1006,7 +1002,10 @@
               <option value="cloudflared">Cloudflared</option>
             </select>
           </label>
-          <div id="tunnel-status-display" class="muted-text" style="margin-top:4px;font-size:11px;">Inactive</div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+            <button class="btn-sm btn-accent" id="tunnel-toggle-btn">Start Tunnel</button>
+            <span id="tunnel-status-display" class="muted-text" style="font-size:11px;">Inactive</span>
+          </div>
         </div>
         <!-- Webhooks / Bots (Admin only) -->
         <div class="admin-settings" id="section-bots" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
@@ -1050,32 +1049,97 @@
     <div class="modal" style="max-width:560px">
       <h3>📦 Import from Discord</h3>
 
-      <!-- Step 1: Upload -->
+      <!-- Step 1: Upload or Connect -->
       <div id="import-step-upload">
-        <p class="settings-hint" style="margin-bottom:10px">
-          Upload a Discord export file to import channels and messages into Haven.
-        </p>
-        <div class="import-format-info">
-          <div class="import-format-row">
-            <strong>DiscordChatExporter</strong>
-            <span class="muted-text">— JSON or ZIP (recommended — includes all users)</span>
+        <div class="import-tabs">
+          <button class="import-tab active" data-tab="file">📁 Upload File</button>
+          <button class="import-tab" data-tab="connect">🔗 Connect to Discord</button>
+        </div>
+
+        <!-- Tab: Upload File -->
+        <div id="import-tab-file">
+          <p class="settings-hint" style="margin-bottom:10px">
+            Upload a Discord export file to import channels and messages into Haven.
+          </p>
+          <div class="import-format-info">
+            <div class="import-format-row">
+              <strong>DiscordChatExporter</strong>
+              <span class="muted-text">— JSON or ZIP (recommended — includes all users)</span>
+            </div>
+            <div class="import-format-row">
+              <strong>Discord Data Package</strong>
+              <span class="muted-text">— ZIP from Settings → Privacy (your messages only)</span>
+            </div>
           </div>
-          <div class="import-format-row">
-            <strong>Discord Data Package</strong>
-            <span class="muted-text">— ZIP from Settings → Privacy (your messages only)</span>
+          <div class="import-dropzone" id="import-dropzone">
+            <input type="file" id="import-file-input" accept=".json,.zip" style="display:none">
+            <div class="import-dropzone-content">
+              <span class="import-dropzone-icon">📁</span>
+              <span>Drop file here or <a href="#" id="import-browse-link">browse</a></span>
+              <span class="muted-text" style="font-size:11px">.json or .zip — up to 500 MB</span>
+            </div>
+          </div>
+          <div id="import-upload-progress" style="display:none">
+            <div class="import-progress-bar"><div class="import-progress-fill" id="import-progress-fill"></div></div>
+            <p class="muted-text" id="import-upload-status" style="margin-top:6px;text-align:center">Uploading...</p>
           </div>
         </div>
-        <div class="import-dropzone" id="import-dropzone">
-          <input type="file" id="import-file-input" accept=".json,.zip" style="display:none">
-          <div class="import-dropzone-content">
-            <span class="import-dropzone-icon">📁</span>
-            <span>Drop file here or <a href="#" id="import-browse-link">browse</a></span>
-            <span class="muted-text" style="font-size:11px">.json or .zip — up to 500 MB</span>
+
+        <!-- Tab: Connect to Discord -->
+        <div id="import-tab-connect" style="display:none">
+          <div id="import-connect-step-token">
+            <p class="settings-hint" style="margin-bottom:8px">
+              Connect directly to Discord and pull your messages — no external tools needed.
+            </p>
+            <details class="import-token-help">
+              <summary>How do I get my Discord token?</summary>
+              <div class="import-token-steps">
+                <ol>
+                  <li>Open <a href="https://discord.com/app" target="_blank" rel="noopener">discord.com/app</a> in Chrome/Edge (or use the desktop app)</li>
+                  <li>Press <kbd>F12</kbd> to open DevTools</li>
+                  <li>Click the <strong>Application</strong> tab (click <code>&gt;&gt;</code> in the toolbar if you don't see it)</li>
+                  <li>In the left sidebar, expand <strong>Local Storage</strong> → click <strong>https://discord.com</strong></li>
+                  <li>Find the <code>token</code> key — copy the value (without the quotes)</li>
+                </ol>
+                <p style="margin-top:8px"><strong>Desktop app:</strong> If F12 doesn't open DevTools, close Discord fully, then edit:</p>
+                <code class="import-token-snippet">%appdata%\discord\settings.json</code>
+                <p style="margin-top:4px">Add this line anywhere inside the { }:</p>
+                <code class="import-token-snippet">"DANGEROUS_ENABLE_DEVTOOLS_ONLY_ENABLE_IF_YOU_KNOW_WHAT_YOURE_DOING": true</code>
+                <p style="margin-top:4px">Restart Discord, then follow the steps above.</p>
+                <p class="muted-text" style="margin-top:8px">⚠️ Your token is like a password. Haven uses it only for this import and never stores it.</p>
+              </div>
+            </details>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <input type="password" id="import-discord-token" class="import-token-input" placeholder="Paste your Discord token here">
+              <button class="btn-sm btn-accent" id="import-connect-btn">Connect</button>
+            </div>
+            <p class="muted-text" id="import-connect-status" style="margin-top:6px;display:none"></p>
           </div>
-        </div>
-        <div id="import-upload-progress" style="display:none">
-          <div class="import-progress-bar"><div class="import-progress-fill" id="import-progress-fill"></div></div>
-          <p class="muted-text" id="import-upload-status" style="margin-top:6px;text-align:center">Uploading...</p>
+
+          <div id="import-connect-step-servers" style="display:none">
+            <div class="import-info-bar" style="margin-bottom:8px">
+              <span>Connected as <strong id="import-discord-username"></strong></span>
+              <a href="#" id="import-connect-disconnect" style="font-size:11px;margin-left:auto">Disconnect</a>
+            </div>
+            <p class="settings-hint" style="margin-bottom:6px">Pick a server to import from:</p>
+            <div id="import-server-list" class="import-server-grid"></div>
+          </div>
+
+          <div id="import-connect-step-channels" style="display:none">
+            <div class="import-info-bar" style="margin-bottom:8px">
+              <span id="import-connect-guild-name" style="font-weight:600"></span>
+              <a href="#" id="import-connect-back-servers" style="font-size:11px;margin-left:auto">← Back to servers</a>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <p class="settings-hint" style="margin:0;flex:1">Select channels to fetch:</p>
+              <a href="#" id="import-connect-toggle-all" style="font-size:11px;white-space:nowrap">Deselect All</a>
+            </div>
+            <div class="import-channel-list" id="import-connect-channel-list"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
+              <button class="btn-sm btn-accent" id="import-fetch-btn">📥 Fetch Messages</button>
+            </div>
+            <p class="muted-text" id="import-fetch-status" style="margin-top:6px;display:none"></p>
+          </div>
         </div>
       </div>
 
@@ -1086,7 +1150,10 @@
           <span id="import-server-name" style="font-weight:600"></span>
           <span class="muted-text" id="import-total-msgs"></span>
         </div>
-        <p class="settings-hint" style="margin:8px 0 6px">Select channels to import. You can rename them before importing.</p>
+        <div style="display:flex;align-items:center;gap:8px;margin:8px 0 6px">
+          <p class="settings-hint" style="margin:0;flex:1">Select channels to import. You can rename them before importing.</p>
+          <a href="#" id="import-toggle-all" style="font-size:11px;white-space:nowrap">Deselect All</a>
+        </div>
         <div class="import-channel-list" id="import-channel-list"></div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
           <button class="btn-sm" id="import-back-btn">← Back</button>

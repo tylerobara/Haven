@@ -351,7 +351,7 @@ function setupSocketHandlers(io, db) {
 
     // Refresh display_name, avatar AND is_admin from DB (JWT may be stale)
     try {
-      const uRow = db.prepare('SELECT display_name, is_admin, username, avatar, avatar_shape FROM users WHERE id = ?').get(user.id);
+      const uRow = db.prepare('SELECT display_name, is_admin, username, avatar, avatar_shape, e2e_secret FROM users WHERE id = ?').get(user.id);
 
       // Identity cross-check: reject if the DB user_id now belongs to a different account
       // (happens when the database is reset/recreated and IDs get reassigned)
@@ -362,6 +362,7 @@ function setupSocketHandlers(io, db) {
       socket.user.displayName = (uRow && uRow.display_name) ? uRow.display_name : user.username;
       socket.user.avatar = (uRow && uRow.avatar) ? uRow.avatar : null;
       socket.user.avatar_shape = (uRow && uRow.avatar_shape) ? uRow.avatar_shape : 'circle';
+      socket.user.e2eSecret = (uRow && uRow.e2e_secret) ? uRow.e2e_secret : null;
       if (uRow) {
         // Sync admin status from .env (handles ADMIN_USERNAME changes)
         const shouldBeAdmin = uRow.username.toLowerCase() === ADMIN_USERNAME ? 1 : 0;
@@ -567,6 +568,7 @@ function setupSocketHandlers(io, db) {
       displayName: socket.user.displayName,
       avatar: socket.user.avatar || null,
       avatarShape: socket.user.avatar_shape || 'circle',
+      e2eSecret: socket.user.e2eSecret || null,
       version: HAVEN_VERSION,
       roles: socket.user.roles || [],
       effectiveLevel: socket.user.effectiveLevel || 0,
@@ -930,7 +932,7 @@ function setupSocketHandlers(io, db) {
       let messages;
       if (before) {
         messages = db.prepare(`
-          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username,
+          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar, m.imported_from,
                  COALESCE(m.webhook_username, u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar, COALESCE(u.avatar_shape, 'circle') as avatar_shape
           FROM messages m LEFT JOIN users u ON m.user_id = u.id
           WHERE m.channel_id = ? AND m.id < ?
@@ -938,7 +940,7 @@ function setupSocketHandlers(io, db) {
         `).all(channel.id, before, limit);
       } else {
         messages = db.prepare(`
-          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username,
+          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar, m.imported_from,
                  COALESCE(m.webhook_username, u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar, COALESCE(u.avatar_shape, 'circle') as avatar_shape
           FROM messages m LEFT JOIN users u ON m.user_id = u.id
           WHERE m.channel_id = ?
@@ -995,6 +997,11 @@ function setupSocketHandlers(io, db) {
           obj.is_webhook = true;
           obj.username = `[BOT] ${m.webhook_username || 'Bot'}`;
           obj.avatar_shape = 'square';
+        }
+        // Flag imported messages (Discord, etc.)
+        if (m.imported_from) {
+          obj.imported_from = m.imported_from;
+          obj.username = m.webhook_username || 'Unknown';
         }
         return obj;
       });
@@ -3957,6 +3964,7 @@ function setupSocketHandlers(io, db) {
               id: s.user.id, username: s.user.username, isAdmin: true,
               displayName: s.user.displayName, avatar: s.user.avatar || null,
               avatarShape: s.user.avatar_shape || 'circle',
+              e2eSecret: s.user.e2eSecret || null,
               version: HAVEN_VERSION, roles: s.user.roles,
               effectiveLevel: 100, permissions: ['*'],
               status: s.user.status || 'online',
@@ -3971,6 +3979,7 @@ function setupSocketHandlers(io, db) {
               id: s.user.id, username: s.user.username, isAdmin: false,
               displayName: s.user.displayName, avatar: s.user.avatar || null,
               avatarShape: s.user.avatar_shape || 'circle',
+              e2eSecret: s.user.e2eSecret || null,
               version: HAVEN_VERSION, roles: s.user.roles,
               effectiveLevel: s.user.effectiveLevel,
               permissions: getUserPermissions(socket.user.id),
