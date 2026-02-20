@@ -41,7 +41,31 @@ class VoiceManager {
       ]
     };
 
+    // Fetch server-provided ICE config (may include TURN)
+    this._fetchIceServers();
+
     this._setupSocketListeners();
+  }
+
+  // ── Fetch ICE servers from backend (STUN + optional TURN) ──
+
+  async _fetchIceServers() {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch('/api/ice-servers', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.iceServers && data.iceServers.length) {
+          this.rtcConfig.iceServers = data.iceServers;
+          console.log(`🧊 ICE servers loaded (${data.iceServers.length} servers${data.iceServers.some(s => String(s.urls).includes('turn:')) ? ', TURN enabled' : ''})`);
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch ICE servers, using defaults:', err.message);
+    }
   }
 
   // ── Socket event listeners ──────────────────────────────
@@ -189,6 +213,9 @@ class VoiceManager {
     try {
       // Leave existing voice channel if connected elsewhere
       if (this.inVoice) this.leave();
+
+      // Refresh ICE config (TURN credentials may have expired)
+      await this._fetchIceServers();
 
       // Create/resume AudioContext with user gesture (needed for volume boost)
       if (!this.audioCtx) {

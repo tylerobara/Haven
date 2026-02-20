@@ -2241,28 +2241,66 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 
 /* ── CRT class on <html> (scanlines + font) ───────────── */
 .fx-crt {
-  --scanline: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.35) 1px, rgba(0,0,0,0.35) 2px);
+  --scanline: none; /* scanlines moved to dedicated .fx-crt-scanlines overlay */
 }
 
-/* ── CRT vignette overlay — parabolic CRT simulation ──
-   Bright center, dark curved edges like old glass tube,
-   phosphor glow, and screen flicker                      */
+/* ── CRT vignette overlay — parabolic CRT glass tube ──
+   Simulates a convex fishbowl CRT: bright center fading
+   to dark curved edges, phosphor glow, glass reflection,
+   and subtle screen flicker.  Darkness controlled by the
+   --crt-vignette-opacity CSS variable (slider in UI).     */
 .fx-crt-vignette {
   position: fixed; inset: 0;
-  /* Parabolic vignette: bright center fading aggressively to dark edges */
+  /* Gradient is set dynamically by JS _applyCrtVignette() — this is the
+     mid-range default so the effect is visible even before the slider fires. */
   background:
-    radial-gradient(ellipse 80% 70% at 50% 50%,
-      transparent 0%,
-      transparent 30%,
-      rgba(0,0,0,0.11) 50%,
-      rgba(0,0,0,0.34) 70%,
-      rgba(0,0,0,0.56) 85%,
-      rgba(0,0,0,0.69) 100%);
+    radial-gradient(ellipse 68% 64% at 50% 50%,
+      rgba(0,0,0,0.07) 0%,
+      rgba(0,0,0,0.07) 20%,
+      rgba(0,0,0,0.16) 45%,
+      rgba(0,0,0,0.30) 65%,
+      rgba(0,0,0,0.42) 82%,
+      rgba(0,0,0,0.50) 100%);
   animation: crt-flicker calc(0.08s * var(--fx-mult, 1)) infinite alternate;
-  border-radius: 12px;
+  /* Fishbowl curvature — larger radius simulates convex glass */
+  border-radius: 22px / 18px;
   box-shadow:
-    inset 0 0 100px rgba(0,0,0,0.6),
-    inset 0 0 250px rgba(0,0,0,0.3);
+    inset 0 0 120px rgba(0,0,0,0.65),
+    inset 0 0 280px rgba(0,0,0,0.3),
+    0 0 12px 2px rgba(0,0,0,0.4);
+  z-index: 99998;
+  pointer-events: none;
+}
+/* Glass reflection glint — subtle highlight in upper-left like curved glass */
+.fx-crt-vignette::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.035) 0%,
+    rgba(255,255,255,0.012) 35%,
+    transparent 55%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* ── CRT scanline overlay — fades toward screen center ── */
+.fx-crt-scanlines {
+  position: fixed; inset: 0;
+  opacity: var(--crt-scanline-opacity, 0.45);
+  /* Thin 1px dark lines every 3px — mimics phosphor gaps */
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0,0,0,0.4) 2px,
+    rgba(0,0,0,0.4) 3px);
+  /* Radial mask: scanlines fade out at center, visible at edges */
+  -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 50%,
+    rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,1) 100%);
+  mask-image: radial-gradient(ellipse 85% 75% at 50% 50%,
+    rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.35) 45%, rgba(0,0,0,1) 100%);
+  border-radius: 22px / 18px;
   z-index: 99998;
   pointer-events: none;
 }
@@ -5431,6 +5469,25 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 
 .msg-toolbar button:hover { background: var(--bg-tertiary); }
 
+/* First message: flip toolbar below so it's not clipped by the scroll
+   container's top edge (hidden behind the channel-topic bar). */
+.messages > :first-child .msg-toolbar {
+  top: auto;
+  bottom: -6px;
+}
+.messages > :first-child .reaction-picker,
+.reaction-picker.flip-below {
+  top: auto;
+  bottom: -44px;
+}
+.messages > :first-child .reaction-full-picker,
+.reaction-full-picker.flip-below {
+  bottom: auto;
+  top: 100%;
+  margin-bottom: 0;
+  margin-top: 4px;
+}
+
 
 /* ═══════════════════════════════════════════════════════════
    REPLY BANNER (on messages + input area)
@@ -5931,6 +5988,176 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   padding: 2px 6px;
 }
 #e2e-recovery-dismiss:hover { color: var(--text-primary); }
+
+/* ── E2E Key Reset Confirmation Modal ─── */
+.e2e-reset-modal {
+  max-width: 460px;
+  text-align: center;
+}
+.e2e-reset-modal h3 {
+  color: var(--danger, #f44);
+  margin-bottom: 12px;
+}
+.e2e-reset-warning {
+  background: rgba(255, 68, 68, 0.08);
+  border: 1px solid rgba(255, 68, 68, 0.25);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: left;
+  line-height: 1.6;
+}
+.e2e-reset-warning strong {
+  color: var(--danger, #f44);
+}
+.e2e-reset-warning ul {
+  margin: 8px 0 0 16px;
+  padding: 0;
+}
+.e2e-reset-warning ul li {
+  margin-bottom: 4px;
+}
+.e2e-confirm-type {
+  margin: 16px 0 12px;
+}
+.e2e-confirm-type input {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  width: 100%;
+  max-width: 260px;
+  text-align: center;
+}
+.e2e-reset-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.btn-danger {
+  background: var(--danger, #f44);
+  color: #fff;
+  border: none;
+  padding: 6px 18px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.4;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.btn-danger.enabled {
+  opacity: 1;
+  pointer-events: auto;
+}
+.btn-danger.enabled:hover {
+  filter: brightness(1.15);
+}
+
+/* ── E2E Lock Menu Dropdown ─── */
+.e2e-menu-wrapper {
+  position: relative;
+}
+.e2e-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1000;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  min-width: 210px;
+  padding: 6px 0;
+  margin-top: 4px;
+}
+.e2e-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.e2e-dropdown-item:hover {
+  background: rgba(255,255,255,0.06);
+}
+.e2e-dropdown-item.e2e-danger {
+  color: var(--danger, #f44);
+}
+.e2e-dropdown-item.e2e-danger:hover {
+  background: rgba(255, 68, 68, 0.10);
+}
+
+/* ── E2E Password Prompt Modal ─── */
+.e2e-password-modal {
+  max-width: 380px;
+  text-align: center;
+}
+.e2e-password-modal h3 {
+  margin-bottom: 8px;
+}
+.e2e-pw-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+.e2e-pw-field {
+  margin-bottom: 12px;
+}
+.e2e-pw-field input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  text-align: center;
+  letter-spacing: 2px;
+}
+.e2e-pw-field input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.e2e-pw-error {
+  color: var(--danger, #f44);
+  font-size: 12px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: rgba(255, 68, 68, 0.08);
+  border-radius: var(--radius-sm);
+}
+.e2e-pw-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.e2e-pw-actions .btn-accent:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ── E2E key-change system notice ─── */
+.system-message.e2e-notice {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 12px;
+  padding: 4px 16px;
+  opacity: 0.7;
+  text-align: center;
+}
 
 
 /* ═══════════════════════════════════════════════════════════
@@ -7116,6 +7343,20 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   /* Sidebar slightly narrower */
   .sidebar { width: 80vw; min-width: 80vw; }
   .right-sidebar { width: 80vw; min-width: 80vw; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   iOS PWA KEYBOARD FIX
+   When the virtual keyboard opens on iOS standalone PWA,
+   the viewport doesn't shrink.  JS detects this via
+   visualViewport and sets #app height directly; this CSS
+   removes the safe-area bottom padding so the input sits
+   flush above the keyboard.
+   ═══════════════════════════════════════════════════════════ */
+
+.ios-keyboard-open .message-input-area {
+  padding-bottom: 6px !important;
 }
 
 
@@ -8344,6 +8585,24 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── Inline YouTube embed in chat messages ────────────── */
+.link-preview-yt {
+  margin-top: 6px;
+  max-width: 480px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid #ff0000;
+  background: #000;
+  aspect-ratio: 16 / 9;
+}
+.link-preview-yt iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -9999,6 +10258,16 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
   background: rgba(255,255,255,0.02);
   font-weight: 600;
   user-select: none;
+}
+.organize-tag-header.selected {
+  background: rgba(107,79,219,0.22);
+  opacity: 1;
+  cursor: pointer;
+}
+.organize-tag-header:hover:not(.selected) {
+  background: rgba(255,255,255,0.04);
+  opacity: 0.7;
+  cursor: pointer;
 }
 .organize-tag-header .tag-sort-select {
   margin-left: auto;

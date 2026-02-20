@@ -25,6 +25,8 @@ services:
       # - ADMIN_USERNAME=admin            # First account to register becomes admin
       # - GIPHY_API_KEY=                  # Optional: enable GIF search
       # - VAPID_EMAIL=mailto:you@example  # Optional: email for push notifications
+      # - TURN_URL=turn:your-server:3478  # Optional: TURN relay for voice over internet
+      # - TURN_SECRET=your-secret         # Shared secret (coturn --use-auth-secret)
     # Uncomment to load settings from a .env file:
     # env_file: .env
     restart: unless-stopped

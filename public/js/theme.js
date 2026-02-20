@@ -227,6 +227,11 @@ function _rebuildEffectSpeedSliders() {
     if (_fxSpeedMap[fx] !== undefined) {
       _applyFxSpeedToLayers(fx, 2.15 - _fxSpeedMap[fx]);
     }
+
+    // Inject CRT vignette & scanline sliders right after the CRT speed slider
+    if (fx === 'crt') {
+      _injectCrtSliders(editor);
+    }
   });
 }
 
@@ -236,7 +241,18 @@ function _applyFxSpeedToLayers(effectName, cssMult) {
   if (layers) {
     layers.forEach(layer => {
       const el = document.getElementById(layer.id);
-      if (el) el.style.setProperty('--fx-mult', cssMult);
+      if (!el) return;
+      // CRT: widen flicker range — half the slowest speed, double the fastest.
+      // Original --fx-mult ranged 0.15–2.0; new CRT range: 0.075–4.0
+      if (effectName === 'crt') {
+        const raw = 2.15 - cssMult;                     // 0.15–2.0
+        const t = (raw - 0.15) / (2.0 - 0.15);         // 0→1 (left→right)
+        const crtMult = 4.0 - t * (4.0 - 0.075);       // slow 4.0 → fast 0.075
+        el.style.setProperty('--fx-mult', crtMult);
+        el.style.removeProperty('animation-duration');   // clean up any prior inline override
+      } else {
+        el.style.setProperty('--fx-mult', cssMult);
+      }
     });
   }
   // Matrix canvas + matrixbars CSS are paired — speed changes apply to both
@@ -261,13 +277,14 @@ function showEffectEditorIfDynamic(theme) {
   }
   // Show sacred intensity slider if religious effects are active
   const sacredEditor = document.getElementById('sacred-intensity-editor');
-  if (!sacredEditor) return;
   const SACRED = ['scripture', 'chapel', 'gospel'];
   const hasSacred = [..._activeFx].some(fx => SACRED.includes(fx));
-  if (hasSacred) {
-    if (sacredEditor._show) sacredEditor._show();
-  } else {
-    if (sacredEditor._hide) sacredEditor._hide();
+  if (sacredEditor) {
+    if (hasSacred) {
+      if (sacredEditor._show) sacredEditor._show();
+    } else {
+      if (sacredEditor._hide) sacredEditor._hide();
+    }
   }
   // Show glitch frequency slider when cyberpunk is active
   const glitchEditor = document.getElementById('glitch-freq-editor');
@@ -276,6 +293,20 @@ function showEffectEditorIfDynamic(theme) {
       if (glitchEditor._show) glitchEditor._show();
     } else {
       if (glitchEditor._hide) glitchEditor._hide();
+    }
+  }
+  // Show CRT vignette/scanline sliders when CRT effect is active
+  const crtEditor = document.getElementById('crt-editor');
+  if (crtEditor) {
+    if (_activeFx.has('crt')) {
+      // Apply saved slider values to freshly-created CRT overlay elements
+      const savedVig = parseInt(localStorage.getItem('haven_crt_vignette'));
+      _applyCrtVignette(!isNaN(savedVig) ? savedVig : 50);
+      const savedScan = parseInt(localStorage.getItem('haven_crt_scanline'));
+      _applyCrtScanline(!isNaN(savedScan) ? savedScan : 45);
+      if (crtEditor._show) crtEditor._show();
+    } else {
+      if (crtEditor._hide) crtEditor._hide();
     }
   }
 }
@@ -327,7 +358,8 @@ let _scrambleTargets = [];  // tracked { el, original } for multi-element scramb
 
 // Layer definitions: each effect -> array of { id, parent, cls }
 const FX_LAYERS = {
-  crt:        [{ id: 'fx-crt-vignette', parent: '#fx-layers', cls: 'fx-crt-vignette' }],
+  crt:        [{ id: 'fx-crt-vignette', parent: '#fx-layers', cls: 'fx-crt-vignette' },
+               { id: 'fx-crt-scanlines', parent: '#fx-layers', cls: 'fx-crt-scanlines' }],
   matrix:     [],  // digital rain handled entirely by JS canvas
   matrixbars: [{ id: 'fx-matrix-bars', parent: '.sidebar', cls: 'fx-matrix-bars' }],
   fallout:    [{ id: 'fx-fallout-vignette', parent: '#fx-layers', cls: 'fx-fallout-vignette' }],
@@ -609,6 +641,107 @@ function initGlitchFreqEditor() {
 
   editor._show = () => { editor.style.display = 'block'; };
   editor._hide = () => { editor.style.display = 'none'; };
+}
+
+// ── CRT vignette & scanline sliders ─────────────────────────
+function initCrtEditor() {
+  const editor = document.getElementById('crt-editor');
+  const vigSlider = document.getElementById('crt-vignette-slider');
+  const scanSlider = document.getElementById('crt-scanline-slider');
+  if (!editor || !vigSlider || !scanSlider) return;
+
+  // Restore saved values
+  const savedVig = parseInt(localStorage.getItem('haven_crt_vignette'));
+  if (!isNaN(savedVig)) {
+    vigSlider.value = savedVig;
+  }
+  const savedScan = parseInt(localStorage.getItem('haven_crt_scanline'));
+  if (!isNaN(savedScan)) {
+    scanSlider.value = savedScan;
+  }
+
+  vigSlider.addEventListener('input', () => {
+    const val = parseInt(vigSlider.value, 10);
+    _applyCrtVignette(val);
+    localStorage.setItem('haven_crt_vignette', val);
+  });
+
+  scanSlider.addEventListener('input', () => {
+    const val = parseInt(scanSlider.value, 10);
+    _applyCrtScanline(val);
+    localStorage.setItem('haven_crt_scanline', val);
+  });
+
+  editor._show = () => { editor.style.display = 'block'; };
+  editor._hide = () => { editor.style.display = 'none'; };
+}
+
+function _applyCrtVignette(sliderVal) {
+  const el = document.getElementById('fx-crt-vignette');
+  if (!el) return;
+  // Map slider 0-100 to vignette intensity:
+  //   min (0):  ~0% dark at center, ~10% dark at far edges
+  //   max (100): ~15% dark at center, ~90% dark at far edges
+  const t = sliderVal / 100;
+  const cen  = (t * 0.15).toFixed(3);            // 0.000 → 0.150
+  const mid1 = (0.02  + t * 0.28).toFixed(3);    // 0.020 → 0.300
+  const mid2 = (0.05  + t * 0.50).toFixed(3);    // 0.050 → 0.550
+  const mid3 = (0.08  + t * 0.67).toFixed(3);    // 0.080 → 0.750
+  const edge = (0.10  + t * 0.80).toFixed(3);    // 0.100 → 0.900
+  el.style.background = `radial-gradient(ellipse 68% 64% at 50% 50%,
+    rgba(0,0,0,${cen}) 0%,
+    rgba(0,0,0,${cen}) 20%,
+    rgba(0,0,0,${mid1}) 45%,
+    rgba(0,0,0,${mid2}) 65%,
+    rgba(0,0,0,${mid3}) 82%,
+    rgba(0,0,0,${edge}) 100%)`;
+}
+
+function _applyCrtScanline(sliderVal) {
+  const el = document.getElementById('fx-crt-scanlines');
+  if (el) el.style.opacity = sliderVal / 100;
+}
+
+// Inject vignette + scanline slider rows into the speed editor block
+function _injectCrtSliders(parentEditor) {
+  const savedVig = parseInt(localStorage.getItem('haven_crt_vignette'));
+  const vigVal = !isNaN(savedVig) ? savedVig : 50;
+  const savedScan = parseInt(localStorage.getItem('haven_crt_scanline'));
+  const scanVal = !isNaN(savedScan) ? savedScan : 45;
+
+  // Vignette row
+  const vigRow = document.createElement('label');
+  vigRow.className = 'rgb-slider-row';
+  vigRow.innerHTML = `
+    <span class="rgb-slider-label">📺 Vignette</span>
+    <input type="range" class="slider-sm rgb-slider" id="crt-vig-inline" min="0" max="100" value="${vigVal}">
+  `;
+  parentEditor.appendChild(vigRow);
+  const vigSlider = vigRow.querySelector('input');
+  vigSlider.addEventListener('input', () => {
+    const v = parseInt(vigSlider.value, 10);
+    _applyCrtVignette(v);
+    localStorage.setItem('haven_crt_vignette', v);
+  });
+
+  // Scanline row
+  const scanRow = document.createElement('label');
+  scanRow.className = 'rgb-slider-row';
+  scanRow.innerHTML = `
+    <span class="rgb-slider-label">📺 Scanlines</span>
+    <input type="range" class="slider-sm rgb-slider" id="crt-scan-inline" min="0" max="80" value="${scanVal}">
+  `;
+  parentEditor.appendChild(scanRow);
+  const scanSlider = scanRow.querySelector('input');
+  scanSlider.addEventListener('input', () => {
+    const v = parseInt(scanSlider.value, 10);
+    _applyCrtScanline(v);
+    localStorage.setItem('haven_crt_scanline', v);
+  });
+
+  // Apply initial values to the overlay elements
+  _applyCrtVignette(vigVal);
+  _applyCrtScanline(scanVal);
 }
 
 // ── Matrix Digital Rain (canvas) — scoped to .main area ─
@@ -1305,6 +1438,7 @@ function initThemeSwitcher(containerId, socket) {
   initEffectSpeedEditor();
   initSacredIntensityEditor();
   initGlitchFreqEditor();
+  initCrtEditor();
   initEffectSelector();
 
   // Show correct editor on load
