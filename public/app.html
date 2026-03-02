@@ -469,8 +469,8 @@
             <div class="voice-panel-header">
               <h5 class="panel-title" style="margin-bottom:0">🔊 Voice</h5>
               <div class="voice-header-actions">
-                <button id="voice-settings-toggle" class="voice-header-btn" title="Voice Settings" style="display:none">⚙️</button>
-                <button id="voice-leave-sidebar-btn" class="voice-header-btn voice-header-leave" title="Leave Voice" style="display:none">✕</button>
+                <button id="voice-mute-btn" class="voice-header-btn" title="Mute" style="display:none">🎙️</button>
+                <button id="voice-deafen-btn" class="voice-header-btn" title="Deafen" style="display:none">🔊</button>
               </div>
             </div>
             <button id="voice-join-mobile" class="btn-voice mobile-voice-join" style="display:none">🎤 Join Voice</button>
@@ -537,12 +537,13 @@
         </div>
         <!-- Voice controls bar (pinned above settings) -->
         <div id="voice-panel" class="voice-panel" style="display:none">
-          <button id="voice-mute-btn" class="voice-panel-btn" title="Mute">🎙️</button>
-          <button id="voice-deafen-btn" class="voice-panel-btn" title="Deafen">🔊</button>
           <button id="voice-cam-btn" class="voice-panel-btn" title="Camera">📷</button>
           <button id="screen-share-btn" class="voice-panel-btn" title="Share Screen">🖥️</button>
           <button id="voice-soundboard-btn" class="voice-panel-btn" title="Soundboard">🎵</button>
           <button id="voice-listen-together-btn" class="voice-panel-btn" title="Listen Together">🎶</button>
+          <span class="voice-panel-divider"></span>
+          <button id="voice-settings-toggle" class="voice-panel-btn" title="Voice Settings">⚙️</button>
+          <button id="voice-leave-sidebar-btn" class="voice-panel-btn voice-panel-leave" title="Leave Voice">✕</button>
         </div>
         <!-- Settings button pinned at bottom -->
         <div class="panel sidebar-settings-panel">

@@ -10527,6 +10527,16 @@ ul.chat-list { list-style-type: disc; }
 }
 .voice-header-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
 .voice-header-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.voice-header-btn.muted { background: var(--warning); color: #1a1a2e; border-color: var(--warning); position: relative; }
+.voice-header-btn.muted::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 18%;
+  width: 64%; height: 2px;
+  background: #c00;
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
 .voice-header-leave { background: var(--danger); color: #fff; border-color: var(--danger); }
 .voice-header-leave:hover { background: #d93636; color: #fff; border-color: #d93636; }
 

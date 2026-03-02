@@ -8832,11 +8832,11 @@ class HavenApp {
     const voicePanel = document.getElementById('voice-panel');
     if (voicePanel) voicePanel.style.display = inVoice ? 'flex' : 'none';
 
-    // Show/hide header action buttons (settings + leave) in the Voice panel header
-    const voiceHeaderLeave = document.getElementById('voice-leave-sidebar-btn');
-    if (voiceHeaderLeave) voiceHeaderLeave.style.display = inVoice ? '' : 'none';
-    const voiceHeaderSettings = document.getElementById('voice-settings-toggle');
-    if (voiceHeaderSettings) voiceHeaderSettings.style.display = inVoice ? '' : 'none';
+    // Show/hide mute/deafen header buttons
+    const voiceHeaderMute = document.getElementById('voice-mute-btn');
+    if (voiceHeaderMute) voiceHeaderMute.style.display = inVoice ? '' : 'none';
+    const voiceHeaderDeafen = document.getElementById('voice-deafen-btn');
+    if (voiceHeaderDeafen) voiceHeaderDeafen.style.display = inVoice ? '' : 'none';
 
     // Mobile voice join in right sidebar
     const mobileJoin = document.getElementById('voice-join-mobile');
