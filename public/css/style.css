@@ -1273,6 +1273,11 @@
 [data-theme="win95"] .voice-panel-btn.sharing { border: 3px inset #808080; color: #000; background: #bfbfbf; }
 [data-theme="win95"] .voice-panel-leave { background: #bfbfbf; color: #cc0000; border: 3px outset #fff; }
 [data-theme="win95"] .voice-panel-leave:hover { background: #dfdfdf; color: #cc0000; }
+[data-theme="win95"] .voice-header-btn { background: #bfbfbf; color: #000; border: 2px outset #fff; border-radius: 0 !important; }
+[data-theme="win95"] .voice-header-btn:hover { background: #dfdfdf; color: #000; }
+[data-theme="win95"] .voice-header-btn.active { border: 2px inset #808080; background: #bfbfbf; }
+[data-theme="win95"] .voice-header-leave { background: #bfbfbf; color: #cc0000; }
+[data-theme="win95"] .voice-header-leave:hover { background: #dfdfdf; color: #cc0000; }
 
 /* Win95 icon buttons near username (rename, logout) — beveled */
 [data-theme="win95"] .icon-btn {
@@ -10493,6 +10498,37 @@ ul.chat-list { list-style-type: disc; }
 }
 .voice-panel-leave { width: 28px; height: 28px; font-size: 12px; background: var(--danger); color: #fff; border-color: var(--danger); }
 .voice-panel-leave:hover { background: #d93636; color: #fff; border-color: #d93636; }
+
+/* Voice panel header row (title + action buttons) */
+.voice-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.voice-panel-header .panel-title { margin-bottom: 0; }
+.voice-header-actions { display: flex; gap: 4px; align-items: center; }
+.voice-header-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.voice-header-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
+.voice-header-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.voice-header-leave { background: var(--danger); color: #fff; border-color: var(--danger); }
+.voice-header-leave:hover { background: #d93636; color: #fff; border-color: #d93636; }
 
 /* Voice settings slide-up panel (sits above controls at bottom) */
 .voice-settings-panel {

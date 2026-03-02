@@ -1549,6 +1549,8 @@ class HavenApp {
     document.getElementById('voice-leave-sidebar-btn').addEventListener('click', () => this._leaveVoice());
     document.getElementById('voice-cam-btn').addEventListener('click', () => this._toggleWebcam());
     document.getElementById('screen-share-btn').addEventListener('click', () => this._toggleScreenShare());
+    document.getElementById('voice-soundboard-btn')?.addEventListener('click', () => this._openSoundModal('soundboard'));
+    document.getElementById('voice-listen-together-btn')?.addEventListener('click', () => this._openMusicModal());
     document.getElementById('screen-share-minimize').addEventListener('click', () => this._hideScreenShare());
     document.getElementById('screen-share-close').addEventListener('click', () => this._closeScreenShare());
     document.getElementById('webcam-collapse-btn').addEventListener('click', () => {
@@ -8829,6 +8831,12 @@ class HavenApp {
     // Show/hide the sidebar voice controls panel (pinned at bottom)
     const voicePanel = document.getElementById('voice-panel');
     if (voicePanel) voicePanel.style.display = inVoice ? 'flex' : 'none';
+
+    // Show/hide header action buttons (settings + leave) in the Voice panel header
+    const voiceHeaderLeave = document.getElementById('voice-leave-sidebar-btn');
+    if (voiceHeaderLeave) voiceHeaderLeave.style.display = inVoice ? '' : 'none';
+    const voiceHeaderSettings = document.getElementById('voice-settings-toggle');
+    if (voiceHeaderSettings) voiceHeaderSettings.style.display = inVoice ? '' : 'none';
 
     // Mobile voice join in right sidebar
     const mobileJoin = document.getElementById('voice-join-mobile');
