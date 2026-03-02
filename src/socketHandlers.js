@@ -1,8 +1,11 @@
 const { verifyToken, generateChannelCode, generateToken } = require('./auth');
 const crypto = require('crypto');
+const path   = require('path');
+const fs     = require('fs');
 const bcrypt = require('bcryptjs');
 const webpush = require('web-push');
 const { sendFcm, isFcmEnabled } = require('./fcm');
+const { UPLOADS_DIR, DELETED_ATTACHMENTS_DIR } = require('./paths');
 const HAVEN_VERSION = require('../package.json').version;
 
 // ── Normalize SQLite timestamps to UTC ISO 8601 ────────
@@ -2351,6 +2354,18 @@ function setupSocketHandlers(io, db) {
       } catch (err) {
         console.error('Delete message error:', err);
         return socket.emit('error-msg', 'Failed to delete message');
+      }
+
+      // Move any uploaded files referenced in the message to the deleted-attachments
+      // folder so they're preserved temporarily and swept by auto-cleanup later.
+      const uploadRe = /\/uploads\/((?!deleted-attachments)[\w\-.]+)/g;
+      let m;
+      while ((m = uploadRe.exec(msg.content || '')) !== null) {
+        const src = path.join(UPLOADS_DIR, m[1]);
+        const dst = path.join(DELETED_ATTACHMENTS_DIR, m[1]);
+        if (fs.existsSync(src)) {
+          try { fs.renameSync(src, dst); } catch { /* file locked or already moved */ }
+        }
       }
 
       io.to(`channel:${code}`).emit('message-deleted', {

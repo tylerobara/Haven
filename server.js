@@ -117,6 +117,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: 0,              // always revalidate — prevents stale JS/CSS after deploys
 }));
 
+// ── Block access to deleted-attachments folder ──────────
+// Files moved here are no longer part of any message; they should not be accessible.
+app.use('/uploads/deleted-attachments', (req, res) => res.status(404).end());
+
 // ── Serve uploads from external data directory ──────────
 app.use('/uploads', express.static(UPLOADS_DIR, {
   dotfiles: 'deny',
@@ -2044,6 +2048,24 @@ function runAutoCleanup() {
         });
         if (filesDeleted > 0) {
           console.log(`🗑️  Auto-cleanup: removed ${filesDeleted} old uploaded files`);
+        }
+
+        // Clean up deleted-attachments folder (files moved here when messages were deleted)
+        const deletedDir = path.join(UPLOADS_DIR, 'deleted-attachments');
+        if (require('fs').existsSync(deletedDir)) {
+          let daDeleted = 0;
+          for (const f of require('fs').readdirSync(deletedDir)) {
+            try {
+              const fp = require('path').join(deletedDir, f);
+              if (require('fs').statSync(fp).mtimeMs < cutoff) {
+                require('fs').unlinkSync(fp);
+                daDeleted++;
+              }
+            } catch { /* skip */ }
+          }
+          if (daDeleted > 0) {
+            console.log(`🗑️  Auto-cleanup: removed ${daDeleted} files from deleted-attachments`);
+          }
         }
       }
     }
