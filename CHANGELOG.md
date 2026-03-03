@@ -11,6 +11,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [2.5.2] — 2026-03-03
+
+### Added
+- **manage_soundboard permission** — new role permission allowing non-admin users to upload, rename, and delete custom soundboard sounds. Admins can grant it to any role via the role editor.
+
+### Fixed / Improved
+- **fxtwitter / vxtwitter embeds** — fixed a URL normalization bug where the Twitter oEmbed endpoint was being called with the proxy domain instead of a native twitter.com URL, causing embed data to come back empty for those links.
+- **Pixiv link previews** — added a dedicated Pixiv oEmbed handler. Pixiv blocks generic HTML scrapers but exposes an oEmbed API, so artworks now generate proper previews with title, author, and thumbnail.
+- **oEmbed autodiscovery** — the generic link scraper now detects `<link type="application/json+oembed">` tags in page HTML and falls back to that endpoint when OG tags are absent. This future-proofs embed support for any oEmbed-compatible site without needing per-site handlers.
+
+---
+
 ## [2.5.1] — 2026-03-02
 
 ### Fixed
