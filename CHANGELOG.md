@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [2.5.8] — 2026-03-06
+
+### Added
+- **Auto-accept streams setting** — a new toggle in Settings → Sounds lets users opt out of automatically opening screen shares when someone starts streaming. When disabled, a toast notification with a **Join** button appears instead, letting you decide whether to open the stream tile. Auto-accept is on by default; the preference is persisted to `localStorage`.
+
+---
+
 ## [2.5.7] — 2026-03-05
 
 ### Fixed

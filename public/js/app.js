@@ -5746,6 +5746,14 @@ class HavenApp {
         this.notifications.play('leave');
       });
     }
+
+    const autoAcceptToggle = document.getElementById('auto-accept-streams');
+    if (autoAcceptToggle) {
+      autoAcceptToggle.checked = localStorage.getItem('haven_auto_accept_streams') !== 'false';
+      autoAcceptToggle.addEventListener('change', () => {
+        localStorage.setItem('haven_auto_accept_streams', String(autoAcceptToggle.checked));
+      });
+    }
   }
 
   // ── Push Notifications (Web Push API) ──────────────────
@@ -9770,12 +9778,24 @@ class HavenApp {
     }
   }
 
-  _handleScreenStream(userId, stream) {
+  _handleScreenStream(userId, stream, { force = false } = {}) {
     const container = document.getElementById('screen-share-container');
     const grid = document.getElementById('screen-share-grid');
     const label = document.getElementById('screen-share-label');
 
     if (stream) {
+      // Honour auto-accept setting — show a join prompt instead of opening the tile automatically
+      const autoAccept = force || localStorage.getItem('haven_auto_accept_streams') !== 'false';
+      if (!autoAccept && userId !== null && userId !== this.user.id) {
+        const peer = this.voice.peers.get(userId);
+        const who = peer ? peer.username : 'Someone';
+        this._showToast(`${this._escapeHtml(who)} started sharing their screen`, 'info', {
+          label: 'Join',
+          onClick: () => this._handleScreenStream(userId, stream, { force: true })
+        }, 8000);
+        return;
+      }
+
       // Create a tile for this user's stream
       const tileId = `screen-tile-${userId || 'self'}`;
       let tile = document.getElementById(tileId);
@@ -11677,13 +11697,32 @@ class HavenApp {
     }
   }
 
-  _showToast(message, type = 'info') {
+  _showToast(message, type = 'info', action = null, duration = 4000) {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.textContent = message;
+    if (duration !== 4000) {
+      const fadeStart = (duration - 300) / 1000;
+      toast.style.animation = `toastIn 0.25s ease, toastOut 0.3s ease ${fadeStart}s forwards`;
+    }
+    if (action) {
+      toast.style.display = 'flex';
+      toast.style.alignItems = 'center';
+      toast.style.gap = '10px';
+      const span = document.createElement('span');
+      span.style.flex = '1';
+      span.textContent = message;
+      toast.appendChild(span);
+      const btn = document.createElement('button');
+      btn.className = 'toast-action-btn';
+      btn.textContent = action.label;
+      btn.addEventListener('click', () => { action.onClick(); toast.remove(); });
+      toast.appendChild(btn);
+    } else {
+      toast.textContent = message;
+    }
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => toast.remove(), duration);
   }
 
   /** Warn users before downloading potentially harmful file types */

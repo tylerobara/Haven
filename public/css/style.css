@@ -4562,6 +4562,18 @@ input[type="range"]:not(.rgb-slider)::-moz-range-track {
 .toast.error { border-color: var(--danger); background: rgba(240,71,71,0.15); }
 .toast.success { border-color: var(--success); background: rgba(67,181,129,0.15); }
 
+.toast-action-btn {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.toast-action-btn:hover { background: rgba(255,255,255,0.28); }
+
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(-20px); }
   to   { opacity: 1; transform: translateY(0); }
