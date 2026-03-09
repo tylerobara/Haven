@@ -535,16 +535,15 @@ _setupSocketListeners() {
       ch.code = data.newCode;
       // Update display_code too (admins see real code, non-admins see masked)
       if (ch.display_code && ch.display_code !== '••••••••') ch.display_code = data.newCode;
-      this._renderChannels();
-      // If currently viewing this channel, update the header code display
+      // Update currentChannel BEFORE re-rendering so the active highlight is correct
       if (this.currentChannel === data.oldCode) {
         this.currentChannel = data.newCode;
+      }
+      this._renderChannels();
+      // If currently viewing this channel, update the header code display
+      if (this.currentChannel === data.newCode) {
         const codeDisplay = document.getElementById('channel-code-display');
         if (codeDisplay) codeDisplay.textContent = ch.display_code || data.newCode;
-        // Update the active class on the new code
-        document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
-        const activeEl = document.querySelector(`.channel-item[data-code="${data.newCode}"]`);
-        if (activeEl) activeEl.classList.add('active');
       }
       if (this.user.isAdmin) {
         this._showToast(`Channel code rotated for #${ch.name}`, 'info');
