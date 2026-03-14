@@ -148,33 +148,34 @@ _renderMessages(messages) {
   }
 },
 
-/** Prepend older messages to the top of the messages container, preserving scroll position.
+/** Prepend older messages to the top, anchored to a visible on-screen message.
  *
- *  Flow:
- *  1. Freeze scroll listeners so DOM mutations can't trip coupling/pagination.
- *  2. Snapshot scrollTop + scrollHeight.
- *  3. Insert older messages at the top.
- *  4. Restore scrollTop += (newScrollHeight - oldScrollHeight).  This is pure
- *     arithmetic — the inserted content pushed everything down by exactly that
- *     many pixels, so adding the delta keeps the same messages on screen.
- *  5. Trim newer messages from the BOTTOM.  Because trimmed content is entirely
- *     below the viewport, removing it cannot shift the visible messages.
- *  6. Unfreeze listeners on the next frame once layout has settled.
- *
- *  Result: the scrollbar lands roughly in the centre of the track, giving the
- *  user freedom to scroll in either direction.
+ *  The viewport pins to a message the user is currently looking at.  After
+ *  inserting older history above and trimming newer history below, the anchor
+ *  message is restored to the exact same pixel offset.  Async content loads
+ *  (images, link previews, YouTube embeds) in the prepended area are also
+ *  corrected so the anchor never drifts.
  */
 _prependMessages(messages) {
   const container = document.getElementById('messages');
 
-  // 1. Freeze
+  // 1. Freeze scroll listeners
   this._suppressCoupleCheck = true;
 
-  // 2. Snapshot
-  const prevScrollTop = container.scrollTop;
-  const prevScrollHeight = container.scrollHeight;
+  // 2. Find anchor: first message element whose bounds intersect the viewport
+  let anchorEl = null;
+  let anchorOffset = 0;
+  const containerRect = container.getBoundingClientRect();
+  for (const child of container.querySelectorAll('.message, .message-compact')) {
+    const r = child.getBoundingClientRect();
+    if (r.bottom > containerRect.top && r.top < containerRect.bottom) {
+      anchorEl = child;
+      anchorOffset = r.top - containerRect.top;
+      break;
+    }
+  }
 
-  // Build fragment
+  // 3. Build fragment
   const fragment = document.createDocumentFragment();
   const addedEls = [];
   messages.forEach((msg, i) => {
@@ -184,13 +185,10 @@ _prependMessages(messages) {
     addedEls.push(el);
   });
 
-  // 3. Insert at top
+  // 4. Insert at top
   container.insertBefore(fragment, container.firstChild);
 
-  // 4. Restore — keep the exact same messages on screen
-  container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
-
-  // 5. Trim newest messages from the bottom (below viewport — no visual effect)
+  // 5. Trim newest messages from the bottom (below viewport — can't move visible content)
   const MAX_DOM_MESSAGES = 100;
   const excess = container.children.length - MAX_DOM_MESSAGES;
   if (excess > 0) {
@@ -204,10 +202,41 @@ _prependMessages(messages) {
     }
   }
 
-  // 6. Unfreeze on next frame
+  // 6. Restore anchor — pin the same message at the same viewport offset
+  const realign = () => {
+    if (!anchorEl) return;
+    const cr = container.getBoundingClientRect();
+    const ar = anchorEl.getBoundingClientRect();
+    const drift = (ar.top - cr.top) - anchorOffset;
+    if (Math.abs(drift) > 0.5) container.scrollTop += drift;
+  };
+  realign();
+
+  // 7. Keep anchor stable while async content (images, embeds, link previews)
+  //    loads in the prepended area above the viewport.  Each load shifts the
+  //    anchor down; we immediately correct scrollTop so the user sees nothing move.
+  for (const el of addedEls) {
+    el.querySelectorAll('img').forEach(img => {
+      if (!img.complete) {
+        img.addEventListener('load', () => { if (!this._coupledToBottom) realign(); }, { once: true });
+        img.addEventListener('error', () => { if (!this._coupledToBottom) realign(); }, { once: true });
+      }
+    });
+  }
+
+  // Also watch for DOM changes in prepended messages (link previews, YouTube
+  // embeds, E2E image decryption) that add height above the anchor.
+  const mo = new MutationObserver(() => { if (!this._coupledToBottom) realign(); });
+  for (const el of addedEls) {
+    mo.observe(el, { childList: true, subtree: true });
+  }
+  // Stop observing after 15s — all async content should be settled by then
+  setTimeout(() => mo.disconnect(), 15000);
+
+  // 8. Unfreeze on next frame
   requestAnimationFrame(() => { this._suppressCoupleCheck = false; });
 
-  // Process only newly-prepended messages (above viewport — won't reflow visible area)
+  // Process only newly-prepended messages
   for (const el of addedEls) {
     this._fetchLinkPreviews(el);
     this._setupVideos(el);
