@@ -966,6 +966,24 @@ _setupUI() {
     localStorage.setItem('haven-sidebar-collapsed', collapsed ? '1' : '0');
   });
 
+  // DM pane collapse toggle (persisted to localStorage)
+  const dmPaneToggle = document.getElementById('dm-pane-toggle-btn');
+  const dmPane = document.getElementById('dm-pane');
+
+  function applyDmPaneCollapsed(collapsed) {
+    dmPane?.classList.toggle('dm-pane-collapsed', collapsed);
+    dmPaneToggle?.classList.toggle('is-collapsed', collapsed);
+  }
+
+  applyDmPaneCollapsed(localStorage.getItem('haven-dm-pane-collapsed') === '1');
+
+  dmPaneToggle?.addEventListener('click', (e) => {
+    e.stopPropagation(); // don't trigger drag-handle logic
+    const collapsed = !dmPane?.classList.contains('dm-pane-collapsed');
+    applyDmPaneCollapsed(collapsed);
+    localStorage.setItem('haven-dm-pane-collapsed', collapsed ? '1' : '0');
+  });
+
   // E2E lock menu dropdown toggle
   document.getElementById('e2e-menu-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
