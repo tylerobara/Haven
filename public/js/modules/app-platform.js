@@ -655,6 +655,15 @@ async _submitE2EPassword() {
     sessionStorage.setItem('haven_e2e_wrap', wrappingKey);
     this._e2eWrappingKey = wrappingKey;
 
+    // If a key reset is pending, skip normal init (it may fail if backup
+    // is encrypted with a different password). Reset generates fresh keys.
+    if (this._e2eResetPending) {
+      this._e2eResetPending = false;
+      this._closeE2EPasswordModal();
+      await this._performE2EKeyReset();
+      return;
+    }
+
     // Re-initialize E2E with the wrapping key
     if (!this.e2e) this.e2e = new HavenE2E();
     const ok = await this.e2e.init(this.socket, wrappingKey);
@@ -694,6 +703,7 @@ _closeE2EPasswordModal() {
   modal.style.display = 'none';
   document.getElementById('e2e-pw-input').value = '';
   this._e2ePwPendingAction = null;
+  this._e2eResetPending = false;
 },
 
 /**
@@ -855,18 +865,31 @@ _showE2EResetConfirmation() {
 
 /**
  * Actually reset E2E keys, re-publish, and post a notice in chat.
+ * This must work even when E2E can't initialize (e.g. server backup
+ * encrypted with old password). Reset generates fresh keys from scratch.
  */
 async _performE2EKeyReset() {
-  if (!this.e2e) return;
-
   // We need the wrapping key from memory, sessionStorage, or password prompt.
   let wrappingKey = this._e2eWrappingKey || sessionStorage.getItem('haven_e2e_wrap') || null;
   if (!wrappingKey) {
     // Wrapping key was cleared after init — prompt for password directly,
     // then retry the reset (no need to show RESET confirmation again).
-    this._e2ePwPendingAction = () => this._performE2EKeyReset();
+    // Use a custom pending action that bypasses _requireE2E.
+    this._e2ePwPendingAction = null; // clear normal pending action
+    this._e2eResetPending = true;
     this._showE2EPasswordModal();
     return;
+  }
+
+  // Ensure we have an E2E instance (may be null if init failed earlier)
+  if (!this.e2e) {
+    if (typeof HavenE2E !== 'undefined') {
+      this.e2e = new HavenE2E();
+      await this.e2e._openDB();
+    } else {
+      this._showToast('E2E module not available', 'error');
+      return;
+    }
   }
 
   try {

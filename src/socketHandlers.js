@@ -785,6 +785,7 @@ function setupSocketHandlers(io, db) {
         channels.forEach(ch => {
           const lastRead = readMap[ch.id] || 0;
           const latestId = latestMap[ch.id] || 0;
+          ch.latestMessageId = latestId;
           if (latestId > lastRead) {
             const countRow = db.prepare(
               'SELECT COUNT(*) as cnt FROM messages WHERE channel_id = ? AND id > ? AND user_id != ?'
@@ -5784,11 +5785,12 @@ function setupSocketHandlers(io, db) {
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
 
-      // 0 = manual, 1 = alpha, 2 = created
+      // 0 = manual, 1 = alpha, 2 = created, 3 = oldest, 4 = dynamic
       let sortVal = 0;
       if (data.mode === 'alpha' || data.enabled === true) sortVal = 1;
       else if (data.mode === 'created') sortVal = 2;
       else if (data.mode === 'oldest') sortVal = 3;
+      else if (data.mode === 'dynamic') sortVal = 4;
 
       const channel = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0').get(code);
       if (!channel) return socket.emit('error-msg', 'Channel not found');

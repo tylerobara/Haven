@@ -1551,7 +1551,7 @@ _setupResizableSidebars() {
       const y = e.clientY - rect.top;
       const total = rect.height;
       let ratio = y / total;
-      ratio = Math.max(0.15, Math.min(0.85, ratio));
+      ratio = Math.max(0.05, Math.min(0.95, ratio));
       channelsPane.style.flex = `${ratio} 1 0`;
       dmPane.style.flex = `${1 - ratio} 1 0`;
     });

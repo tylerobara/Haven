@@ -495,7 +495,7 @@ _openOrganizeModal(parentCode, serverLevel) {
   document.getElementById('organize-modal-parent-name').textContent = `# ${parent.name}`;
   // Map sort_alphabetical: 0=manual, 1=alpha, 2=created
   const sortSel = document.getElementById('organize-global-sort');
-  sortSel.value = parent.sort_alphabetical === 1 ? 'alpha' : parent.sort_alphabetical === 2 ? 'created' : parent.sort_alphabetical === 3 ? 'oldest' : 'manual';
+  sortSel.value = parent.sort_alphabetical === 1 ? 'alpha' : parent.sort_alphabetical === 2 ? 'created' : parent.sort_alphabetical === 3 ? 'oldest' : parent.sort_alphabetical === 4 ? 'dynamic' : 'manual';
   const catSortSel = document.getElementById('organize-cat-sort');
   if (catSortSel) catSortSel.value = this._organizeCatSort;
   document.getElementById('organize-tag-input').value = '';
@@ -565,6 +565,8 @@ _renderOrganizeList() {
       arr.sort((a, b) => (b.id || 0) - (a.id || 0)); // Higher ID = newer
     } else if (mode === 'oldest') {
       arr.sort((a, b) => (a.id || 0) - (b.id || 0)); // Lower ID = older
+    } else if (mode === 'dynamic') {
+      arr.sort((a, b) => (b.latestMessageId || 0) - (a.latestMessageId || 0)); // Most recent activity first
     } else {
       arr.sort((a, b) => (a.position || 0) - (b.position || 0));
     }
@@ -605,6 +607,7 @@ _renderOrganizeList() {
           <option value="alpha"${group.sort === 'alpha' ? ' selected' : ''}>A→Z</option>
           <option value="created"${group.sort === 'created' ? ' selected' : ''}>Newest</option>
           <option value="oldest"${group.sort === 'oldest' ? ' selected' : ''}>Oldest</option>
+          <option value="dynamic"${group.sort === 'dynamic' ? ' selected' : ''}>Dynamic</option>
         </select>
       </div>`;
     }
@@ -721,6 +724,8 @@ _getOrganizeVisualGroup(ch) {
     group.sort((a, b) => (b.id || 0) - (a.id || 0));
   } else if (effectiveSort === 'oldest') {
     group.sort((a, b) => (a.id || 0) - (b.id || 0));
+  } else if (effectiveSort === 'dynamic') {
+    group.sort((a, b) => (b.latestMessageId || 0) - (a.latestMessageId || 0));
   } else {
     group.sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   }
@@ -1003,11 +1008,12 @@ _renderChannels() {
       if (mode === 1 || mode === 'alpha') return a.name.localeCompare(b.name);
       if (mode === 2 || mode === 'created') return (b.id || 0) - (a.id || 0);
       if (mode === 3 || mode === 'oldest') return (a.id || 0) - (b.id || 0);
+      if (mode === 4 || mode === 'dynamic') return (b.latestMessageId || 0) - (a.latestMessageId || 0);
       return (a.position || 0) - (b.position || 0); // manual
     };
 
     // Map string modes to numbers for consistency
-    const modeToNum = (m) => m === 'alpha' ? 1 : m === 'created' ? 2 : m === 'oldest' ? 3 : m === 'manual' ? 0 : m;
+    const modeToNum = (m) => m === 'alpha' ? 1 : m === 'created' ? 2 : m === 'oldest' ? 3 : m === 'dynamic' ? 4 : m === 'manual' ? 0 : m;
 
     if (hasTags) {
       // Sort by tag group first, then within each group use per-tag override or global
@@ -1034,6 +1040,7 @@ _renderChannels() {
     if (mode === 'alpha') return a.name.localeCompare(b.name);
     if (mode === 'created') return (b.id || 0) - (a.id || 0);
     if (mode === 'oldest') return (a.id || 0) - (b.id || 0);
+    if (mode === 'dynamic') return (b.latestMessageId || 0) - (a.latestMessageId || 0);
     return (a.position || 0) - (b.position || 0) || a.name.localeCompare(b.name); // manual
   };
 
@@ -1604,6 +1611,123 @@ _updateChannelVoiceIndicators() {
       }
     }
   });
+},
+
+// ── Keyboard Navigation ──────────────────────────────────
+
+/**
+ * Get all visible channels in visual (DOM) order.
+ * Returns array of channel codes matching the sidebar ordering.
+ */
+_getVisualChannelOrder() {
+  const codes = [];
+  // Channels section
+  document.querySelectorAll('#channel-list .channel-item:not([style*="display: none"])').forEach(el => {
+    if (el.dataset.code) codes.push(el.dataset.code);
+  });
+  // DM section
+  document.querySelectorAll('#dm-list .channel-item:not([style*="display: none"])').forEach(el => {
+    if (el.dataset.code) codes.push(el.dataset.code);
+  });
+  return codes;
+},
+
+/**
+ * Navigate to the next or previous channel in visual order.
+ * @param {number} direction - 1 for next, -1 for previous
+ */
+_navigateChannel(direction) {
+  const order = this._getVisualChannelOrder();
+  if (!order.length) return;
+  const idx = order.indexOf(this.currentChannel);
+  const next = idx === -1 ? 0 : (idx + direction + order.length) % order.length;
+  this.switchChannel(order[next]);
+},
+
+/**
+ * Navigate to the next or previous unread channel in visual order.
+ * @param {number} direction - 1 for next, -1 for previous
+ */
+_navigateUnreadChannel(direction) {
+  const order = this._getVisualChannelOrder();
+  if (!order.length) return;
+  const idx = order.indexOf(this.currentChannel);
+  const start = idx === -1 ? 0 : idx;
+  for (let i = 1; i <= order.length; i++) {
+    const check = (start + i * direction + order.length) % order.length;
+    if ((this.unreadCounts[order[check]] || 0) > 0) {
+      this.switchChannel(order[check]);
+      return;
+    }
+  }
+},
+
+/**
+ * Open a Ctrl+K style quick channel/DM switcher overlay.
+ */
+_openQuickSwitcher() {
+  // Remove any existing overlay
+  document.getElementById('quick-switcher-overlay')?.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'quick-switcher-overlay';
+  overlay.innerHTML = `
+    <div class="quick-switcher-box">
+      <input type="text" id="quick-switcher-input" placeholder="Jump to channel or DM..." autocomplete="off" spellcheck="false">
+      <div id="quick-switcher-results"></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const input = overlay.querySelector('#quick-switcher-input');
+  const results = overlay.querySelector('#quick-switcher-results');
+  let selectedIdx = 0;
+
+  const allChannels = (this.channels || []).map(ch => ({
+    code: ch.code,
+    name: ch.is_dm && ch.dm_target
+      ? `@ ${this._getNickname(ch.dm_target.id, ch.dm_target.username)}`
+      : `# ${ch.name}`,
+    isDm: ch.is_dm,
+    unread: this.unreadCounts[ch.code] || 0,
+  }));
+
+  const render = (query) => {
+    const q = query.toLowerCase();
+    const filtered = q
+      ? allChannels.filter(c => c.name.toLowerCase().includes(q))
+      : allChannels.filter(c => c.unread > 0).concat(
+          allChannels.filter(c => c.unread === 0)
+        );
+    const shown = filtered.slice(0, 12);
+    selectedIdx = Math.min(selectedIdx, Math.max(0, shown.length - 1));
+    results.innerHTML = shown.map((c, i) => `
+      <div class="quick-switcher-item${i === selectedIdx ? ' selected' : ''}" data-code="${this._escapeHtml(c.code)}">
+        <span class="qs-name">${this._escapeHtml(c.name)}</span>
+        ${c.unread > 0 ? `<span class="qs-badge">${c.unread > 99 ? '99+' : c.unread}</span>` : ''}
+      </div>
+    `).join('');
+    results.querySelectorAll('.quick-switcher-item').forEach(el => {
+      el.addEventListener('click', () => { this.switchChannel(el.dataset.code); overlay.remove(); });
+    });
+  };
+
+  input.addEventListener('input', () => { selectedIdx = 0; render(input.value); });
+  input.addEventListener('keydown', (e) => {
+    const items = results.querySelectorAll('.quick-switcher-item');
+    if (e.key === 'ArrowDown') { e.preventDefault(); selectedIdx = Math.min(selectedIdx + 1, items.length - 1); render(input.value); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); selectedIdx = Math.max(selectedIdx - 1, 0); render(input.value); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const sel = items[selectedIdx];
+      if (sel) { this.switchChannel(sel.dataset.code); overlay.remove(); }
+    }
+  });
+
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+  render('');
+  setTimeout(() => input.focus(), 10);
 },
 
 };

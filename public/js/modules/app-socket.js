@@ -469,6 +469,20 @@ _setupSocketListeners() {
         this._fireNativeNotification(data.message, data.channelCode);
       }
     }
+
+    // Update latestMessageId for dynamic sort
+    const msgChannel = this.channels.find(c => c.code === data.channelCode);
+    if (msgChannel && data.message.id > (msgChannel.latestMessageId || 0)) {
+      msgChannel.latestMessageId = data.message.id;
+      // Re-sort sidebar if this channel's parent uses dynamic sort
+      const parent = msgChannel.parent_channel_id
+        ? this.channels.find(c => c.id === msgChannel.parent_channel_id)
+        : null;
+      if ((parent && parent.sort_alphabetical === 4) ||
+          (!msgChannel.parent_channel_id && localStorage.getItem('haven_server_sort_mode') === 'dynamic')) {
+        this._renderChannels();
+      }
+    }
   });
 
   this.socket.on('online-users', (data) => {

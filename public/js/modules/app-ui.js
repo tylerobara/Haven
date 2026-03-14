@@ -143,7 +143,7 @@ _setupUI() {
     this.socket.emit('delete-channel', { code });
   });
   // Mute channel toggle
-  document.querySelector('[data-action="mute"]')?.addEventListener('click', () => {
+  document.querySelector('#channel-ctx-menu [data-action="mute"]')?.addEventListener('click', () => {
     const code = this._ctxMenuChannel;
     if (!code) return;
     this._closeChannelCtxMenu();
@@ -346,7 +346,7 @@ _setupUI() {
       // Sub-channel sort: store on the parent channel (server-side)
       this.socket.emit('set-sort-alphabetical', { code: this._organizeParentCode, enabled: sortMode === 'alpha', mode: sortMode });
       const parent = this.channels.find(c => c.code === this._organizeParentCode);
-      if (parent) parent.sort_alphabetical = sortMode === 'alpha' ? 1 : sortMode === 'created' ? 2 : sortMode === 'oldest' ? 3 : 0;
+      if (parent) parent.sort_alphabetical = sortMode === 'alpha' ? 1 : sortMode === 'created' ? 2 : sortMode === 'oldest' ? 3 : sortMode === 'dynamic' ? 4 : 0;
     }
     this._renderOrganizeList();
   });
@@ -985,9 +985,11 @@ _setupUI() {
   });
 
   // E2E reset encryption keys button (inside dropdown)
+  // Reset does NOT go through _requireE2E — it must work even when E2E
+  // can't initialize (e.g. server backup can't be decrypted after password change).
   document.getElementById('e2e-reset-btn')?.addEventListener('click', () => {
     document.getElementById('e2e-dropdown').style.display = 'none';
-    this._requireE2E(() => this._showE2EResetConfirmation());
+    this._showE2EResetConfirmation();
   });
 
   // E2E password prompt modal handlers
@@ -1014,11 +1016,27 @@ _setupUI() {
       sc.style.display = 'flex';
       document.getElementById('search-input').focus();
     }
-    // Escape = close modals, search, theme popup
+    // Ctrl+K = quick channel switcher
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      this._openQuickSwitcher();
+    }
+    // Alt+ArrowUp/Down = navigate channels
+    if (e.altKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      this._navigateChannel(e.key === 'ArrowUp' ? -1 : 1);
+    }
+    // Alt+Shift+ArrowUp/Down = navigate to next/prev unread channel
+    if (e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      this._navigateUnreadChannel(e.key === 'ArrowUp' ? -1 : 1);
+    }
+    // Escape = close modals, search, theme popup, quick switcher
     if (e.key === 'Escape') {
       document.getElementById('search-container').style.display = 'none';
       document.getElementById('search-results-panel').style.display = 'none';
       document.getElementById('theme-popup').style.display = 'none';
+      document.getElementById('quick-switcher-overlay')?.remove();
       document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
     }
   });
@@ -2068,6 +2086,10 @@ _setupServerBar() {
   if (this._serverBarInterval) clearInterval(this._serverBarInterval);
   this._serverBarInterval = setInterval(() => this._renderServerBar(), 30000);
 
+  // Desktop notification dots — listen for badge updates from main process
+  window.addEventListener('haven-server-badges', (e) => this._updateServerBadgeDots(e.detail));
+  window.havenDesktop?.getServerBadges?.().then(b => this._updateServerBadgeDots(b));
+
   document.getElementById('home-server').addEventListener('click', () => {
     // Already home — pulse the icon for fun
     const el = document.getElementById('home-server');
@@ -2314,6 +2336,17 @@ _renderManageServersList() {
   });
 },
 
+_updateServerBadgeDots(badges) {
+  if (!badges) return;
+  document.querySelectorAll('#server-list .server-icon.remote').forEach(el => {
+    const url = el.dataset.url;
+    const dot = el.querySelector('.server-unread-dot');
+    if (!dot) return;
+    const count = badges[url] || 0;
+    dot.classList.toggle('active', count > 0);
+  });
+},
+
 _renderServerBar() {
   const list = document.getElementById('server-list');
   const servers = this.serverManager.getAll();
@@ -2333,6 +2366,7 @@ _renderServerBar() {
            title="${this._escapeHtml(s.name)} — ${statusText}">
         ${iconContent}
         <span class="server-status-dot ${statusClass}"></span>
+        <span class="server-unread-dot"></span>
         <button class="server-remove" title="Remove">&times;</button>
       </div>
     `;

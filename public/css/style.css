@@ -14174,3 +14174,87 @@ ul.chat-list { list-style-type: disc; }
     pointer-events: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   Quick Switcher (Ctrl+K)
+   ═══════════════════════════════════════════════════════ */
+
+#quick-switcher-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 999998;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: min(20vh, 160px);
+}
+.quick-switcher-box {
+  background: var(--bg-secondary, #2b2d31);
+  border-radius: var(--radius-lg, 12px);
+  width: min(480px, 90vw);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  overflow: hidden;
+  border: 1px solid var(--border, #3f4147);
+}
+#quick-switcher-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 15px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border, #3f4147);
+  color: var(--text-primary, #dbdee1);
+  outline: none;
+  box-sizing: border-box;
+}
+#quick-switcher-input::placeholder { color: var(--text-muted, #949ba4); }
+#quick-switcher-results {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.quick-switcher-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm, 6px);
+  cursor: pointer;
+  color: var(--text-secondary, #b5bac1);
+  font-size: 14px;
+  gap: 8px;
+}
+.quick-switcher-item:hover,
+.quick-switcher-item.selected {
+  background: var(--bg-hover, #35373c);
+  color: var(--text-primary, #dbdee1);
+}
+.qs-badge {
+  margin-left: auto;
+  background: var(--danger, #ed4245);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════
+   Server Notification Dot (Desktop multi-server unreads)
+   ═══════════════════════════════════════════════════════ */
+
+.server-icon .server-unread-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  background: var(--danger, #ed4245);
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary, #2b2d31);
+  pointer-events: none;
+  display: none;
+}
+.server-icon .server-unread-dot.active { display: block; }
