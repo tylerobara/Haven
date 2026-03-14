@@ -151,6 +151,8 @@ _renderMessages(messages) {
 _prependMessages(messages) {
   const container = document.getElementById('messages');
   const firstChild = container.firstChild;
+  const prevScrollTop = container.scrollTop;
+  const prevScrollHeight = container.scrollHeight;
 
   // Capture a scroll anchor: the first visible message in the viewport.
   // After prepending, we re-align to this element so the view stays put.
@@ -189,20 +191,6 @@ _prependMessages(messages) {
   // Suppress coupling + pagination listeners while we mutate the DOM
   this._suppressCoupleCheck = true;
 
-  // Trim from bottom BEFORE insert so scrollHeight is stable after scroll restore
-  const MAX_DOM_MESSAGES = 100;
-  const toTrim = Math.max(0, container.children.length + messages.length - MAX_DOM_MESSAGES);
-  if (toTrim > 0) {
-    for (let i = 0; i < toTrim; i++) {
-      container.removeChild(container.lastElementChild);
-    }
-    this._noMoreFuture = false;
-    const lastAfterTrim = container.lastElementChild;
-    if (lastAfterTrim && lastAfterTrim.dataset && lastAfterTrim.dataset.msgId) {
-      this._newestMsgId = parseInt(lastAfterTrim.dataset.msgId);
-    }
-  }
-
   container.insertBefore(fragment, firstChild);
 
   // Restore scroll position so the user's view stays on the same content
@@ -211,9 +199,15 @@ _prependMessages(messages) {
     const anchorRect = anchorEl.getBoundingClientRect();
     const drift = (anchorRect.top - containerRect.top) - anchorOffset;
     container.scrollTop += drift;
+  } else {
+    // Fallback if no visible anchor element could be resolved.
+    container.scrollTop = prevScrollTop + (container.scrollHeight - prevScrollHeight);
   }
 
-  this._suppressCoupleCheck = false;
+  // Let this frame's scroll events settle before re-enabling listeners.
+  requestAnimationFrame(() => {
+    this._suppressCoupleCheck = false;
+  });
 
   this._fetchLinkPreviews(container);
   this._setupVideos(container);
