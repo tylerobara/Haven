@@ -523,6 +523,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/app', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   res.sendFile(path.join(__dirname, 'public', 'app.html'));
 });
 
