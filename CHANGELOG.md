@@ -11,6 +11,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [2.7.7] — 2026-03-16
+
+### Added
+- **Temporary channels** — admins can now create channels with an auto-delete timer (1 hour to 30 days). Temporary channels show a ⏱️ icon and tooltip with the expiry time, and are automatically cleaned up when their time is up.
+- **Linux Docker prerequisites** — added a Linux Prerequisites section to the setup guide covering Docker Engine + Compose V2 installation and docker group setup.
+
+### Fixed
+- **Members list privacy** — the All Members list now only shows users who share at least one channel with you. Admins and mods still see everyone.
+- **@ symbol in URLs breaking chat links** — URLs containing @ (like YouTube channel links) were being mangled by the mention highlighter. Links now use placeholder tokens during rendering so mentions can't match inside URLs.
+
+---
+
 ## [2.7.6] — 2026-03-15
 
 ### Added

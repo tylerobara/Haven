@@ -91,6 +91,10 @@ Open `https://localhost:3000` → Register with username `admin` → Create a ch
 
 > Certificate warning is normal — click **Advanced → Proceed**. Haven uses a self-signed cert for encryption.
 
+**Option C — One-click cloud deploy** (Zeabur):
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates?repoURL=https://github.com/ancsemi/Haven)
+
 ---
 
 ## Quick Start — Windows (No Docker)

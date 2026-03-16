@@ -352,6 +352,13 @@ function initDatabase() {
     db.exec("ALTER TABLE channels ADD COLUMN is_private INTEGER DEFAULT 0");
   }
 
+  // ── Migration: temporary channel expiry ─────────────────
+  try {
+    db.prepare("SELECT expires_at FROM channels LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE channels ADD COLUMN expires_at DATETIME DEFAULT NULL");
+  }
+
   // ── Migration: webhook message tracking ─────────────────
   try {
     db.prepare("SELECT is_webhook FROM messages LIMIT 0").get();

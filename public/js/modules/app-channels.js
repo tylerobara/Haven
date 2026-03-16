@@ -377,6 +377,149 @@ _closeDmCtxMenu() {
   this._dmCtxMenuCode = null;
 },
 
+/* ── Sub-channel Subscriptions Panel ──────────────────── */
+
+_openSubChannelPanel() {
+  const modal = document.getElementById('sub-panel-modal');
+  if (!modal) return;
+
+  // Run one-time migration: muted sub-channels → unsubbed, others → subbed
+  if (!localStorage.getItem('haven_sub_panel_migrated')) {
+    localStorage.setItem('haven_sub_panel_migrated', 'true');
+    // Existing muted list already represents unsubbed state — no changes needed.
+    // All non-muted channels are implicitly subscribed.
+  }
+
+  this._renderSubChannelPanel();
+  modal.style.display = 'flex';
+
+  // Close handlers
+  const closeBtn = document.getElementById('sub-panel-close-btn');
+  const closeHandler = () => {
+    modal.style.display = 'none';
+    closeBtn.removeEventListener('click', closeHandler);
+    modal.removeEventListener('click', overlayHandler);
+  };
+  const overlayHandler = (e) => { if (e.target === modal) closeHandler(); };
+  closeBtn.addEventListener('click', closeHandler);
+  modal.addEventListener('click', overlayHandler);
+},
+
+_renderSubChannelPanel() {
+  const container = document.getElementById('sub-panel-content');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const muted = JSON.parse(localStorage.getItem('haven_muted_channels') || '[]');
+  const regularChannels = (this.channels || []).filter(c => !c.is_dm);
+  const subChannels = regularChannels.filter(c => c.parent_channel_id);
+
+  if (!subChannels.length) {
+    container.innerHTML = '<p style="text-align:center;opacity:0.5;padding:24px">No sub-channels on this server.</p>';
+    return;
+  }
+
+  // Group sub-channels by parent
+  const parentMap = {};
+  subChannels.forEach(sub => {
+    if (!parentMap[sub.parent_channel_id]) parentMap[sub.parent_channel_id] = [];
+    parentMap[sub.parent_channel_id].push(sub);
+  });
+
+  // Sort parents by position/name
+  const parentIds = Object.keys(parentMap).map(Number);
+  const parentChannels = parentIds.map(id => regularChannels.find(c => c.id === id)).filter(Boolean);
+  parentChannels.sort((a, b) => (a.position || 0) - (b.position || 0) || a.name.localeCompare(b.name));
+
+  parentChannels.forEach(parent => {
+    const subs = parentMap[parent.id] || [];
+    // Split into subscribed (not muted) and unsubscribed (muted)
+    const subbed = subs.filter(s => !muted.includes(s.code));
+    const unsubbed = subs.filter(s => muted.includes(s.code));
+
+    const section = document.createElement('div');
+    section.className = 'sub-panel-parent-section';
+
+    const header = document.createElement('h4');
+    header.className = 'sub-panel-parent-header';
+    header.textContent = `# ${parent.name}`;
+    section.appendChild(header);
+
+    // Render subbed tiles first, then a divider, then unsubbed
+    if (subbed.length) {
+      const subbedLabel = document.createElement('div');
+      subbedLabel.className = 'sub-panel-group-label';
+      subbedLabel.textContent = 'Subscribed';
+      section.appendChild(subbedLabel);
+      const subbedGrid = document.createElement('div');
+      subbedGrid.className = 'sub-panel-grid';
+      subbed.forEach(ch => subbedGrid.appendChild(this._createSubPanelTile(ch, true)));
+      section.appendChild(subbedGrid);
+    }
+
+    if (unsubbed.length) {
+      const unsubbedLabel = document.createElement('div');
+      unsubbedLabel.className = 'sub-panel-group-label unsubbed';
+      unsubbedLabel.textContent = 'Unsubscribed';
+      section.appendChild(unsubbedLabel);
+      const unsubbedGrid = document.createElement('div');
+      unsubbedGrid.className = 'sub-panel-grid';
+      unsubbed.forEach(ch => unsubbedGrid.appendChild(this._createSubPanelTile(ch, false)));
+      section.appendChild(unsubbedGrid);
+    }
+
+    container.appendChild(section);
+  });
+},
+
+_createSubPanelTile(ch, isSubbed) {
+  const tile = document.createElement('div');
+  tile.className = 'sub-panel-tile' + (isSubbed ? ' subbed' : ' unsubbed');
+  tile.dataset.code = ch.code;
+
+  const unread = this.unreadCounts[ch.code] || 0;
+  const unreadBadge = unread > 0 ? `<span class="sub-panel-badge">${unread > 99 ? '99+' : unread}</span>` : '';
+
+  tile.innerHTML = `
+    <label class="sub-panel-toggle" title="${isSubbed ? 'Unsubscribe (mute notifications)' : 'Subscribe (enable notifications)'}">
+      <input type="checkbox" ${isSubbed ? 'checked' : ''}>
+      <span class="sub-panel-toggle-label">${isSubbed ? '🔔' : '🔕'}</span>
+    </label>
+    <span class="sub-panel-tile-name">${ch.is_private ? '🔒 ' : ''}${this._escapeHtml(ch.name)}</span>
+    ${unreadBadge}
+  `;
+
+  // Toggle sub/unsub
+  const checkbox = tile.querySelector('input[type="checkbox"]');
+  checkbox.addEventListener('change', (e) => {
+    e.stopPropagation();
+    const muted = JSON.parse(localStorage.getItem('haven_muted_channels') || '[]');
+    const idx = muted.indexOf(ch.code);
+    if (checkbox.checked) {
+      // Subscribe: remove from muted
+      if (idx >= 0) muted.splice(idx, 1);
+      this._showToast(`Subscribed to ${ch.name}`, 'success');
+    } else {
+      // Unsubscribe: add to muted
+      if (idx < 0) muted.push(ch.code);
+      this._showToast(`Unsubscribed from ${ch.name}`, 'success');
+    }
+    localStorage.setItem('haven_muted_channels', JSON.stringify(muted));
+    // Re-render the panel and sidebar
+    this._renderSubChannelPanel();
+    this._renderChannels();
+  });
+
+  // Click tile (not checkbox) to jump to channel
+  tile.addEventListener('click', (e) => {
+    if (e.target.closest('.sub-panel-toggle')) return; // Don't navigate when toggling checkbox
+    document.getElementById('sub-panel-modal').style.display = 'none';
+    this.switchChannel(ch.code);
+  });
+
+  return tile;
+},
+
 /* ── Re-parent channel modal (move to / promote) ───── */
 
 _openReparentModal(code) {
@@ -964,6 +1107,10 @@ _renderChannels() {
     subChannelMap[c.parent_channel_id].push(c);
   });
 
+  // Show/hide sub-channel panel button based on whether sub-channels exist
+  const subPanelBtn = document.getElementById('sub-channel-panel-btn');
+  if (subPanelBtn) subPanelBtn.style.display = Object.keys(subChannelMap).length > 0 ? '' : 'none';
+
   // Sort sub-channels — respect parent's sort_alphabetical setting & per-tag overrides
   // sort_alphabetical: 0=manual, 1=alpha, 2=created, 3=oldest
   // Per-tag overrides (from organize modal) are stored in localStorage
@@ -1026,6 +1173,14 @@ _renderChannels() {
     } else {
       arr.sort((a, b) => sortByMode(a, b, globalSortMode));
     }
+
+    // Secondary sort: subscribed (not muted) sub-channels appear before unsubscribed (muted)
+    const _subMuted = JSON.parse(localStorage.getItem('haven_muted_channels') || '[]');
+    arr.sort((a, b) => {
+      const aMuted = _subMuted.includes(a.code) ? 1 : 0;
+      const bMuted = _subMuted.includes(b.code) ? 1 : 0;
+      return aMuted - bMuted; // stable sort preserves original order within same group
+    });
   });
 
   // Sort parent channels — respect server-level sort mode & per-tag overrides
@@ -1089,7 +1244,8 @@ _renderChannels() {
     const isCollapsed = hasSubs && localStorage.getItem(`haven_subs_collapsed_${ch.code}`) === 'true';
 
     const isAnnouncement = ch.notification_type === 'announcement';
-    const hashIcon = isSub ? (ch.is_private ? '🔒' : '↳') : (isAnnouncement ? '📢' : '#');
+    const isTemporary = !!ch.expires_at;
+    const hashIcon = isSub ? (ch.is_private ? '🔒' : '↳') : (isTemporary ? '⏱️' : (isAnnouncement ? '📢' : '#'));
 
     // Build small status indicators for channel features
     const _badges = [];
@@ -1100,12 +1256,13 @@ _renderChannels() {
       if (ch.cleanup_exempt === 1) _badges.push('<span title="Exempt from auto-cleanup" style="opacity:0.5;font-size:0.65rem">🛡️</span>');
     }
     const _mutedList = JSON.parse(localStorage.getItem('haven_muted_channels') || '[]');
-    if (_mutedList.includes(ch.code)) _badges.push('<span class="ch-disabled-badge" title="Muted">🔔</span>');
+    if (_mutedList.includes(ch.code)) _badges.push('<span class="ch-disabled-badge" title="Muted / Unsubscribed">🔕</span>');
     const indicators = _badges.length ? `<span class="channel-indicators" style="margin-left:auto;display:flex;gap:2px;align-items:center;flex-shrink:0">${_badges.join('')}</span>` : '';
 
+    const expiryTitle = isTemporary ? ` title="Temporary — expires ${new Date(ch.expires_at).toLocaleString()}"` : '';
     el.innerHTML = `
       ${hasSubs ? `<span class="channel-collapse-arrow${isCollapsed ? ' collapsed' : ''}" title="Expand/collapse sub-channels">▾</span>` : ''}
-      <span class="channel-hash">${hashIcon}</span>
+      <span class="channel-hash"${expiryTitle}>${hashIcon}</span>
       <span class="channel-name">${this._escapeHtml(ch.name)}</span>
       ${indicators}
       <button class="channel-more-btn" title="Channel options">⋯</button>
@@ -1179,8 +1336,9 @@ _renderChannels() {
   if (!this._channelsToggleBound) {
     this._channelsToggleBound = true;
     document.getElementById('channels-toggle')?.addEventListener('click', (e) => {
-      // Ignore clicks on the organize button inside the header
+      // Ignore clicks on the organize button or sub-panel button inside the header
       if (e.target.closest('#organize-channels-btn')) return;
+      if (e.target.closest('#sub-channel-panel-btn')) return;
       const nowCollapsed = list.style.display !== 'none';
       list.style.display = nowCollapsed ? 'none' : '';
       const arrow = document.getElementById('channels-toggle-arrow');
@@ -1203,6 +1361,11 @@ _renderChannels() {
     document.getElementById('organize-channels-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this._openOrganizeModal(null, true); // server-level mode
+    });
+    // Sub-channel subscriptions panel button
+    document.getElementById('sub-channel-panel-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._openSubChannelPanel();
     });
   }
   if (channelsCollapsed) {
@@ -1538,12 +1701,14 @@ _updateBadge(code) {
 },
 
 _updateTabTitle() {
-  const total = Object.values(this.unreadCounts).reduce((s, v) => s + v, 0);
+  const validCodes = new Set((this.channels || []).map(c => c.code));
+  const total = Object.entries(this.unreadCounts).reduce((s, [k, v]) => validCodes.has(k) ? s + v : s, 0);
   document.title = total > 0 ? `(${total}) Haven` : 'Haven';
 },
 
 _updateDesktopBadge() {
-  const total = Object.values(this.unreadCounts).reduce((s, v) => s + v, 0);
+  const validCodes = new Set((this.channels || []).map(c => c.code));
+  const total = Object.entries(this.unreadCounts).reduce((s, [k, v]) => validCodes.has(k) ? s + v : s, 0);
   window.havenDesktop?.setUnreadBadge?.(total > 0);
 },
 

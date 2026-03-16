@@ -499,6 +499,29 @@ function setupSocketHandlers(io, db) {
     for (const [k, v] of slowModeTracker) { if (v < cutoff) slowModeTracker.delete(k); }
   }, 5 * 60 * 1000);
 
+  // ── Temporary channel cleanup (check every 60s) ──────────
+  setInterval(() => {
+    try {
+      const expired = db.prepare(
+        "SELECT id, code FROM channels WHERE expires_at IS NOT NULL AND expires_at <= datetime('now')"
+      ).all();
+      for (const ch of expired) {
+        // Delete child records then the channel itself (same as delete-channel)
+        db.prepare('DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = ?)').run(ch.id);
+        db.prepare('DELETE FROM pinned_messages WHERE channel_id = ?').run(ch.id);
+        db.prepare('DELETE FROM messages WHERE channel_id = ?').run(ch.id);
+        db.prepare('DELETE FROM channel_members WHERE channel_id = ?').run(ch.id);
+        db.prepare('DELETE FROM channels WHERE id = ?').run(ch.id);
+        io.to(`channel:${ch.code}`).emit('channel-deleted', { code: ch.code, reason: 'expired' });
+        channelUsers.delete(ch.code);
+        voiceUsers.delete(ch.code);
+        console.log(`[Temporary] Channel "${ch.code}" expired and was deleted`);
+      }
+    } catch (err) {
+      console.error('Temporary channel cleanup error:', err);
+    }
+  }, 60 * 1000);
+
   // ── Push notification helper ──────────────────────────────
   // Sends push notifications for a new message to channel members
   // who don't have the Haven tab in focus (visibility-based targeting).
@@ -731,7 +754,7 @@ function setupSocketHandlers(io, db) {
         channels = db.prepare(`
           SELECT c.id, c.name, c.code, c.created_by, c.topic, c.is_dm,
                  c.code_visibility, c.code_mode, c.code_rotation_type, c.code_rotation_interval,
-                 c.parent_channel_id, c.position, c.is_private,
+                 c.parent_channel_id, c.position, c.is_private, c.expires_at,
                  c.streams_enabled, c.music_enabled, c.media_enabled, c.slow_mode_interval, c.category, c.sort_alphabetical,
                  c.cleanup_exempt, c.channel_type, c.voice_user_limit, c.notification_type, c.voice_enabled, c.text_enabled
           FROM channels c
@@ -739,7 +762,7 @@ function setupSocketHandlers(io, db) {
           UNION
           SELECT c.id, c.name, c.code, c.created_by, c.topic, c.is_dm,
                  c.code_visibility, c.code_mode, c.code_rotation_type, c.code_rotation_interval,
-                 c.parent_channel_id, c.position, c.is_private,
+                 c.parent_channel_id, c.position, c.is_private, c.expires_at,
                  c.streams_enabled, c.music_enabled, c.media_enabled, c.slow_mode_interval, c.category, c.sort_alphabetical,
                  c.cleanup_exempt, c.channel_type, c.voice_user_limit, c.notification_type, c.voice_enabled, c.text_enabled
           FROM channels c
@@ -756,7 +779,7 @@ function setupSocketHandlers(io, db) {
         channels = db.prepare(`
           SELECT c.id, c.name, c.code, c.created_by, c.topic, c.is_dm,
                  c.code_visibility, c.code_mode, c.code_rotation_type, c.code_rotation_interval,
-                 c.parent_channel_id, c.position, c.is_private,
+                 c.parent_channel_id, c.position, c.is_private, c.expires_at,
                  c.streams_enabled, c.music_enabled, c.media_enabled, c.slow_mode_interval, c.category, c.sort_alphabetical,
                  c.cleanup_exempt, c.channel_type, c.voice_user_limit, c.notification_type, c.voice_enabled, c.text_enabled
           FROM channels c
@@ -892,10 +915,19 @@ function setupSocketHandlers(io, db) {
       const code = generateChannelCode();
       const isPrivate = data.isPrivate ? 1 : 0;
 
+      // Optional temporary channel: duration in hours (1–720 = 30 days max)
+      let expiresAt = null;
+      if (data.temporary && data.duration) {
+        const hours = Math.max(1, Math.min(720, parseInt(data.duration, 10)));
+        if (!isNaN(hours)) {
+          expiresAt = new Date(Date.now() + hours * 3600000).toISOString();
+        }
+      }
+
       try {
         const result = db.prepare(
-          'INSERT INTO channels (name, code, created_by, is_private) VALUES (?, ?, ?, ?)'
-        ).run(name.trim(), code, socket.user.id, isPrivate);
+          'INSERT INTO channels (name, code, created_by, is_private, expires_at) VALUES (?, ?, ?, ?, ?)'
+        ).run(name.trim(), code, socket.user.id, isPrivate, expiresAt);
 
         // Auto-join creator
         db.prepare(
@@ -924,7 +956,8 @@ function setupSocketHandlers(io, db) {
           created_by: socket.user.id,
           topic: '',
           is_dm: 0,
-          is_private: isPrivate
+          is_private: isPrivate,
+          expires_at: expiresAt
         };
 
         socket.join(`channel:${code}`);
@@ -4694,14 +4727,28 @@ function setupSocketHandlers(io, db) {
       const canMod = isAdmin || userHasPermission(socket.user.id, 'kick_user') || userHasPermission(socket.user.id, 'ban_user');
 
       try {
-        // All registered users
-        const users = db.prepare(`
-          SELECT u.id, u.username, COALESCE(u.display_name, u.username) as displayName,
-                 u.is_admin, u.created_at, u.avatar, u.avatar_shape, u.status, u.status_text
-          FROM users u
-          LEFT JOIN bans b ON u.id = b.user_id
-          ORDER BY u.created_at DESC
-        `).all();
+        // Admins/mods see all users; regular users only see people they share a channel with
+        let users;
+        if (canMod) {
+          users = db.prepare(`
+            SELECT u.id, u.username, COALESCE(u.display_name, u.username) as displayName,
+                   u.is_admin, u.created_at, u.avatar, u.avatar_shape, u.status, u.status_text
+            FROM users u
+            LEFT JOIN bans b ON u.id = b.user_id
+            ORDER BY u.created_at DESC
+          `).all();
+        } else {
+          users = db.prepare(`
+            SELECT DISTINCT u.id, u.username, COALESCE(u.display_name, u.username) as displayName,
+                   u.is_admin, u.created_at, u.avatar, u.avatar_shape, u.status, u.status_text
+            FROM users u
+            JOIN channel_members cm ON u.id = cm.user_id
+            WHERE cm.channel_id IN (
+              SELECT channel_id FROM channel_members WHERE user_id = ?
+            )
+            ORDER BY u.created_at DESC
+          `).all(socket.user.id);
+        }
 
         // Build online set from connected sockets
         const onlineIds = new Set();

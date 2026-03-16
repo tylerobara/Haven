@@ -434,18 +434,22 @@ _setupSocketListeners() {
         }
       }
       if (data.message.user_id !== this.user.id) {
-        // Check if message contains @mention of current user
-        const mentionRegex = new RegExp(`@${this.user.username}\\b`, 'i');
-        const _notifCh = this.channels.find(c => c.code === data.channelCode);
-        const _isAnnouncement = _notifCh && _notifCh.notification_type === 'announcement';
-        if (mentionRegex.test(data.message.content)) {
-          this.notifications.play('mention');
-        } else {
-          this.notifications.play(_isAnnouncement ? 'announcement' : 'message');
-        }
-        // Fire native OS notification if tab is hidden (alt-tabbed, minimised, etc.)
-        if (document.hidden) {
-          this._fireNativeNotification(data.message, data.channelCode);
+        const _mutedChs = JSON.parse(localStorage.getItem('haven_muted_channels') || '[]');
+        const _isMuted = _mutedChs.includes(data.channelCode);
+        if (!_isMuted) {
+          // Check if message contains @mention of current user
+          const mentionRegex = new RegExp(`@${this.user.username}\\b`, 'i');
+          const _notifCh = this.channels.find(c => c.code === data.channelCode);
+          const _isAnnouncement = _notifCh && _notifCh.notification_type === 'announcement';
+          if (mentionRegex.test(data.message.content)) {
+            this.notifications.play('mention');
+          } else {
+            this.notifications.play(_isAnnouncement ? 'announcement' : 'message');
+          }
+          // Fire native OS notification if tab is hidden (alt-tabbed, minimised, etc.)
+          if (document.hidden) {
+            this._fireNativeNotification(data.message, data.channelCode);
+          }
         }
       }
       // TTS: speak the message aloud for all listeners
@@ -453,6 +457,8 @@ _setupSocketListeners() {
         this.notifications.speak(`${this._getNickname(data.message.user_id, data.message.username)} says: ${data.message.content}`);
       }
     } else {
+      const _mutedChs2 = JSON.parse(localStorage.getItem('haven_muted_channels') || '[]');
+      const _isMuted2 = _mutedChs2.includes(data.channelCode);
       // Only count unread for messages from other users — own message echoes arriving after a
       // channel switch (race condition) would otherwise trigger a ghost badge.
       if (data.message.user_id !== this.user.id) {
@@ -460,7 +466,7 @@ _setupSocketListeners() {
         this._updateBadge(data.channelCode);
       }
       // Don't play notification sounds for your own messages in other channels
-      if (data.message.user_id !== this.user.id) {
+      if (data.message.user_id !== this.user.id && !_isMuted2) {
         // Check @mention even in other channels
         const mentionRegex = new RegExp(`@${this.user.username}\\b`, 'i');
         const _notifCh2 = this.channels.find(c => c.code === data.channelCode);

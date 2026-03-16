@@ -106,14 +106,29 @@ _setupUI() {
     createBtn.addEventListener('click', () => {
       const name = nameInput.value.trim();
       const isPrivate = document.getElementById('new-channel-private')?.checked || false;
+      const temporary = document.getElementById('new-channel-temporary')?.checked || false;
+      const duration = parseInt(document.getElementById('new-channel-duration')?.value, 10) || 24;
       if (name) {
-        this.socket.emit('create-channel', { name, isPrivate });
+        this.socket.emit('create-channel', { name, isPrivate, temporary, duration });
         nameInput.value = '';
         const pvt = document.getElementById('new-channel-private');
         if (pvt) pvt.checked = false;
+        const tmp = document.getElementById('new-channel-temporary');
+        if (tmp) tmp.checked = false;
+        const durRow = document.getElementById('temp-channel-duration-row');
+        if (durRow) durRow.style.display = 'none';
       }
     });
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') createBtn.click(); });
+  }
+
+  // Toggle temporary channel duration row
+  const tempCheckbox = document.getElementById('new-channel-temporary');
+  if (tempCheckbox) {
+    tempCheckbox.addEventListener('change', () => {
+      const durRow = document.getElementById('temp-channel-duration-row');
+      if (durRow) durRow.style.display = tempCheckbox.checked ? '' : 'none';
+    });
   }
 
   // Copy code
@@ -2432,6 +2447,8 @@ _renderServerBar() {
     el.addEventListener('click', (e) => {
       if (e.target.classList.contains('server-remove')) {
         e.stopPropagation();
+        const serverName = el.getAttribute('title')?.split(' — ')[0] || el.dataset.url;
+        if (!confirm(`Remove "${serverName}" from your server list?`)) return;
         this.serverManager.remove(el.dataset.url);
         this._renderServerBar();
         this._showToast('Server removed', 'success');

@@ -153,16 +153,21 @@ _formatContent(str) {
   });
 
   // Auto-link URLs (and render image URLs as inline images)
+  // Use placeholders to prevent @mention regex from matching inside URLs
+  const autoLinks = [];
   html = html.replace(
     /\bhttps?:\/\/[a-zA-Z0-9\-._~:/?#\[\]@!$&()*+,;=%]+/g,
     (url) => {
       try { new URL(url); } catch { return url; }
       const safeUrl = url.replace(/['"<>]/g, '');
+      const idx = autoLinks.length;
       if (/\.(jpg|jpeg|png|gif|webp)(\?[^"'<>]*)?$/i.test(safeUrl) ||
           /^https:\/\/media\d*\.giphy\.com\//i.test(safeUrl)) {
-        return `<img src="${safeUrl}" class="chat-image" alt="image" loading="lazy">`;
+        autoLinks.push(`<img src="${safeUrl}" class="chat-image" alt="image" loading="lazy">`);
+      } else {
+        autoLinks.push(`<a href="${safeUrl}" target="_blank" rel="noopener noreferrer nofollow">${safeUrl}</a>`);
       }
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer nofollow">${safeUrl}</a>`;
+      return `\x00AUTOLINK_${idx}\x00`;
     }
   );
 
@@ -245,6 +250,11 @@ _formatContent(str) {
   // ── Restore markdown links/images ──
   mdLinks.forEach((link, idx) => {
     html = html.replace(`\x00MDLINK_${idx}\x00`, link);
+  });
+
+  // ── Restore auto-linked URLs ──
+  autoLinks.forEach((link, idx) => {
+    html = html.replace(`\x00AUTOLINK_${idx}\x00`, link);
   });
 
   if (emojiOnly) html = `<span class="emoji-only-msg">${html}</span>`;

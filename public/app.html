@@ -102,12 +102,22 @@
                 <input type="checkbox" id="new-channel-private" style="width:14px;height:14px">
                 <span>🔒 Private <span style="opacity:0.5;font-size:0.75rem">(invite-only)</span></span>
               </label>
+              <label class="checkbox-row" style="margin:2px 0;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.8rem;opacity:0.8">
+                <input type="checkbox" id="new-channel-temporary" style="width:14px;height:14px">
+                <span>⏱️ Temporary <span style="opacity:0.5;font-size:0.75rem">(auto-delete)</span></span>
+              </label>
+              <div id="temp-channel-duration-row" style="display:none;margin:4px 0 2px;padding-left:22px">
+                <div class="input-row" style="gap:6px;align-items:center">
+                  <input type="number" id="new-channel-duration" min="1" max="720" value="24" style="width:60px;font-size:0.8rem" placeholder="Hours">
+                  <span style="font-size:0.75rem;opacity:0.6">hours</span>
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="sidebar-split" id="sidebar-split" data-mod-id="channels">
           <div class="sidebar-section channel-section" id="channels-pane">
-            <h5 class="section-label channels-toggle" id="channels-toggle" style="cursor:pointer;user-select:none"><span class="channels-toggle-arrow" id="channels-toggle-arrow">▾</span><span class="section-label-text" style="flex:1">Channels</span><button class="icon-btn small admin-only" id="organize-channels-btn" title="Organize channels" style="display:none;font-size:0.85rem;padding:2px 6px;opacity:0.6;position:relative;z-index:2">📋</button></h5>
+            <h5 class="section-label channels-toggle" id="channels-toggle" style="cursor:pointer;user-select:none"><span class="channels-toggle-arrow" id="channels-toggle-arrow">▾</span><span class="section-label-text" style="flex:1">Channels</span><button class="icon-btn small" id="sub-channel-panel-btn" title="Sub-channel subscriptions" style="font-size:0.85rem;padding:2px 6px;opacity:0.6;position:relative;z-index:2;display:none">📡</button><button class="icon-btn small admin-only" id="organize-channels-btn" title="Organize channels" style="display:none;font-size:0.85rem;padding:2px 6px;opacity:0.6;position:relative;z-index:2">📋</button></h5>
             <div class="channel-list" id="channel-list"></div>
           </div>
           <div class="sidebar-split-handle" id="sidebar-split-handle" title="Drag to resize"></div>
@@ -2178,6 +2188,18 @@
       <div class="modal-actions" style="margin-top:16px">
         <button class="btn-sm" id="webhook-close-btn">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Sub-channel Subscriptions Panel -->
+  <div class="modal-overlay" id="sub-panel-modal" style="display:none">
+    <div class="modal" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <h3 style="margin:0;flex:1">📡 Sub-channel Subscriptions</h3>
+        <button class="btn-sm" id="sub-panel-close-btn" style="font-size:1rem;padding:4px 10px">&times;</button>
+      </div>
+      <p class="modal-desc" style="margin:0 0 12px;font-size:0.8rem;opacity:0.6">Subscribe to get notifications. Unsubscribed channels still appear but won't notify you.</p>
+      <div id="sub-panel-content" style="overflow-y:auto;flex:1;min-height:0"></div>
     </div>
   </div>
 

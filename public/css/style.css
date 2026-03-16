@@ -11638,6 +11638,95 @@ ul.chat-list { list-style-type: disc; }
   font-size: 12px;
 }
 
+/* ── Sub-channel Subscriptions Panel ─────────────────── */
+.sub-panel-parent-section {
+  margin-bottom: 16px;
+}
+.sub-panel-parent-section:last-child {
+  margin-bottom: 0;
+}
+.sub-panel-parent-header {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.5;
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+.sub-panel-group-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.4;
+  margin: 8px 0 4px;
+  font-weight: 600;
+  color: var(--accent, #7289da);
+}
+.sub-panel-group-label.unsubbed {
+  color: var(--text-muted, #72767d);
+}
+.sub-panel-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sub-panel-tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  min-width: 0;
+  max-width: 100%;
+}
+.sub-panel-tile:hover {
+  background: rgba(255,255,255,0.08);
+}
+.sub-panel-tile.subbed {
+  border-left: 2px solid var(--accent, #7289da);
+}
+.sub-panel-tile.unsubbed {
+  opacity: 0.5;
+  border-left: 2px solid transparent;
+}
+.sub-panel-tile.unsubbed:hover {
+  opacity: 0.75;
+}
+.sub-panel-tile-name {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sub-panel-toggle input[type="checkbox"] {
+  display: none;
+}
+.sub-panel-toggle-label {
+  font-size: 0.85rem;
+  user-select: none;
+}
+.sub-panel-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--accent, #7289da);
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  min-width: 16px;
+  text-align: center;
+}
+
 /* ── Role badge (user list & messages) ───────────────── */
 .user-role-badge {
   font-size: 10px;
