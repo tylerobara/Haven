@@ -316,7 +316,7 @@ _applyServerSettings() {
   // Re-evaluate update banner visibility whenever settings change
   this._applyUpdateBanner();
 
-  if (!modalOpen && this.user && this.user.isAdmin) {
+  if (!modalOpen && this.user && (this.user.isAdmin || this._hasPerm('manage_server'))) {
     this.socket.emit('get-whitelist');
   }
 },
@@ -355,6 +355,16 @@ _syncSettingsNav() {
   if (soundsNavItem && !isAdmin && this._hasPerm('manage_soundboard')) {
     soundsNavItem.style.display = '';
   }
+  // Show Roles tab for users with manage_roles permission
+  const rolesNavItem = document.querySelector('.settings-nav-item[data-target="section-roles"]');
+  if (rolesNavItem && !isAdmin && this._hasPerm('manage_roles')) {
+    rolesNavItem.style.display = '';
+  }
+  // Show Server settings tab for users with manage_server permission
+  const serverNavItem = document.querySelector('.settings-nav-item[data-target="section-server"]');
+  if (serverNavItem && !isAdmin && this._hasPerm('manage_server')) {
+    serverNavItem.style.display = '';
+  }
 },
 
 _snapshotAdminSettings() {
@@ -377,7 +387,7 @@ _snapshotAdminSettings() {
 },
 
 _saveAdminSettings() {
-  if (!this.user?.isAdmin) {
+  if (!this.user?.isAdmin && !this._hasPerm('manage_server')) {
     document.getElementById('settings-modal').style.display = 'none';
     return;
   }
@@ -2301,7 +2311,8 @@ _renderRoleDetail() {
     'pin_message', 'archive_messages', 'kick_user', 'mute_user', 'ban_user',
     'rename_channel', 'rename_sub_channel', 'set_channel_topic', 'manage_sub_channels',
     'create_channel', 'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-    'view_all_members', 'manage_emojis', 'manage_soundboard', 'promote_user', 'transfer_admin'
+    'view_all_members', 'manage_emojis', 'manage_soundboard', 'promote_user', 'transfer_admin',
+    'manage_roles', 'manage_server', 'delete_channel'
   ];
   const permLabels = {
     edit_own_messages: 'Edit Own Messages', delete_own_messages: 'Delete Own Messages',
@@ -2317,7 +2328,8 @@ _renderRoleDetail() {
     view_all_members: 'View All Server Members',
     manage_emojis: 'Manage Custom Emojis',
     manage_soundboard: 'Manage Soundboard',
-    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin'
+    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin',
+    manage_roles: 'Manage Roles', manage_server: 'Manage Server', delete_channel: 'Delete Channels'
   };
   const rolePerms = role.permissions || [];
 
@@ -2716,7 +2728,8 @@ _renderChannelRolesRoleDetail() {
     'pin_message', 'archive_messages', 'kick_user', 'mute_user', 'ban_user',
     'rename_channel', 'rename_sub_channel', 'set_channel_topic', 'manage_sub_channels',
     'create_channel', 'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-    'view_all_members', 'manage_emojis', 'manage_soundboard', 'promote_user', 'transfer_admin'
+    'view_all_members', 'manage_emojis', 'manage_soundboard', 'promote_user', 'transfer_admin',
+    'manage_roles', 'manage_server', 'delete_channel'
   ];
   const permLabels = {
     edit_own_messages: 'Edit Own Messages', delete_own_messages: 'Delete Own Messages',
@@ -2732,7 +2745,8 @@ _renderChannelRolesRoleDetail() {
     view_all_members: 'View All Server Members',
     manage_emojis: 'Manage Custom Emojis',
     manage_soundboard: 'Manage Soundboard',
-    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin'
+    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin',
+    manage_roles: 'Manage Roles', manage_server: 'Manage Server', delete_channel: 'Delete Channels'
   };
   const rolePerms = role.permissions || [];
 
@@ -2893,7 +2907,7 @@ _openRoleAssignCenter(preSelectUserId = null) {
 
   // Show admin-only buttons
   const manageBtn = document.getElementById('rac-manage-roles-btn');
-  if (manageBtn) manageBtn.style.display = this.user.isAdmin ? '' : 'none';
+  if (manageBtn) manageBtn.style.display = (this.user.isAdmin || this._hasPerm('manage_roles')) ? '' : 'none';
 
   this.socket.emit('get-role-assignment-data', {}, (res) => {
     if (res.error) { this._showToast(res.error, 'error'); return; }
@@ -3114,10 +3128,11 @@ _renderRacConfig() {
     'pin_message', 'archive_messages', 'kick_user', 'mute_user', 'ban_user',
     'rename_channel', 'rename_sub_channel', 'set_channel_topic', 'manage_sub_channels',
     'create_channel', 'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-    'view_all_members', 'manage_emojis', 'manage_soundboard', 'promote_user', 'transfer_admin'
+    'view_all_members', 'manage_emojis', 'manage_soundboard', 'promote_user', 'transfer_admin',
+    'manage_roles', 'manage_server', 'delete_channel'
   ];
   // Perms that only admin can grant
-  const adminOnlyPerms = ['transfer_admin'];
+  const adminOnlyPerms = ['transfer_admin', 'manage_roles', 'manage_server', 'delete_channel'];
   // Perms that require the caller to have them to be able to grant
   const permLabels = {
     edit_own_messages: 'Edit Own Messages', delete_own_messages: 'Delete Own Messages',
@@ -3133,7 +3148,8 @@ _renderRacConfig() {
     view_all_members: 'View All Members',
     manage_emojis: 'Manage Custom Emojis',
     manage_soundboard: 'Manage Soundboard',
-    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin'
+    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin',
+    manage_roles: 'Manage Roles', manage_server: 'Manage Server', delete_channel: 'Delete Channels'
   };
 
   // If a role preset is selected, get its permissions

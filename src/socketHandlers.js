@@ -2527,7 +2527,7 @@ function setupSocketHandlers(io, db) {
 
     socket.on('delete-channel', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'delete_channel')) {
         return socket.emit('error-msg', 'Only admins can delete channels');
       }
 
@@ -3350,14 +3350,14 @@ function setupSocketHandlers(io, db) {
     // ═══════════════ WHITELIST MANAGEMENT ═══════════════════
 
     socket.on('get-whitelist', () => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       const rows = db.prepare('SELECT id, username, created_at FROM whitelist ORDER BY username').all();
       rows.forEach(r => { r.created_at = utcStamp(r.created_at); });
       socket.emit('whitelist-list', rows);
     });
 
     socket.on('whitelist-add', (data) => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       if (!data || typeof data !== 'object') return;
       const username = typeof data.username === 'string' ? data.username.trim() : '';
       if (!username || username.length < 3 || username.length > 20) {
@@ -3380,7 +3380,7 @@ function setupSocketHandlers(io, db) {
     });
 
     socket.on('whitelist-remove', (data) => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       if (!data || typeof data !== 'object') return;
       const username = typeof data.username === 'string' ? data.username.trim() : '';
       if (!username) return;
@@ -3394,7 +3394,7 @@ function setupSocketHandlers(io, db) {
     });
 
     socket.on('whitelist-toggle', (data) => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       if (!data || typeof data !== 'object') return;
       const enabled = data.enabled === true ? 'true' : 'false';
       db.prepare("INSERT OR REPLACE INTO server_settings (key, value) VALUES ('whitelist_enabled', ?)").run(enabled);
@@ -3477,7 +3477,7 @@ function setupSocketHandlers(io, db) {
 
     socket.on('update-server-setting', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can change server settings');
       }
 
@@ -3536,7 +3536,8 @@ function setupSocketHandlers(io, db) {
             'pin_message', 'kick_user', 'mute_user', 'ban_user',
             'rename_channel', 'rename_sub_channel', 'set_channel_topic', 'manage_sub_channels',
             'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-            'promote_user', 'transfer_admin', 'archive_messages', 'create_channel', 'manage_emojis', 'manage_soundboard'
+            'promote_user', 'transfer_admin', 'archive_messages', 'create_channel', 'manage_emojis', 'manage_soundboard',
+            'manage_roles', 'manage_server', 'delete_channel'
           ];
           for (const [k, v] of Object.entries(obj)) {
             if (!validPerms.includes(k)) return;
@@ -3568,7 +3569,7 @@ function setupSocketHandlers(io, db) {
     // ═══════════════ SERVER-WIDE INVITE CODE ════════════════
 
     socket.on('generate-server-code', () => {
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can manage server codes');
       }
       const code = generateChannelCode();
@@ -3578,7 +3579,7 @@ function setupSocketHandlers(io, db) {
     });
 
     socket.on('clear-server-code', () => {
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can manage server codes');
       }
       db.prepare('INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)').run('server_code', '');
@@ -3589,7 +3590,7 @@ function setupSocketHandlers(io, db) {
     // ═══════════════ ADMIN: RUN CLEANUP NOW ═════════════════
 
     socket.on('run-cleanup-now', () => {
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can run cleanup');
       }
       // Trigger the global cleanup function exposed on the server
@@ -4910,7 +4911,7 @@ function setupSocketHandlers(io, db) {
     socket.on('get-channel-member-roles', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can view channel roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can view channel roles' });
 
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return cb({ error: 'Invalid channel' });
@@ -4969,7 +4970,7 @@ function setupSocketHandlers(io, db) {
     socket.on('create-role', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can create roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can create roles' });
 
       const name = isString(data.name, 1, 30) ? data.name.trim() : '';
       if (!name) return cb({ error: 'Role name required (1-30 chars)' });
@@ -4993,10 +4994,17 @@ function setupSocketHandlers(io, db) {
           'delete_lower_messages', 'edit_own_messages', 'pin_message', 'set_channel_topic',
           'manage_sub_channels', 'rename_channel', 'rename_sub_channel',
           'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-          'promote_user', 'transfer_admin', 'archive_messages', 'create_channel', 'manage_emojis', 'manage_soundboard'
+          'promote_user', 'transfer_admin', 'archive_messages', 'create_channel', 'manage_emojis', 'manage_soundboard',
+          'manage_roles', 'manage_server', 'delete_channel'
         ];
+        // Escalation guard: non-admins cannot grant permissions they don't have
+        const adminOnlyPerms = ['transfer_admin', 'manage_roles', 'manage_server', 'delete_channel'];
         const insertPerm = db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
-        perms.forEach(p => { if (validPerms.includes(p)) insertPerm.run(result.lastInsertRowid, p); });
+        perms.forEach(p => {
+          if (!validPerms.includes(p)) return;
+          if (!socket.user.isAdmin && (adminOnlyPerms.includes(p) || !userHasPermission(socket.user.id, p))) return;
+          insertPerm.run(result.lastInsertRowid, p);
+        });
 
         cb({ success: true, roleId: result.lastInsertRowid });
       } catch (err) {
@@ -5008,7 +5016,7 @@ function setupSocketHandlers(io, db) {
     socket.on('update-role', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can edit roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can edit roles' });
 
       const roleId = isInt(data.roleId) ? data.roleId : null;
       if (!roleId) return;
@@ -5050,11 +5058,18 @@ function setupSocketHandlers(io, db) {
             'delete_lower_messages', 'edit_own_messages', 'pin_message', 'set_channel_topic',
             'manage_sub_channels', 'rename_channel', 'rename_sub_channel',
             'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-            'promote_user', 'transfer_admin', 'archive_messages', 'create_channel', 'manage_emojis', 'manage_soundboard'
+            'promote_user', 'transfer_admin', 'archive_messages', 'create_channel', 'manage_emojis', 'manage_soundboard',
+            'manage_roles', 'manage_server', 'delete_channel'
           ];
+          // Escalation guard: non-admins cannot grant permissions they don't have
+          const adminOnlyPerms = ['transfer_admin', 'manage_roles', 'manage_server', 'delete_channel'];
           db.prepare('DELETE FROM role_permissions WHERE role_id = ?').run(roleId);
           const insertPerm = db.prepare('INSERT INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
-          data.permissions.forEach(p => { if (validPerms.includes(p)) insertPerm.run(roleId, p); });
+          data.permissions.forEach(p => {
+            if (!validPerms.includes(p)) return;
+            if (!socket.user.isAdmin && (adminOnlyPerms.includes(p) || !userHasPermission(socket.user.id, p))) return;
+            insertPerm.run(roleId, p);
+          });
         }
       });
       updateRoleTx();
@@ -5077,7 +5092,7 @@ function setupSocketHandlers(io, db) {
     socket.on('delete-role', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can delete roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can delete roles' });
 
       const roleId = isInt(data.roleId) ? data.roleId : null;
       if (!roleId) return;
@@ -5143,7 +5158,7 @@ function setupSocketHandlers(io, db) {
     socket.on('get-role-assignment-data', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'promote_user')) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'promote_user') && !userHasPermission(socket.user.id, 'manage_roles')) {
         return cb({ error: 'You lack permission to manage roles' });
       }
 
@@ -5446,7 +5461,7 @@ function setupSocketHandlers(io, db) {
     socket.on('get-role-channel-access', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can view role channel access' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can view role channel access' });
 
       const roleId = isInt(data.roleId) ? data.roleId : null;
       if (!roleId) return cb({ error: 'Invalid role ID' });
@@ -5460,7 +5475,7 @@ function setupSocketHandlers(io, db) {
     socket.on('update-role-channel-access', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can edit role channel access' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can edit role channel access' });
 
       const roleId = isInt(data.roleId) ? data.roleId : null;
       if (!roleId) return cb({ error: 'Invalid role ID' });
@@ -5495,7 +5510,7 @@ function setupSocketHandlers(io, db) {
     socket.on('reapply-role-access', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can reapply access' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can reapply access' });
 
       const roleId = isInt(data.roleId) ? data.roleId : null;
       if (!roleId) return cb({ error: 'Invalid role ID' });

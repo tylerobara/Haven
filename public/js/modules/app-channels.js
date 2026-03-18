@@ -213,6 +213,11 @@ _openChannelCtxMenu(code, btnEl) {
   menu.querySelectorAll('.admin-only').forEach(el => {
     el.style.display = canManageChannels ? '' : 'none';
   });
+  // Show delete button for users with delete_channel permission even if not admin
+  const deleteBtn = menu.querySelector('[data-action="delete"]');
+  if (deleteBtn && !canManageChannels && this._hasPerm('delete_channel')) {
+    deleteBtn.style.display = '';
+  }
   menu.querySelectorAll('.mod-only').forEach(el => {
     el.style.display = isMod ? '' : 'none';
   });
