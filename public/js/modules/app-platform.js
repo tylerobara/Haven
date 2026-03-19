@@ -796,8 +796,19 @@ async _showE2EVerification() {
       </div>
     `;
     overlay.querySelector('#e2e-copy-code-btn').addEventListener('click', () => {
-      navigator.clipboard.writeText(code);
-      overlay.querySelector('#e2e-copy-code-btn').textContent = 'Copied!';
+      const markCopied = () => { overlay.querySelector('#e2e-copy-code-btn').textContent = 'Copied!'; };
+      navigator.clipboard.writeText(code).then(markCopied).catch(() => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = code;
+          ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+          document.body.appendChild(ta);
+          ta.focus(); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          markCopied();
+        } catch { /* could not copy */ }
+      });
     });
     overlay.querySelector('#e2e-close-verify-btn').addEventListener('click', () => {
       overlay.style.display = 'none';

@@ -49,9 +49,21 @@ _maybeShowSetupWizard() {
   newPort.addEventListener('click', () => this._wizardCheckPort());
   newCopy.addEventListener('click', () => {
     if (this._wizardChannelCode) {
-      navigator.clipboard.writeText(this._wizardChannelCode).then(() => {
+      const markCopied = () => {
         newCopy.textContent = 'Copied!';
         setTimeout(() => newCopy.textContent = 'Copy', 2000);
+      };
+      navigator.clipboard.writeText(this._wizardChannelCode).then(markCopied).catch(() => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = this._wizardChannelCode;
+          ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+          document.body.appendChild(ta);
+          ta.focus(); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          markCopied();
+        } catch { /* could not copy */ }
       });
     }
   });

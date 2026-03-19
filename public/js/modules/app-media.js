@@ -1346,12 +1346,24 @@ _showBotDetail(botId) {
     this.socket.emit('toggle-webhook', { id: botId });
   });
   panel.querySelector('#bot-detail-copy-url').addEventListener('click', () => {
-    navigator.clipboard.writeText(webhookUrl).then(() => {
+    const markCopied = () => {
       panel.querySelector('#bot-detail-copy-url').textContent = '✅';
       setTimeout(() => {
         const btn = panel.querySelector('#bot-detail-copy-url');
         if (btn) btn.textContent = '📋';
       }, 1500);
+    };
+    navigator.clipboard.writeText(webhookUrl).then(markCopied).catch(() => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = webhookUrl;
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        markCopied();
+      } catch { /* could not copy */ }
     });
   });
   panel.querySelector('#bot-detail-delete').addEventListener('click', () => {

@@ -790,8 +790,19 @@ _updateTunnelStatusUI(data) {
     statusEl.title = 'Tunnel is active — click to copy';
     statusEl.style.cursor = 'pointer';
     statusEl.onclick = () => {
-      navigator.clipboard.writeText(data.url);
-      statusEl.textContent = 'Copied!';
+      const markCopied = () => { statusEl.textContent = 'Copied!'; };
+      navigator.clipboard.writeText(data.url).then(markCopied).catch(() => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = data.url;
+          ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+          document.body.appendChild(ta);
+          ta.focus(); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          markCopied();
+        } catch { /* could not copy */ }
+      });
       setTimeout(() => { statusEl.textContent = data.url; }, 1500);
     };
   } else if (data.starting) {

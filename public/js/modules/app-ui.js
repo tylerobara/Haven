@@ -137,8 +137,18 @@ _setupUI() {
       const ch = this.channels.find(c => c.code === this.currentChannel);
       const codeToCopy = ch && ch.display_code !== '••••••••' ? this.currentChannel : null;
       if (codeToCopy) {
-        navigator.clipboard.writeText(codeToCopy).then(() => {
-          this._showToast('Channel code copied!', 'success');
+        const onCopied = () => this._showToast('Channel code copied!', 'success');
+        navigator.clipboard.writeText(codeToCopy).then(onCopied).catch(() => {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = codeToCopy;
+            ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+            document.body.appendChild(ta);
+            ta.focus(); ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            onCopied();
+          } catch { /* could not copy */ }
         });
       }
     }
@@ -617,9 +627,21 @@ _setupUI() {
   });
   document.getElementById('webhook-copy-url-btn')?.addEventListener('click', () => {
     const urlEl = document.getElementById('webhook-url-display');
-    navigator.clipboard.writeText(urlEl.value).then(() => {
+    const markCopied = () => {
       document.getElementById('webhook-copy-url-btn').textContent = '✅ Copied';
       setTimeout(() => { document.getElementById('webhook-copy-url-btn').textContent = '📋 Copy'; }, 2000);
+    };
+    navigator.clipboard.writeText(urlEl.value).then(markCopied).catch(() => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = urlEl.value;
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        markCopied();
+      } catch { /* could not copy */ }
     });
   });
   document.getElementById('webhook-close-btn')?.addEventListener('click', () => {
@@ -2212,7 +2234,19 @@ _setupUI() {
   document.getElementById('copy-server-code-btn')?.addEventListener('click', () => {
     const code = document.getElementById('server-code-value')?.textContent;
     if (code && code !== '—') {
-      navigator.clipboard.writeText(code).then(() => this._showToast('Server code copied!', 'success'));
+      const onCopied = () => this._showToast('Server code copied!', 'success');
+      navigator.clipboard.writeText(code).then(onCopied).catch(() => {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = code;
+          ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+          document.body.appendChild(ta);
+          ta.focus(); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          onCopied();
+        } catch { /* could not copy */ }
+      });
     }
   });
 },
