@@ -242,4 +242,7 @@ Object.assign(HavenApp.prototype,
 );
 
 // ── Boot ───────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => { window.app = new HavenApp(); });
+document.addEventListener('DOMContentLoaded', async () => {
+  await window.i18n?.init();
+  window.app = new HavenApp();
+});

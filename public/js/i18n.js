@@ -11,6 +11,7 @@
 const I18n = (() => {
   let _translations = {};
   let _locale = 'en';
+  let _ready = null;  // shared init promise — ensures init() is only run once
 
   // Locales available — add entries here as you create new locale files
   const SUPPORTED = ['en', 'fr'];
@@ -92,14 +93,19 @@ const I18n = (() => {
   }
 
   // ── Initialise: detect locale, load file, apply DOM ──────────────────
-  async function init() {
-    const locale = _detect();
-    await load(locale);
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => applyDOM());
-    } else {
+  // Idempotent: multiple callers share the same promise so the fetch
+  // only happens once, regardless of how many times init() is called.
+  function init() {
+    if (_ready) return _ready;
+    _ready = (async () => {
+      const locale = _detect();
+      await load(locale);
+      if (document.readyState === 'loading') {
+        await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
+      }
       applyDOM();
-    }
+    })();
+    return _ready;
   }
 
   // ── Change locale at runtime (e.g. from a language picker) ───────────
