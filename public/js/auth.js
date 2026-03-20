@@ -1,11 +1,14 @@
-// ── Auth Page Logic (with theme support) ─────────────────
+// ── Auth Page Logic (with theme support + i18n) ───────────────────────────
 
-(function () {
+(async function () {
   // If already logged in, redirect to app
   if (localStorage.getItem('haven_token')) {
     window.location.href = '/app';
     return;
   }
+
+  // Initialise translations before rendering any UI text
+  await window.i18n.init();
 
   // ── E2E wrapping key derivation (mirrors HavenE2E.deriveWrappingKey) ───
   async function deriveE2EWrappingKey(password) {
@@ -81,11 +84,11 @@
 
   function checkEula() {
     if (!ageCheckbox.checked) {
-      showError('You must confirm that you are 18 years of age or older');
+      showError(t('auth.errors.must_be_18'));
       return false;
     }
     if (!eulaCheckbox.checked) {
-      showError('You must accept the Terms of Service & Release of Liability Agreement');
+      showError(t('auth.errors.must_accept_tos'));
       return false;
     }
     return true;
@@ -154,7 +157,7 @@
     hideError();
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
-    if (!username || !password) return showError('Enter your admin username and password above first');
+    if (!username || !password) return showError(t('auth.errors.enter_admin_credentials'));
     try {
       const res = await fetch('/api/auth/admin-recover', {
         method: 'POST',
@@ -162,14 +165,14 @@
         body: JSON.stringify({ username, password })
       });
       const data = await res.json();
-      if (!res.ok) return showError(data.error || 'Recovery failed');
+      if (!res.ok) return showError(data.error || t('auth.errors.recovery_failed'));
       const e2eWrap = await deriveE2EWrappingKey(password);
       sessionStorage.setItem('haven_e2e_wrap', e2eWrap);
       localStorage.setItem('haven_token', data.token);
       localStorage.setItem('haven_user', JSON.stringify(data.user));
       window.location.href = '/app';
     } catch {
-      showError('Connection error');
+      showError(t('auth.errors.connection_error'));
     }
   });
 
@@ -211,9 +214,9 @@
     const code = document.getElementById('recover-code').value.trim().toUpperCase();
     const newPassword = document.getElementById('recover-new-password').value;
     const confirmPassword = document.getElementById('recover-confirm-password').value;
-    if (!username || !code || !newPassword || !confirmPassword) return showError('All fields are required');
-    if (newPassword.length < 8) return showError('Password must be at least 8 characters');
-    if (newPassword !== confirmPassword) return showError('Passwords do not match');
+    if (!username || !code || !newPassword || !confirmPassword) return showError(t('auth.errors.all_fields_required'));
+    if (newPassword.length < 8) return showError(t('auth.errors.password_too_short'));
+    if (newPassword !== confirmPassword) return showError(t('auth.errors.passwords_no_match'));
     try {
       const res = await fetch('/api/auth/recover-account', {
         method: 'POST',
@@ -221,14 +224,14 @@
         body: JSON.stringify({ username, code, newPassword })
       });
       const data = await res.json();
-      if (!res.ok) return showError(data.error || 'Recovery failed');
+      if (!res.ok) return showError(data.error || t('auth.errors.recovery_failed'));
       // Success — go back to login with a success message
       hideRecoverForm();
-      showError('Password reset successfully. You can now log in with your new password.');
+      showError(t('auth.errors.password_reset_success'));
       document.getElementById('auth-error').style.color = 'var(--success, #2ecc71)';
       document.getElementById('login-username').value = username;
     } catch {
-      showError('Connection error');
+      showError(t('auth.errors.connection_error'));
     }
   });
 
@@ -241,7 +244,7 @@
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
 
-    if (!username || !password) return showError('Fill in all fields');
+    if (!username || !password) return showError(t('auth.errors.fill_all_fields'));
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -251,7 +254,7 @@
       });
 
       const data = await res.json();
-      if (!res.ok) return showError(data.error || 'Login failed');
+      if (!res.ok) return showError(data.error || t('auth.errors.login_failed'));
 
       // ── TOTP challenge ──
       if (data.requiresTOTP) {
@@ -269,7 +272,7 @@
       localStorage.setItem('haven_eula_accepted', '2.0');
       window.location.href = '/app';
     } catch (err) {
-      showError('Connection error — is the server running?');
+      showError(t('auth.errors.connection_error'));
     }
   });
 
@@ -277,10 +280,10 @@
   totpForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError();
-    if (!_pendingChallenge) return showError('Session expired — please log in again');
+    if (!_pendingChallenge) return showError(t('auth.errors.session_expired'));
 
     const code = document.getElementById('totp-code').value.trim();
-    if (!code) return showError('Enter your authentication code');
+    if (!code) return showError(t('auth.errors.enter_auth_code'));
 
     try {
       const res = await fetch('/api/auth/totp/validate', {
@@ -290,7 +293,7 @@
       });
 
       const data = await res.json();
-      if (!res.ok) return showError(data.error || 'Verification failed');
+      if (!res.ok) return showError(data.error || t('auth.errors.verification_failed'));
 
       // Derive E2E wrapping key from the original password
       const e2eWrap = await deriveE2EWrappingKey(_pendingChallenge.password);
@@ -302,7 +305,7 @@
       _pendingChallenge = null;
       window.location.href = '/app';
     } catch (err) {
-      showError('Connection error — is the server running?');
+      showError(t('auth.errors.connection_error'));
     }
   });
 
@@ -319,13 +322,13 @@
         totpCodeInput.maxLength = 9;
         totpCodeInput.inputMode = 'text';
         totpCodeInput.removeAttribute('pattern');
-        backupToggle.textContent = 'Use authenticator code instead';
+        backupToggle.textContent = t('auth.totp.use_authenticator');
       } else {
         totpCodeInput.placeholder = '000000';
         totpCodeInput.maxLength = 6;
         totpCodeInput.inputMode = 'numeric';
         totpCodeInput.setAttribute('pattern', '[0-9]*');
-        backupToggle.textContent = 'Use a backup code instead';
+        backupToggle.textContent = t('auth.totp.use_backup');
       }
       totpCodeInput.value = '';
       totpCodeInput.focus();
@@ -351,9 +354,9 @@
     const password = document.getElementById('reg-password').value;
     const confirm = document.getElementById('reg-confirm').value;
 
-    if (!username || !password || !confirm) return showError('Fill in all fields');
-    if (password !== confirm) return showError('Passwords do not match');
-    if (password.length < 8) return showError('Password must be at least 8 characters');
+    if (!username || !password || !confirm) return showError(t('auth.errors.fill_all_fields'));
+    if (password !== confirm) return showError(t('auth.errors.passwords_no_match'));
+    if (password.length < 8) return showError(t('auth.errors.password_too_short'));
 
     try {
       const res = await fetch('/api/auth/register', {
@@ -363,7 +366,7 @@
       });
 
       const data = await res.json();
-      if (!res.ok) return showError(data.error || 'Registration failed');
+      if (!res.ok) return showError(data.error || t('auth.errors.registration_failed'));
 
       // Derive E2E wrapping key from password (client-side only, never sent to server)
       const e2eWrap = await deriveE2EWrappingKey(password);
@@ -374,7 +377,7 @@
       localStorage.setItem('haven_eula_accepted', '2.0');
       window.location.href = '/app';
     } catch (err) {
-      showError('Connection error — is the server running?');
+      showError(t('auth.errors.connection_error'));
     }
   });
 })();

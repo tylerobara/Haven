@@ -2366,52 +2366,52 @@ _renderRoleDetail() {
     'manage_roles', 'manage_server', 'delete_channel'
   ];
   const permLabels = {
-    edit_own_messages: 'Edit Own Messages', delete_own_messages: 'Delete Own Messages',
-    delete_message: 'Delete Any Message', delete_lower_messages: 'Delete Lower-level Messages',
-    pin_message: 'Pin Messages', archive_messages: 'Protect Messages',
-    kick_user: 'Kick Users', mute_user: 'Mute Users', ban_user: 'Ban Users',
-    rename_channel: 'Rename Channels', rename_sub_channel: 'Rename Sub-channels',
-    set_channel_topic: 'Set Channel Topic', manage_sub_channels: 'Manage Sub-channels',
-    create_channel: 'Create Channels',
-    upload_files: 'Upload Files', use_voice: 'Use Voice Chat',
-    manage_webhooks: 'Manage Webhooks', mention_everyone: 'Mention @everyone',
-    view_history: 'View Message History',
-    view_all_members: 'View All Server Members',
-    manage_emojis: 'Manage Custom Emojis',
-    manage_soundboard: 'Manage Soundboard',
-    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin',
-    manage_roles: 'Manage Roles', manage_server: 'Manage Server', delete_channel: 'Delete Channels'
+    edit_own_messages: t('permissions.edit_own_messages'), delete_own_messages: t('permissions.delete_own_messages'),
+    delete_message: t('permissions.delete_message'), delete_lower_messages: t('permissions.delete_lower_messages'),
+    pin_message: t('permissions.pin_message'), archive_messages: t('permissions.archive_messages'),
+    kick_user: t('permissions.kick_user'), mute_user: t('permissions.mute_user'), ban_user: t('permissions.ban_user'),
+    rename_channel: t('permissions.rename_channel'), rename_sub_channel: t('permissions.rename_sub_channel'),
+    set_channel_topic: t('permissions.set_channel_topic'), manage_sub_channels: t('permissions.manage_sub_channels'),
+    create_channel: t('permissions.create_channel'),
+    upload_files: t('permissions.upload_files'), use_voice: t('permissions.use_voice'),
+    manage_webhooks: t('permissions.manage_webhooks'), mention_everyone: t('permissions.mention_everyone'),
+    view_history: t('permissions.view_history'),
+    view_all_members: t('permissions.view_all_members'),
+    manage_emojis: t('permissions.manage_emojis'),
+    manage_soundboard: t('permissions.manage_soundboard'),
+    promote_user: t('permissions.promote_user'), transfer_admin: t('permissions.transfer_admin'),
+    manage_roles: t('permissions.manage_roles'), manage_server: t('permissions.manage_server'), delete_channel: t('permissions.delete_channel')
   };
   const rolePerms = role.permissions || [];
 
   panel.innerHTML = `
     <div class="role-detail-form">
-      <label class="settings-label">Name</label>
+      <label class="settings-label">${t('settings.admin.role_form.name')}</label>
       <input type="text" class="settings-text-input" id="role-edit-name" value="${this._escapeHtml(role.name)}" maxlength="30">
-      <label class="settings-label" style="margin-top:8px;">Level (1-99)</label>
+      <label class="settings-label" style="margin-top:8px;">${t('settings.admin.role_form.level')}</label>
       <input type="number" class="settings-number-input" id="role-edit-level" value="${role.level}" min="1" max="99">
-      <label class="settings-label" style="margin-top:8px;">Color</label>
+      <label class="settings-label" style="margin-top:8px;">${t('settings.admin.role_form.color')}</label>
       <input type="color" id="role-edit-color" value="${role.color || '#aaaaaa'}" style="width:50px;height:30px;border:none;cursor:pointer">
       <label class="toggle-row" style="margin-top:12px;">
-        <span>Auto-assign to new members</span>
+        <span>${t('settings.admin.role_form.auto_assign')}</span>
         <input type="checkbox" id="role-edit-auto-assign" ${role.auto_assign ? 'checked' : ''}>
       </label>
-      <small class="muted-text" style="font-size:11px;">New users will automatically receive this role when they register or join a channel.</small>
+      <small class="muted-text" style="font-size:11px;">${t('settings.admin.role_form.auto_assign_hint')}</small>
       <div class="role-channel-access-section">
-        <h5 class="settings-section-subtitle" style="margin-top:12px;">Channel Access</h5>
+        <h5 class="settings-section-subtitle" style="margin-top:12px;">${t('settings.admin.role_form.channel_access')}</h5>
         <label class="toggle-row">
-          <span>Link channel access to this role</span>
+          <span>${t('settings.admin.role_form.link_channel_access')}</span>
           <input type="checkbox" id="role-edit-link-channel-access" ${role.link_channel_access ? 'checked' : ''}>
         </label>
-        <small class="muted-text" style="font-size:11px;">When enabled, assigning/revoking this role will automatically grant/revoke channel memberships.</small>
+        <small class="muted-text" style="font-size:11px;">${t('settings.admin.role_form.link_channel_access_hint')}</small>
         <div id="role-channel-access-panel" style="display:${role.link_channel_access ? 'block' : 'none'};margin-top:8px;">
           <div class="role-channel-access-list" id="role-channel-access-list">
-            <p class="muted-text" style="padding:12px;text-align:center;font-size:12px">Loading channels…</p>
+            <p class="muted-text" style="padding:12px;text-align:center;font-size:12px">${t('modals.common.loading')}</p>
           </div>
-          <button class="btn-sm btn-accent rca-reapply-btn" id="rca-reapply-btn">🔄 Reapply Access to All Users</button>
+          <button class="btn-sm btn-accent rca-reapply-btn" id="rca-reapply-btn">🔄 ${t('settings.admin.role_form.reapply_access')}</button>
         </div>
       </div>
-      <h5 class="settings-section-subtitle" style="margin-top:12px;">Permissions</h5>
+      <h5 class="settings-section-subtitle" style="margin-top:12px;">${t('settings.admin.role_form.permissions')}</h5>
       ${allPerms.map(p => `
         <label class="toggle-row">
           <span>${permLabels[p] || p.replace(/_/g, ' ')}</span>
@@ -2419,7 +2419,7 @@ _renderRoleDetail() {
         </label>
       `).join('')}
       <div style="margin-top:12px;display:flex;gap:8px">
-        <button class="btn-sm danger" id="delete-role-btn">Delete</button>
+        <button class="btn-sm danger" id="delete-role-btn">${t('settings.admin.role_form.delete')}</button>
       </div>
     </div>
   `;
@@ -2783,21 +2783,21 @@ _renderChannelRolesRoleDetail() {
     'manage_roles', 'manage_server', 'delete_channel'
   ];
   const permLabels = {
-    edit_own_messages: 'Edit Own Messages', delete_own_messages: 'Delete Own Messages',
-    delete_message: 'Delete Any Message', delete_lower_messages: 'Delete Lower-level Messages',
-    pin_message: 'Pin Messages', archive_messages: 'Protect Messages',
-    kick_user: 'Kick Users', mute_user: 'Mute Users', ban_user: 'Ban Users',
-    rename_channel: 'Rename Channels', rename_sub_channel: 'Rename Sub-channels',
-    set_channel_topic: 'Set Channel Topic', manage_sub_channels: 'Manage Sub-channels',
-    create_channel: 'Create Channels',
-    upload_files: 'Upload Files', use_voice: 'Use Voice Chat',
-    manage_webhooks: 'Manage Webhooks', mention_everyone: 'Mention @everyone',
-    view_history: 'View Message History',
-    view_all_members: 'View All Server Members',
-    manage_emojis: 'Manage Custom Emojis',
-    manage_soundboard: 'Manage Soundboard',
-    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin',
-    manage_roles: 'Manage Roles', manage_server: 'Manage Server', delete_channel: 'Delete Channels'
+    edit_own_messages: t('permissions.edit_own_messages'), delete_own_messages: t('permissions.delete_own_messages'),
+    delete_message: t('permissions.delete_message'), delete_lower_messages: t('permissions.delete_lower_messages'),
+    pin_message: t('permissions.pin_message'), archive_messages: t('permissions.archive_messages'),
+    kick_user: t('permissions.kick_user'), mute_user: t('permissions.mute_user'), ban_user: t('permissions.ban_user'),
+    rename_channel: t('permissions.rename_channel'), rename_sub_channel: t('permissions.rename_sub_channel'),
+    set_channel_topic: t('permissions.set_channel_topic'), manage_sub_channels: t('permissions.manage_sub_channels'),
+    create_channel: t('permissions.create_channel'),
+    upload_files: t('permissions.upload_files'), use_voice: t('permissions.use_voice'),
+    manage_webhooks: t('permissions.manage_webhooks'), mention_everyone: t('permissions.mention_everyone'),
+    view_history: t('permissions.view_history'),
+    view_all_members: t('permissions.view_all_members'),
+    manage_emojis: t('permissions.manage_emojis'),
+    manage_soundboard: t('permissions.manage_soundboard'),
+    promote_user: t('permissions.promote_user'), transfer_admin: t('permissions.transfer_admin'),
+    manage_roles: t('permissions.manage_roles'), manage_server: t('permissions.manage_server'), delete_channel: t('permissions.delete_channel')
   };
   const rolePerms = role.permissions || [];
 
@@ -3186,21 +3186,21 @@ _renderRacConfig() {
   const adminOnlyPerms = ['transfer_admin', 'manage_roles', 'manage_server', 'delete_channel'];
   // Perms that require the caller to have them to be able to grant
   const permLabels = {
-    edit_own_messages: 'Edit Own Messages', delete_own_messages: 'Delete Own Messages',
-    delete_message: 'Delete Any Message', delete_lower_messages: 'Delete Lower Messages',
-    pin_message: 'Pin Messages', archive_messages: 'Protect Messages',
-    kick_user: 'Kick Users', mute_user: 'Mute Users',
-    ban_user: 'Ban Users', rename_channel: 'Rename Channels',
-    rename_sub_channel: 'Rename Sub-channels', set_channel_topic: 'Set Topic',
-    manage_sub_channels: 'Manage Sub-channels', create_channel: 'Create Channels',
-    upload_files: 'Upload Files',
-    use_voice: 'Use Voice', manage_webhooks: 'Manage Webhooks',
-    mention_everyone: 'Mention Everyone', view_history: 'View History',
-    view_all_members: 'View All Members',
-    manage_emojis: 'Manage Custom Emojis',
-    manage_soundboard: 'Manage Soundboard',
-    promote_user: 'Promote Users', transfer_admin: 'Transfer Admin',
-    manage_roles: 'Manage Roles', manage_server: 'Manage Server', delete_channel: 'Delete Channels'
+    edit_own_messages: t('permissions.edit_own_messages'), delete_own_messages: t('permissions.delete_own_messages'),
+    delete_message: t('permissions.delete_message'), delete_lower_messages: t('permissions.delete_lower_messages'),
+    pin_message: t('permissions.pin_message'), archive_messages: t('permissions.archive_messages'),
+    kick_user: t('permissions.kick_user'), mute_user: t('permissions.mute_user'),
+    ban_user: t('permissions.ban_user'), rename_channel: t('permissions.rename_channel'),
+    rename_sub_channel: t('permissions.rename_sub_channel'), set_channel_topic: t('permissions.set_channel_topic'),
+    manage_sub_channels: t('permissions.manage_sub_channels'), create_channel: t('permissions.create_channel'),
+    upload_files: t('permissions.upload_files'),
+    use_voice: t('permissions.use_voice'), manage_webhooks: t('permissions.manage_webhooks'),
+    mention_everyone: t('permissions.mention_everyone'), view_history: t('permissions.view_history'),
+    view_all_members: t('permissions.view_all_members'),
+    manage_emojis: t('permissions.manage_emojis'),
+    manage_soundboard: t('permissions.manage_soundboard'),
+    promote_user: t('permissions.promote_user'), transfer_admin: t('permissions.transfer_admin'),
+    manage_roles: t('permissions.manage_roles'), manage_server: t('permissions.manage_server'), delete_channel: t('permissions.delete_channel')
   };
 
   // If a role preset is selected, get its permissions

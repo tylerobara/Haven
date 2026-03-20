@@ -1627,6 +1627,9 @@ _setupUI() {
     this._snapshotAdminSettings();
     document.getElementById('settings-modal').style.display = 'flex';
     this._syncSettingsNav();
+    // Sync language select with current locale
+    const langSelect = document.getElementById('language-select');
+    if (langSelect && window.i18n) langSelect.value = i18n.locale;
     // Show desktop-only sections when running inside Haven Desktop
     if (window.havenDesktop?.isDesktopApp) {
       document.getElementById('desktop-shortcuts-nav')?.style.removeProperty('display');
@@ -1673,6 +1676,11 @@ _setupUI() {
       document.querySelectorAll('.settings-nav-item').forEach(n => n.classList.remove('active'));
       item.classList.add('active');
     });
+  });
+
+  // ── Language switcher ────────────────────────────────
+  document.getElementById('language-select')?.addEventListener('change', (e) => {
+    if (window.i18n) i18n.setLocale(e.target.value);
   });
 
   // ── Password change ──────────────────────────────────

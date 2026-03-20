@@ -1,0 +1,949 @@
+{
+  "_meta": {
+    "locale": "en",
+    "language": "English",
+    "flag": "🇬🇧",
+    "direction": "ltr"
+  },
+
+  "auth": {
+    "tagline": "Private chat, your rules",
+
+    "tabs": {
+      "login": "Login",
+      "register": "Register"
+    },
+
+    "login": {
+      "username_label": "Username",
+      "password_label": "Password",
+      "submit": "Login",
+      "forgot_password": "Forgot password?",
+      "locked_out": "Locked out? Admin recovery",
+      "admin_recover_hint": "Enter your admin credentials above and click Recover",
+      "admin_recover_btn": "Recover Admin Access"
+    },
+
+    "register": {
+      "username_label": "Username",
+      "username_hint": "3-20 characters, letters/numbers/underscores",
+      "password_label": "Password",
+      "password_hint": "Minimum 8 characters",
+      "confirm_label": "Confirm Password",
+      "submit": "Create Account"
+    },
+
+    "totp": {
+      "instruction": "🔐 Enter the 6-digit code from your authenticator app",
+      "code_label": "Authentication Code",
+      "submit": "Verify",
+      "use_backup": "Use a backup code instead",
+      "use_authenticator": "Use authenticator code instead",
+      "back": "← Back to login"
+    },
+
+    "recover": {
+      "instruction": "🔑 Reset password with a recovery code",
+      "warning": "⚠️ This will <strong>permanently erase your encryption keys</strong>. All encrypted DM history will be unreadable.",
+      "username_label": "Username",
+      "code_label": "Recovery Code",
+      "new_password_label": "New Password",
+      "new_password_hint": "Minimum 8 characters",
+      "confirm_label": "Confirm New Password",
+      "submit": "Reset Password",
+      "back": "← Back to login"
+    },
+
+    "eula": {
+      "age_confirm": "I confirm that I am <strong>18 years of age or older</strong> (or the age of legal majority in my jurisdiction)",
+      "tos_confirm": "I have read and agree to the <a href=\"#\" id=\"eula-link\">Terms of Service &amp; Release of Liability Agreement</a>",
+      "modal_title": "⚖️ Terms of Service &amp; Release of Liability Agreement",
+      "decline": "Decline",
+      "accept": "I Accept"
+    },
+
+    "errors": {
+      "fill_all_fields": "Fill in all fields",
+      "all_fields_required": "All fields are required",
+      "login_failed": "Login failed",
+      "registration_failed": "Registration failed",
+      "recovery_failed": "Recovery failed",
+      "verification_failed": "Verification failed",
+      "connection_error": "Connection error — is the server running?",
+      "passwords_no_match": "Passwords do not match",
+      "password_too_short": "Password must be at least 8 characters",
+      "must_be_18": "You must confirm that you are 18 years of age or older",
+      "must_accept_tos": "You must accept the Terms of Service & Release of Liability Agreement",
+      "enter_admin_credentials": "Enter your admin username and password above first",
+      "enter_auth_code": "Enter your authentication code",
+      "session_expired": "Session expired — please log in again",
+      "password_reset_success": "Password reset successfully. You can now log in with your new password."
+    }
+  },
+
+  "app": {
+    "brand": "HAVEN",
+
+    "sidebar": {
+      "servers": "Servers",
+      "join_channel": "Join a Channel",
+      "join_placeholder": "Enter code...",
+      "join_btn": "Join",
+      "create_channel": "Create Channel",
+      "channel_name_placeholder": "Channel name...",
+      "private_channel": "🔒 Private",
+      "private_hint": "(invite-only)",
+      "temporary_channel": "⏱️ Temporary",
+      "temporary_hint": "(auto-delete)",
+      "hours": "hours",
+      "channels": "Channels",
+      "direct_messages": "Direct Messages",
+      "add_server": "Add Server",
+      "manage_servers": "Manage Servers",
+      "this_server": "This Server"
+    },
+
+    "status": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "server_connection": "Server connection"
+    },
+
+    "theme": {
+      "title": "Theme",
+      "effect_overlay": "Effect Overlay",
+      "close": "Close",
+      "speed": "Speed",
+      "vibrancy": "Vibrancy",
+      "effect_speed": "Effect Speed",
+      "sacred_intensity": "Sacred Intensity",
+      "glitch_frequency": "Glitch Frequency",
+      "crt_vignette": "CRT Vignette",
+      "crt_scanlines": "CRT Scanlines"
+    },
+
+    "actions": {
+      "logout": "Logout",
+      "change_display_name": "Change display name",
+      "close_sidebar": "Close sidebar",
+      "message_actions": "Message actions",
+      "organize_channels": "Organize channels",
+      "sub_channel_subscriptions": "Sub-channel subscriptions",
+      "organize_dms": "Organize DMs",
+      "drag_to_resize": "Drag to resize",
+      "settings": "Settings"
+    },
+
+    "messages": {
+      "edited": "(edited)",
+      "edited_at": "Edited at {{date}}",
+      "pinned": "Pinned message",
+      "protected": "Protected from cleanup",
+      "e2e_encrypted": "End-to-end encrypted",
+      "protect_btn": "Protect from cleanup",
+      "unprotect_btn": "Unprotect",
+      "placeholder": "Type a message...",
+      "placeholder_short": "Message..."
+    },
+
+    "profile": {
+      "login_username": "Your login username",
+      "online": "Online",
+      "offline": "Offline",
+      "away": "Away"
+    }
+  },
+
+  "toasts": {
+    "roles_updated": "Your roles have been updated",
+    "channel_created": "Channel \"#{{name}}\" created!\nCode: {{code}}",
+    "channel_deleted": "Channel was deleted",
+    "channel_code_rotated": "Channel code rotated for #{{name}}",
+    "kicked_from_voice": "Kicked from voice by {{by}}",
+    "kicked_from_server": "You were kicked",
+    "kicked_from_server_reason": "You were kicked: {{reason}}",
+    "banned_from_server": "You have been banned",
+    "banned_from_server_reason": "You have been banned: {{reason}}",
+    "muted": "You have been muted for {{duration}} min",
+    "muted_reason": "You have been muted for {{duration}} min: {{reason}}",
+    "bio_updated": "Bio updated",
+    "display_name_changed": "Display name changed to \"{{name}}\"",
+    "channel_code_copied": "Channel code copied!",
+    "channel_muted": "Channel muted",
+    "channel_unmuted": "Channel unmuted",
+    "left_channel": "Left #{{name}}",
+    "server_code_copied": "Server code copied!",
+    "server_added": "Added \"{{name}}\"",
+    "server_updated": "Updated \"{{name}}\"",
+    "server_removed_named": "Removed \"{{name}}\"",
+    "server_removed": "Server removed",
+    "server_already_in_list": "Server already in your list",
+    "name_address_required": "Name and address are both required",
+    "cleanup_triggered": "Cleanup triggered — check server console for results",
+    "2fa_disabled": "Two-factor authentication disabled",
+    "plugins_refreshing": "Refreshing plugins & themes…",
+    "upload_failed": "Upload failed",
+    "image_too_large": "Image too large (max {{max}} MB)",
+    "encrypted_image_failed": "Encrypted image upload failed",
+    "display_name_too_short": "Display name must be at least 2 characters",
+    "display_name_invalid_chars": "Letters, numbers, underscores, and spaces only",
+    "select_channel_first": "Select a channel first",
+    "searching": "Searching…",
+    "encryption_key_unavailable": "Encryption key unavailable — message sent without E2E",
+    "encryption_failed": "Encryption failed — message sent without E2E",
+    "join_voice_first": "Join voice first to share music",
+    "record_set": "🏆 {{user}} set a new {{game}} record: {{score}}!"
+  },
+
+  "commands": {
+    "play_usage": "Usage: /play <song name> or /play <url>",
+    "gif_usage": "Usage: /gif <search query>"
+  },
+
+  "voice": {
+    "join": "Join Voice",
+    "leave": "Leave Voice",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "deafen": "Deafen",
+    "undeafen": "Undeafen",
+    "screen_share": "Share Screen",
+    "stop_share": "Stop Sharing",
+    "kicked_user": "Kicked {{user}} from voice",
+    "full": "Voice is full ({{current}}/{{max}})",
+    "disabled": "Voice is disabled in this channel",
+    "screen_share_disabled": "Screen sharing is disabled in this channel"
+  },
+
+  "channel": {
+    "server_joined": "Server code accepted — joined {{count}} channel(s)",
+    "errors": {
+      "name_required": "Channel name required",
+      "name_too_long": "Channel name too long (max 50)",
+      "name_invalid_chars": "Channel name contains invalid characters",
+      "invalid_code_format": "Invalid channel code format",
+      "not_a_member": "Not a member of this channel",
+      "text_disabled": "Text messages are disabled in this channel",
+      "media_disabled": "Media uploads are disabled in this channel"
+    }
+  },
+
+  "permissions": {
+    "errors": {
+      "no_create_channels": "You don't have permission to create channels",
+      "no_kick": "You don't have permission to kick users",
+      "no_ban": "You don't have permission to ban users",
+      "no_mute": "You don't have permission to mute users",
+      "no_edit_messages": "You don't have permission to edit messages",
+      "no_delete_messages": "You don't have permission to delete messages",
+      "no_pin_messages": "You don't have permission to pin messages"
+    },
+    "edit_own_messages": "Edit Own Messages",
+    "delete_own_messages": "Delete Own Messages",
+    "delete_message": "Delete Any Message",
+    "delete_lower_messages": "Delete Lower-level Messages",
+    "pin_message": "Pin Messages",
+    "archive_messages": "Protect Messages",
+    "kick_user": "Kick Users",
+    "mute_user": "Mute Users",
+    "ban_user": "Ban Users",
+    "rename_channel": "Rename Channels",
+    "rename_sub_channel": "Rename Sub-channels",
+    "set_channel_topic": "Set Channel Topic",
+    "manage_sub_channels": "Manage Sub-channels",
+    "create_channel": "Create Channels",
+    "upload_files": "Upload Files",
+    "use_voice": "Use Voice Chat",
+    "manage_webhooks": "Manage Webhooks",
+    "mention_everyone": "Mention @everyone",
+    "view_history": "View Message History",
+    "view_all_members": "View All Server Members",
+    "manage_emojis": "Manage Custom Emojis",
+    "manage_soundboard": "Manage Soundboard",
+    "promote_user": "Promote Users",
+    "transfer_admin": "Transfer Admin",
+    "manage_roles": "Manage Roles",
+    "manage_server": "Manage Server",
+    "delete_channel": "Delete Channels"
+  },
+
+  "slowmode": {
+    "wait": "Slow mode — wait {{seconds}}s before sending another message",
+    "too_many_requests": "Slow down — too many requests",
+    "muted_for": "You are muted for {{minutes}} more minute(s)"
+  },
+
+  "welcome": {
+    "title": "Welcome to Haven",
+    "subtitle": "Join a channel with a code from your friends,\nor create one if you're the admin."
+  },
+
+  "header": {
+    "select_channel": "Select a channel",
+    "voice_active": "Voice Active",
+    "copy_code": "Copy code",
+    "channel_code_settings": "Channel code settings",
+    "search_messages": "Search messages (Ctrl+F)",
+    "pinned_messages": "Pinned messages",
+    "encryption_options": "Encryption options",
+    "verify_encryption": "🔑 Verify Encryption",
+    "reset_encryption": "🔄 Reset Encryption Keys",
+    "search_placeholder": "Search messages...",
+    "update_available": "Update Available",
+    "get_desktop_app": "Get the Desktop App",
+    "android_beta": "Android Beta",
+    "results": "Results",
+    "pinned_count": "📌 Pinned Messages",
+    "uploading": "Uploading...",
+    "cancel_reply": "Cancel reply",
+    "message_placeholder_commands": "Type a message... (/ for commands)",
+    "gif_search_placeholder": "Search GIPHY...",
+    "powered_by_giphy": "Powered by GIPHY"
+  },
+
+  "media": {
+    "cameras": "📷 Cameras",
+    "streams": "🖥️ Streams",
+    "layout_auto": "Auto",
+    "layout_stack": "Stack",
+    "layout_side": "Side",
+    "layout_2x2": "2×2",
+    "minimize": "Minimize",
+    "close": "Close",
+    "listening_together": "🎵 Listening Together"
+  },
+
+  "right_sidebar": {
+    "voice_title": "🔊 Voice",
+    "close_panel": "Close panel",
+    "no_one_in_voice": "No one in voice",
+    "online_title": "👥 Online",
+    "select_channel": "Select a channel"
+  },
+
+  "voice_settings": {
+    "audio_devices": "🎧 Audio Devices",
+    "input": "Input",
+    "default_mic": "Default Microphone",
+    "output": "Output",
+    "default_speaker": "Default Speaker",
+    "noise_reduction": "🤫 Noise Reduction",
+    "off": "Off",
+    "noise_gate": "Noise Gate",
+    "suppression_ai": "Suppression (AI)",
+    "gate_sensitivity": "Gate Sensitivity",
+    "mic_level": "🎙️ Mic Level",
+    "screen_share_quality": "🖥️ Screen Share Quality",
+    "resolution": "Resolution",
+    "resolution_source": "Source",
+    "frame_rate": "Frame Rate"
+  },
+
+  "status_bar": {
+    "server": "Server",
+    "voice": "Voice",
+    "voice_off": "Off",
+    "ping": "Ping",
+    "ping_unit": "ms",
+    "channel": "Channel",
+    "channel_none": "None",
+    "online": "Online",
+    "users_overlay_title": "Users"
+  },
+
+  "settings": {
+    "title": "⚙️ Settings",
+    "nav": {
+      "user_group": "User",
+      "language": "🌐 Language",
+      "layout": "📐 Layout",
+      "sounds": "🔔 Sounds",
+      "push": "📲 Push",
+      "password": "🔒 Password",
+      "two_factor": "🔐 Two-Factor",
+      "recovery": "🔑 Recovery",
+      "account": "⚠️ Account",
+      "plugins": "🧩 Plugins & Themes",
+      "shortcuts": "⌨️ Shortcuts",
+      "desktop_app": "🖥️ Desktop App",
+      "admin_group": "Admin",
+      "branding": "🏠 Branding",
+      "members": "👥 Members",
+      "whitelist": "🛡️ Whitelist",
+      "invite": "🌐 Invite Code",
+      "cleanup": "🗑️ Cleanup",
+      "limits": "📁 Limits",
+      "admin_sounds": "🔊 Sounds",
+      "emojis": "😎 Emojis",
+      "roles": "👑 Roles",
+      "tunnel": "🧭 Tunnel",
+      "bots": "🤖 Bots",
+      "import": "📦 Import",
+      "mod_mode": "🔧 Mod Mode"
+    },
+    "language_section": {
+      "title": "🌐 Language",
+      "label": "Language",
+      "hint": "Changes apply immediately"
+    },
+
+    "layout_density": {
+      "title": "📐 Layout Density",
+      "compact": "Compact",
+      "cozy": "Cozy",
+      "spacious": "Spacious"
+    },
+    "font_size": {
+      "title": "🔤 Font Size",
+      "small": "Small",
+      "normal": "Normal",
+      "large": "Large",
+      "xl": "XL"
+    },
+    "image_display": {
+      "title": "🖼️ Image Display",
+      "thumbnail": "Thumbnail",
+      "full": "Full"
+    },
+    "sounds_section": {
+      "title": "🔔 Sounds",
+      "notifications": "Notifications",
+      "auto_accept_streams": "Auto-accept Streams",
+      "volume": "Volume",
+      "messages": "Messages",
+      "msg_sent": "Msg Sent",
+      "mention_vol": "@Mention Vol",
+      "mentions": "@Mentions",
+      "user_joined": "User Joined",
+      "user_left": "User Left",
+      "sound_manager_btn": "🎵 Sound Manager"
+    },
+    "push_section": {
+      "title": "📲 Push Notifications",
+      "enable": "Enable Push",
+      "checking": "Checking..."
+    },
+    "password_section": {
+      "title": "🔒 Password",
+      "current_placeholder": "Current password",
+      "new_placeholder": "New password (8+ chars)",
+      "confirm_placeholder": "Confirm new password",
+      "change_btn": "Change Password"
+    },
+    "two_factor_section": {
+      "title": "🔐 Two-Factor Authentication",
+      "enable_btn": "Enable Two-Factor Auth",
+      "setup_hint": "Scan this QR code with your authenticator app:",
+      "manual_hint": "Or enter this secret manually:",
+      "verify_placeholder": "Enter 6-digit code to confirm",
+      "verify_btn": "Verify & Activate",
+      "backup_title": "🗝️ Backup Codes",
+      "backup_hint": "Save these codes somewhere safe. Each can be used once if you lose access to your authenticator.",
+      "copy_backup_btn": "📋 Copy Backup Codes",
+      "done_btn": "Done",
+      "enabled_text": "✅ Two-factor authentication is enabled",
+      "disable_btn": "Disable 2FA",
+      "regen_backup_btn": "Regenerate Backup Codes"
+    },
+    "recovery_section": {
+      "title": "🔑 Account Recovery",
+      "confirm_password_placeholder": "Confirm your password",
+      "generate_btn": "Generate Recovery Codes",
+      "copy_codes_btn": "📋 Copy Codes",
+      "done_btn": "Done"
+    },
+    "delete_account_section": {
+      "title": "⚠️ Delete Account",
+      "desc": "Permanently delete your account. This cannot be undone.",
+      "btn": "Delete My Account"
+    },
+    "plugins_section": {
+      "title": "🧩 Plugins & Themes",
+      "refresh_btn": "🔄 Refresh",
+      "plugins_label": "Plugins",
+      "themes_label": "Themes"
+    },
+    "desktop_shortcuts_section": {
+      "title": "⌨️ Desktop Shortcuts",
+      "mute_unmute": "Mute / Unmute",
+      "deafen_undeafen": "Deafen / Undeafen",
+      "ptt": "Push-to-Talk",
+      "not_set": "Not set",
+      "change_btn": "Change",
+      "clear_btn": "Clear"
+    },
+    "desktop_app_section": {
+      "title": "🖥️ Desktop App",
+      "start_on_login": "Start on Login",
+      "start_hidden": "Start Hidden to Tray",
+      "minimize_to_tray": "Minimize to Tray on Close",
+      "force_sdr": "Force SDR (sRGB) Color"
+    },
+    "admin": {
+      "title": "🛡️ Admin",
+      "branding_title": "🏠 Server Branding",
+      "server_name": "Server Name",
+      "login_title": "Login Title",
+      "default_theme": "Default Theme",
+      "no_theme": "None (user's choice)",
+      "upload_btn": "Upload",
+      "remove_btn": "Remove",
+      "members_title": "👥 Members",
+      "show_members": "Show Members",
+      "members_online_only": "Online Only",
+      "members_all": "All Members",
+      "members_hidden": "Hidden",
+      "view_bans_btn": "📋 View Bans",
+      "view_deleted_btn": "🗑️ View Deleted Users",
+      "view_all_members_btn": "👥 View All Members",
+      "update_banner_label": "Update banner (admins only)",
+      "whitelist_title": "🛡️ Whitelist",
+      "whitelist_enabled": "Enabled",
+      "whitelist_username_placeholder": "Username...",
+      "whitelist_add_btn": "Add",
+      "invite_title": "🌐 Server Invite Code",
+      "invite_generate_btn": "Generate",
+      "invite_clear_btn": "Clear",
+      "cleanup_title": "🗑️ Auto-Cleanup",
+      "cleanup_enabled": "Enabled",
+      "cleanup_max_age": "Max Age (days)",
+      "cleanup_max_size": "Max DB Size (MB)",
+      "cleanup_run_btn": "🧹 Run Cleanup Now",
+      "uploads_title": "📁 Uploads & Limits",
+      "max_upload": "Max Upload Size (MB)",
+      "max_sound": "Max Sound File Size (KB)",
+      "max_emoji": "Max Emoji File Size (KB)",
+      "max_poll_options": "Max Poll Options",
+      "sounds_title": "🔊 Custom Sounds",
+      "manage_sounds_btn": "⚙️ Manage Sounds",
+      "emojis_title": "😎 Custom Emojis",
+      "manage_emojis_btn": "⚙️ Manage Emojis",
+      "roles_title": "👑 Role Management",
+      "manage_roles_btn": "⚙️ Manage Roles",
+      "reset_roles_btn": "🔄 Reset to Default",
+      "tunnel_title": "🧭 Tunnel",
+      "tunnel_provider": "Provider",
+      "tunnel_start_btn": "Start Tunnel",
+      "tunnel_inactive": "Inactive",
+      "bots_title": "🤖 Webhooks / Bots",
+      "manage_bots_btn": "⚙️ Manage Bots",
+      "no_bots": "No bots configured",
+      "import_title": "📦 Discord Import",
+      "import_btn": "📦 Import from Discord",
+      "modmode_title": "🔧 Mod Mode",
+      "modmode_toggle_btn": "🔧 Toggle Mod Mode",
+      "modmode_reset_btn": "↺ Reset Layout",
+      "save_btn": "💾 Save Settings",
+      "save_hint": "Changes only apply when you click Save. Close (✕) to cancel.",
+      "login_title_hint": "Custom title displayed on the login screen below the HAVEN logo.",
+      "server_icon_hint": "Server icon (square, max 2 MB)",
+      "default_theme_hint": "New users see this theme on first visit. They can still pick their own.",
+      "update_banner_hint": "When enabled, the \"update available\" banner is only shown to admins",
+      "whitelist_hint": "When enabled, only pre-approved usernames can register",
+      "invite_hint": "A single code that adds people to every channel & sub-channel on the server",
+      "copy_code_title": "Copy code",
+      "cleanup_age_hint": "Delete messages older than N days (0 = off)",
+      "cleanup_size_hint": "Trim oldest messages when DB exceeds N MB (0 = off)",
+      "max_upload_hint": "Maximum file size users can upload (1–2048 MB, default 25)",
+      "max_sound_hint": "Max soundboard upload size (256–10240 KB, default 1024 / 1 MB)",
+      "max_emoji_hint": "Max custom emoji upload size (64–1024 KB, default 256)",
+      "max_poll_hint": "Maximum answer choices per poll (2–25, default 10)",
+      "sounds_hint": "Upload audio files for custom notification sounds",
+      "emojis_hint": "Upload images for custom server emojis",
+      "roles_hint": "Create and manage roles. Assign roles to users from the user list context menu.",
+      "bots_hint": "Create and manage webhook bots that can post messages to channels.",
+      "import_hint": "Import channels and messages from a Discord export file",
+      "modmode_hint": "Rearrange sidebar sections and snap server/sidebar/status panels",
+      "role_form": {
+        "name": "Name",
+        "level": "Level (1-99)",
+        "color": "Color",
+        "auto_assign": "Auto-assign to new members",
+        "auto_assign_hint": "New users will automatically receive this role when they register or join a channel.",
+        "channel_access": "Channel Access",
+        "link_channel_access": "Link channel access to this role",
+        "link_channel_access_hint": "When enabled, assigning/revoking this role will automatically grant/revoke channel memberships.",
+        "reapply_access": "Reapply Access to All Users",
+        "permissions": "Permissions",
+        "delete": "Delete"
+      }
+    }
+  },
+
+  "modals": {
+    "common": {
+      "cancel": "Cancel",
+      "save": "Save",
+      "close": "Close",
+      "done": "Done",
+      "back": "← Back",
+      "loading": "Loading...",
+      "confirm": "Confirm"
+    },
+    "wizard": {
+      "title": "Welcome to Haven",
+      "subtitle": "Let's get your server ready. This only takes a minute.",
+      "step1_title": "🏠 Your Server",
+      "step1_desc": "Everything is already running. Here's what was set up automatically:",
+      "check_ssl": "✅ SSL certificates generated (encrypted connections)",
+      "check_db": "✅ Database created",
+      "check_keys": "✅ Security keys generated",
+      "check_admin": "✅ Admin account created (that's you!)",
+      "server_name_label": "Your server name:",
+      "server_name_placeholder": "e.g. My Server, The Hideout",
+      "server_name_hint": "This is what your friends see in their server list.",
+      "step2_title": "📢 Create Your First Channel",
+      "step2_desc": "Channels are where conversations happen. Create one to get started.",
+      "channel_name_label": "Channel name:",
+      "channel_name_placeholder": "e.g. General, Gaming, Hangout",
+      "channel_name_hint": "You can create more channels later from the sidebar.",
+      "invite_code": "Invite code:",
+      "copy_btn": "Copy",
+      "share_hint": "Share this code with friends so they can join this channel.",
+      "step3_title": "🌐 Internet Access",
+      "step3_desc": "Want friends outside your WiFi to connect? Let's check if your server is reachable from the internet.",
+      "checking_port": "Checking port reachability...",
+      "check_connection_btn": "🔍 Check My Connection",
+      "lan_only_hint": "LAN only? If your friends are on the same WiFi, you can skip this — it will work automatically.",
+      "step4_title": "🎉 You're All Set!",
+      "step4_desc": "Haven is running and ready for your friends.",
+      "check_configured": "✅ Server configured",
+      "check_channel_created": "✅ First channel created",
+      "check_port_skipped": "⏭️ Port check skipped",
+      "how_friends_join": "How friends join:",
+      "step_browser": "They open {{url}} in their browser",
+      "step_cert": "Click \"Advanced\" → \"Proceed\" on the certificate warning",
+      "step_register": "Register a username and password",
+      "step_code": "Enter the channel invite code you share with them",
+      "tip": "💡 Tip: You can always access settings with the ⚙️ gear icon in the sidebar. This wizard won't show again.",
+      "back_btn": "← Back",
+      "skip_btn": "Skip Setup",
+      "next_btn": "Next →",
+      "get_started_btn": "🚀 Get Started"
+    },
+    "code_settings": {
+      "title": "Channel Code Settings",
+      "visibility_label": "Code Visibility",
+      "visibility_public": "Public — everyone can see the code",
+      "visibility_private": "Private — only admins see the code",
+      "mode_label": "Code Mode",
+      "mode_static": "Static — code never changes",
+      "mode_dynamic": "Dynamic — code rotates automatically",
+      "rotation_label": "Rotation Trigger",
+      "rotation_time": "Time-based — rotate every X minutes",
+      "rotation_joins": "Join-based — rotate after X new joins",
+      "interval_label": "Rotation Interval (minutes)",
+      "rotate_now_btn": "🔄 Rotate Now"
+    },
+    "add_server": {
+      "title": "Add a Server",
+      "desc": "Connect to a friend's Haven server",
+      "name_label": "Server Name",
+      "address_label": "Server Address",
+      "icon_label": "Icon URL",
+      "icon_optional": "(optional)",
+      "auto_icon": "Auto-pull icon from server",
+      "add_btn": "Add Server"
+    },
+    "edit_profile": {
+      "title": "Edit Profile",
+      "avatar_title": "Avatar",
+      "upload_btn": "Upload",
+      "clear_btn": "Clear",
+      "avatar_hint": "JPG, PNG, GIF (animated!), WebP · Max 2 MB",
+      "shape_title": "Shape",
+      "display_name_desc": "Letters, numbers, underscores, and spaces (2–20 chars)",
+      "display_name_label": "Display Name",
+      "display_name_placeholder": "New display name...",
+      "bio_label": "Bio",
+      "bio_max": "(max 190 chars)",
+      "bio_placeholder": "Tell people about yourself…"
+    },
+    "admin_action": {
+      "title": "Moderate User",
+      "reason_label": "Reason (optional)",
+      "reason_placeholder": "Reason...",
+      "duration_label": "Duration (minutes)",
+      "scrub_label": "Scrub messages",
+      "scrub_hint": "Removes the user's messages (archived/protected messages are preserved)",
+      "scope_label": "Scope",
+      "scope_channel": "This channel only",
+      "scope_server": "Server-wide"
+    },
+    "organize": {
+      "title": "📋 Organize",
+      "sort_label": "Sort:",
+      "sort_manual": "Manual",
+      "sort_alpha": "Alphabetical",
+      "sort_newest": "Newest First",
+      "sort_oldest": "Oldest First",
+      "sort_dynamic": "Dynamic",
+      "categories_label": "Categories:",
+      "cat_manual": "Manual Order",
+      "cat_az": "A → Z",
+      "cat_za": "Z → A",
+      "move_up": "⬆ Up",
+      "move_down": "⬇ Down",
+      "tag_placeholder": "Tag name…",
+      "tag_set_btn": "🏷️ Set",
+      "tag_remove_btn": "✕"
+    },
+    "dm_organize": {
+      "title": "📋 Organize DMs",
+      "desc": "Tag your conversations into collapsible categories",
+      "sort_label": "Sort:",
+      "sort_manual": "Manual",
+      "sort_alpha": "Alphabetical",
+      "sort_recent": "Recent Activity",
+      "category_placeholder": "Category…"
+    },
+    "move_channel": {
+      "title": "📦 Move Channel"
+    },
+    "poll": {
+      "title": "📊 Create Poll",
+      "question_label": "Question",
+      "question_placeholder": "What do you want to ask?",
+      "options_label": "Options",
+      "add_option_btn": "+ Add Option",
+      "multi_vote": "Allow multiple votes",
+      "anonymous": "Anonymous votes",
+      "create_btn": "Create Poll"
+    },
+    "sub_panel": {
+      "title": "📡 Sub-channel Subscriptions",
+      "desc": "Subscribe to get notifications. Unsubscribed channels still appear but won't notify you."
+    },
+    "create_sub": {
+      "title": "Create Sub-channel",
+      "name_label": "Sub-channel name",
+      "name_placeholder": "sub-channel name...",
+      "private_label": "🔒 Private",
+      "private_hint": "(invite-only, hidden from non-members)",
+      "temporary_label": "⏱️ Temporary",
+      "temporary_hint": "(auto-delete)",
+      "hours": "hours",
+      "admin_note": "ℹ️ Admins always have access to all channels, including private ones.",
+      "create_btn": "Create"
+    },
+    "webhook": {
+      "title": "🤖 Webhooks",
+      "name_label": "New Webhook Name",
+      "name_placeholder": "My Bot",
+      "create_btn": "Create",
+      "token_warning": "⚠️ Copy this URL now — you won't see the full token again!",
+      "copy_btn": "📋 Copy"
+    },
+    "channel_roles": {
+      "title": "👑 Channel Roles",
+      "members_title": "Members",
+      "role_config_title": "Role Configuration",
+      "select_role": "-- Select Role --",
+      "server_wide": "🌐 Server-wide",
+      "this_channel": "📌 This Channel",
+      "assign_btn": "Assign",
+      "new_role_btn": "+ New Role",
+      "select_to_configure": "Select a role to configure"
+    },
+    "activities": {
+      "title": "🎮 Activities"
+    },
+    "game_overlay": {
+      "volume_label": "Game Volume",
+      "popout_btn": "↗️ Pop Out",
+      "close_btn": "✕ Close"
+    },
+    "push_error": {
+      "title": "Push Notifications Unavailable",
+      "recommendation": "Recommended: Google Chrome, Microsoft Edge, or Opera on desktop.\niOS requires Safari 16.4+ with Haven added to your Home Screen.",
+      "got_it": "Got It"
+    },
+    "e2e_password": {
+      "title": "🔐 Password Required",
+      "desc": "End-to-end encryption requires your password to unlock your keys. Enter your account password to continue.",
+      "placeholder": "Enter your password",
+      "unlock_btn": "Unlock"
+    },
+    "android_beta": {
+      "title": "Haven Android App",
+      "badge": "CLOSED BETA",
+      "subtitle": "A native Android app for Haven, built from the ground up!",
+      "feature_native": "Native Android experience",
+      "feature_push": "Push notifications",
+      "feature_chat": "Full chat & voice support",
+      "feature_built": "Built from the ground up for Haven",
+      "note": "Request access to the closed beta on Google Play:",
+      "request_btn": "🚀 Request Beta Access",
+      "later_btn": "Maybe later",
+      "dont_show": "Don't show this again"
+    },
+    "desktop_promo": {
+      "title": "Haven Desktop App",
+      "badge": "BETA",
+      "subtitle": "Now available for your platform!",
+      "feature_notifs": "Native system notifications",
+      "feature_tray": "Minimize to system tray",
+      "feature_audio": "Per-app audio routing",
+      "feature_launcher": "Built-in server launcher",
+      "install_btn": "⬇ Install Haven",
+      "later_btn": "Maybe later",
+      "dont_show": "Don't show this again"
+    },
+    "donors": {
+      "title": "Thank You",
+      "subtitle": "Haven is built with love and kept alive by the generosity of people like you. Every donation — big or small — means the world.",
+      "sponsors_title": "✨ Sponsors",
+      "donors_title": "💛 Donors",
+      "note": "New donors will be added each release. If you've donated and don't see your name, it'll be in the next update!",
+      "kofi_btn": "☕ Support Haven on Ko-fi"
+    },
+    "listen_together": {
+      "title": "🎵 Listen Together",
+      "desc": "Paste a link from Spotify, YouTube, or SoundCloud to share with everyone in voice",
+      "link_label": "Music Link",
+      "link_placeholder": "https://open.spotify.com/track/...",
+      "share_btn": "Share with Channel"
+    },
+    "manage_servers": {
+      "title": "⚙ Manage Servers",
+      "desc": "Edit or remove your linked servers",
+      "add_btn": "+ Add Server"
+    },
+    "sound_manager": {
+      "title": "🔊 Sound Manager",
+      "soundboard_tab": "🎵 Soundboard",
+      "assign_tab": "🔔 Assign to Events",
+      "manage_tab": "⚙️ Manage",
+      "search_placeholder": "Search sounds...",
+      "no_sounds": "No sounds available",
+      "new_message": "📨 New Message",
+      "msg_sent": "📤 Message Sent",
+      "mention": "📢 @Mention",
+      "user_joined": "👋 User Joined",
+      "user_left": "🚪 User Left",
+      "name_placeholder": "Sound name...",
+      "upload_btn": "Upload",
+      "no_custom_sounds": "No custom sounds uploaded"
+    },
+    "emoji_mgmt": {
+      "title": "😎 Emoji Management",
+      "name_placeholder": "emoji_name",
+      "upload_btn": "Upload",
+      "no_emojis": "No custom emojis uploaded",
+      "crop_applied": "Crop applied — ready to upload",
+      "adjust_btn": "✏️ Adjust"
+    },
+    "emoji_crop": {
+      "title": "✂️ Crop Emoji",
+      "hint": "Drag to reposition · Slider to zoom",
+      "confirm_btn": "Use This Crop"
+    },
+    "bans": {
+      "title": "Banned Users"
+    },
+    "deleted_users": {
+      "title": "🗑️ Deleted Users"
+    },
+    "all_members": {
+      "title": "👥 All Members",
+      "search_placeholder": "Search users...",
+      "filter_all": "All",
+      "filter_online": "Online",
+      "filter_offline": "Offline",
+      "filter_new": "New (7 days)",
+      "filter_banned": "Banned"
+    },
+    "role_management": {
+      "title": "👑 Role Management",
+      "new_role_btn": "+ New Role",
+      "select_to_edit": "Select a role to edit"
+    },
+    "assign_role": {
+      "title": "👑 Assign Role",
+      "role_label": "Role",
+      "select_role": "-- Select Role --",
+      "scope_label": "Scope",
+      "scope_hint": "Server-wide applies to all channels. Channel-specific only applies within that channel.",
+      "server_wide": "🌐 Server-wide",
+      "assign_btn": "Assign"
+    },
+    "role_assign_center": {
+      "title": "👑 Role Assignment",
+      "subtitle": "Select a user, then a channel, then configure their role.",
+      "users_pane": "Users",
+      "search_users_placeholder": "Search users…",
+      "channels_pane": "Channels",
+      "select_user_hint": "← Select a user",
+      "config_pane": "Role Configuration",
+      "select_channel_hint": "← Select a channel",
+      "manage_roles_btn": "⚙️ Manage Roles",
+      "save_btn": "Save Changes"
+    },
+    "bot_mgmt": {
+      "title": "🤖 Bot Management",
+      "new_bot_btn": "+ New Bot",
+      "select_or_create": "Select a bot to edit, or create a new one"
+    },
+    "discord_import": {
+      "title": "📦 Import from Discord",
+      "file_tab": "📁 Upload File",
+      "connect_tab": "🔗 Connect to Discord",
+      "dropzone_text": "Drop file here or browse",
+      "dropzone_hint": ".json or .zip — up to 500 MB",
+      "uploading": "Uploading...",
+      "token_placeholder": "Paste your Discord token here",
+      "connect_btn": "Connect",
+      "disconnect": "Disconnect",
+      "pick_server": "Pick a server to import from:",
+      "select_channels": "Select channels to fetch:",
+      "deselect_all": "Deselect All",
+      "select_all": "Select All",
+      "fetch_btn": "📥 Fetch Messages",
+      "back_to_servers": "← Back to servers",
+      "preview_select_hint": "Select channels to import. You can rename them before importing.",
+      "import_selected_btn": "📦 Import Selected",
+      "import_complete": "Import complete!"
+    }
+  },
+
+  "context_menu": {
+    "channel": {
+      "mute": "🔔 Mute Channel",
+      "unmute": "🔕 Unmute Channel",
+      "join_voice": "🎙️ Join Voice",
+      "disconnect_voice": "📴 Disconnect Voice",
+      "leave": "🚪 Leave Channel",
+      "rename": "✏️ Rename Channel",
+      "create_sub": "📁 Create Sub-channel",
+      "organize": "📋 Organize",
+      "move_to": "📦 Move to…",
+      "promote": "⬆️ Promote to Channel",
+      "functions": "⚙️ Channel Functions",
+      "roles": "👑 Roles",
+      "webhooks": "🤖 Webhooks",
+      "delete": "🗑️ Delete Channel"
+    },
+    "dm": {
+      "mute": "🔔 Mute DM",
+      "unmute": "🔕 Unmute DM",
+      "delete": "🗑️ Delete DM"
+    }
+  },
+
+  "channel_functions": {
+    "voice": "🎙️ Voice",
+    "text": "💬 Text",
+    "streams": "🖥️ Streams",
+    "music": "🎵 Music",
+    "media": "🖼️ Media",
+    "slow_mode": "🐢 Slow Mode",
+    "cleanup_guard": "🛡️ Cleanup Guard",
+    "voice_limit": "👥 Voice Limit",
+    "voice_bitrate": "🎚️ Voice Bitrate",
+    "voice_bitrate_auto": "Auto",
+    "self_destruct": "⏱️ Self Destruct",
+    "announcement": "📢 Announcement",
+    "on": "ON",
+    "off": "OFF"
+  }
+}

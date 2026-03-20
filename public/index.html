@@ -16,53 +16,53 @@
       <div class="auth-header">
         <div class="logo">⬡</div>
         <h1>HAVEN</h1>
-        <p class="tagline">Private chat, your rules</p>
+        <p class="tagline" data-i18n="auth.tagline">Private chat, your rules</p>
         <p class="server-title" id="server-title"></p>
       </div>
 
       <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Login</button>
-        <button class="auth-tab" data-tab="register">Register</button>
+        <button class="auth-tab active" data-tab="login" data-i18n="auth.tabs.login">Login</button>
+        <button class="auth-tab" data-tab="register" data-i18n="auth.tabs.register">Register</button>
       </div>
 
       <form id="login-form" class="auth-form">
         <div class="form-group">
-          <label for="login-username">Username</label>
+          <label for="login-username" data-i18n="auth.login.username_label">Username</label>
           <input type="text" id="login-username" autocomplete="username" required>
         </div>
         <div class="form-group">
-          <label for="login-password">Password</label>
+          <label for="login-password" data-i18n="auth.login.password_label">Password</label>
           <input type="password" id="login-password" autocomplete="current-password" required>
         </div>
-        <button type="submit" class="btn-primary">Login</button>
+        <button type="submit" class="btn-primary" data-i18n="auth.login.submit">Login</button>
         <div class="auth-recovery-links">
-          <a href="#" id="forgot-password-show">Forgot password?</a>
-          <a href="#" id="admin-recover-show">Locked out? Admin recovery</a>
+          <a href="#" id="forgot-password-show" data-i18n="auth.login.forgot_password">Forgot password?</a>
+          <a href="#" id="admin-recover-show" data-i18n="auth.login.locked_out">Locked out? Admin recovery</a>
         </div>
         <div id="admin-recover-section" style="display:none;text-align:center;margin-top:6px">
-          <small style="color:var(--text-muted)">Enter your admin credentials above and click Recover</small><br>
-          <button type="button" class="btn-primary" id="admin-recover-btn" style="margin-top:6px;font-size:0.85rem;padding:6px 16px">Recover Admin Access</button>
+          <small style="color:var(--text-muted)" data-i18n="auth.login.admin_recover_hint">Enter your admin credentials above and click Recover</small><br>
+          <button type="button" class="btn-primary" id="admin-recover-btn" data-i18n="auth.login.admin_recover_btn" style="margin-top:6px;font-size:0.85rem;padding:6px 16px">Recover Admin Access</button>
         </div>
       </form>
 
       <form id="register-form" class="auth-form" style="display:none">
         <div class="form-group">
-          <label for="reg-username">Username</label>
+          <label for="reg-username" data-i18n="auth.register.username_label">Username</label>
           <input type="text" id="reg-username" autocomplete="username"
                  minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]+" required>
-          <small>3-20 characters, letters/numbers/underscores</small>
+          <small data-i18n="auth.register.username_hint">3-20 characters, letters/numbers/underscores</small>
         </div>
         <div class="form-group">
-          <label for="reg-password">Password</label>
+          <label for="reg-password" data-i18n="auth.register.password_label">Password</label>
           <input type="password" id="reg-password" autocomplete="new-password"
                  minlength="8" required>
-          <small>Minimum 8 characters</small>
+          <small data-i18n="auth.register.password_hint">Minimum 8 characters</small>
         </div>
         <div class="form-group">
-          <label for="reg-confirm">Confirm Password</label>
+          <label for="reg-confirm" data-i18n="auth.register.confirm_label">Confirm Password</label>
           <input type="password" id="reg-confirm" autocomplete="new-password" required>
         </div>
-        <button type="submit" class="btn-primary">Create Account</button>
+        <button type="submit" class="btn-primary" data-i18n="auth.register.submit">Create Account</button>
       </form>
 
       <div id="auth-error" class="auth-error" style="display:none"></div>
@@ -70,52 +70,53 @@
       <!-- TOTP verification form (shown after login when 2FA is enabled) -->
       <form id="totp-form" class="auth-form" style="display:none">
         <p style="text-align:center;color:var(--text-muted);font-size:0.9rem;margin-bottom:12px;">
-          🔐 Enter the 6-digit code from your authenticator app
+          <span data-i18n="auth.totp.instruction">🔐 Enter the 6-digit code from your authenticator app</span>
         </p>
         <div class="form-group">
-          <label for="totp-code">Authentication Code</label>
+          <label for="totp-code" data-i18n="auth.totp.code_label">Authentication Code</label>
           <input type="text" id="totp-code" autocomplete="one-time-code" inputmode="numeric"
                  pattern="[0-9]*" maxlength="10" placeholder="000000" required
                  style="text-align:center;font-size:1.4rem;letter-spacing:0.3em">
         </div>
-        <button type="submit" class="btn-primary">Verify</button>
+        <button type="submit" class="btn-primary" data-i18n="auth.totp.submit">Verify</button>
         <p style="text-align:center;margin-top:8px">
-          <a href="#" id="totp-use-backup" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none">Use a backup code instead</a>
+          <a href="#" id="totp-use-backup" data-i18n="auth.totp.use_backup" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none">Use a backup code instead</a>
         </p>
         <p style="text-align:center;margin-top:4px">
-          <a href="#" id="totp-back-btn" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none">← Back to login</a>
+          <a href="#" id="totp-back-btn" data-i18n="auth.totp.back" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none">← Back to login</a>
         </p>
       </form>
 
       <!-- Account Recovery / Forgot Password form -->
       <form id="recover-form" class="auth-form" style="display:none">
         <p style="text-align:center;color:var(--text-muted);font-size:0.9rem;margin-bottom:12px;">
-          🔑 Reset password with a recovery code
+          <span data-i18n="auth.recover.instruction">🔑 Reset password with a recovery code</span>
         </p>
-        <div style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.4);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:0.8rem;color:var(--text-secondary)">
+        <div style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.4);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:0.8rem;color:var(--text-secondary)"
+             data-i18n-html="auth.recover.warning">
           ⚠️ This will <strong>permanently erase your encryption keys</strong>. All encrypted DM history will be unreadable.
         </div>
         <div class="form-group">
-          <label for="recover-username">Username</label>
+          <label for="recover-username" data-i18n="auth.recover.username_label">Username</label>
           <input type="text" id="recover-username" autocomplete="username" required>
         </div>
         <div class="form-group">
-          <label for="recover-code">Recovery Code</label>
+          <label for="recover-code" data-i18n="auth.recover.code_label">Recovery Code</label>
           <input type="text" id="recover-code" placeholder="XXXX-XXXX" maxlength="9"
                  style="font-family:monospace;letter-spacing:0.1em" autocomplete="off" required>
         </div>
         <div class="form-group">
-          <label for="recover-new-password">New Password</label>
+          <label for="recover-new-password" data-i18n="auth.recover.new_password_label">New Password</label>
           <input type="password" id="recover-new-password" autocomplete="new-password" minlength="8" required>
-          <small>Minimum 8 characters</small>
+          <small data-i18n="auth.recover.new_password_hint">Minimum 8 characters</small>
         </div>
         <div class="form-group">
-          <label for="recover-confirm-password">Confirm New Password</label>
+          <label for="recover-confirm-password" data-i18n="auth.recover.confirm_label">Confirm New Password</label>
           <input type="password" id="recover-confirm-password" autocomplete="new-password" required>
         </div>
-        <button type="submit" class="btn-primary">Reset Password</button>
+        <button type="submit" class="btn-primary" data-i18n="auth.recover.submit">Reset Password</button>
         <p style="text-align:center;margin-top:8px">
-          <a href="#" id="recover-back-btn" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none">← Back to login</a>
+          <a href="#" id="recover-back-btn" data-i18n="auth.recover.back" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none">← Back to login</a>
         </p>
       </form>
 
@@ -336,12 +337,13 @@
         this Service.</em></p>
       </div>
       <div class="modal-actions">
-        <button class="btn-sm" id="eula-decline-btn">Decline</button>
-        <button class="btn-sm btn-accent" id="eula-accept-btn">I Accept</button>
+        <button class="btn-sm" id="eula-decline-btn" data-i18n="auth.eula.decline">Decline</button>
+        <button class="btn-sm btn-accent" id="eula-accept-btn" data-i18n="auth.eula.accept">I Accept</button>
       </div>
     </div>
   </div>
 
+  <script src="/js/i18n.js"></script>
   <script src="/js/theme.js"></script>
   <script src="/js/auth.js"></script>
 </body>
