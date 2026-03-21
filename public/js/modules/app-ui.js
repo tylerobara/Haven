@@ -7,7 +7,7 @@ _setupUI() {
 
   // Shorter placeholder on narrow screens to prevent wrapping
   if (window.innerWidth <= 480) {
-    msgInput.placeholder = 'Message...';
+    msgInput.placeholder = t('app.messages.placeholder_short');
   }
 
   msgInput.addEventListener('keydown', (e) => {
@@ -137,7 +137,7 @@ _setupUI() {
       const ch = this.channels.find(c => c.code === this.currentChannel);
       const codeToCopy = ch && ch.display_code !== '••••••••' ? this.currentChannel : null;
       if (codeToCopy) {
-        const onCopied = () => this._showToast('Channel code copied!', 'success');
+        const onCopied = () => this._showToast(t('toasts.channel_code_copied'), 'success');
         navigator.clipboard.writeText(codeToCopy).then(onCopied).catch(() => {
           try {
             const ta = document.createElement('textarea');
@@ -163,8 +163,8 @@ _setupUI() {
     const code = this._ctxMenuChannel;
     if (!code) return;
     this._closeChannelCtxMenu();
-    if (!confirm('⚠️ Delete this channel?\nAll messages will be permanently lost.')) return;
-    if (!confirm('⚠️ Are you ABSOLUTELY sure?\nThis action cannot be undone!')) return;
+    if (!confirm('⚠️ ' + t('confirm.delete_channel'))) return;
+    if (!confirm('⚠️ ' + t('confirm.delete_channel_sure'))) return;
     this.socket.emit('delete-channel', { code });
   });
   // Mute channel toggle
@@ -174,8 +174,8 @@ _setupUI() {
     this._closeChannelCtxMenu();
     const muted = JSON.parse(localStorage.getItem('haven_muted_channels') || '[]');
     const idx = muted.indexOf(code);
-    if (idx >= 0) { muted.splice(idx, 1); this._showToast('Channel unmuted', 'success'); }
-    else { muted.push(code); this._showToast('Channel muted', 'success'); }
+    if (idx >= 0) { muted.splice(idx, 1); this._showToast(t('toasts.channel_unmuted'), 'success'); }
+    else { muted.push(code); this._showToast(t('toasts.channel_muted'), 'success'); }
     localStorage.setItem('haven_muted_channels', JSON.stringify(muted));
     this._renderChannels();
   });
@@ -195,10 +195,10 @@ _setupUI() {
     this._closeChannelCtxMenu();
     const ch = this.channels.find(c => c.code === code);
     const name = ch ? ch.name : code;
-    if (!confirm(`Leave channel "${name}"?\nYou'll need the channel code to rejoin.`)) return;
+    if (!confirm(t('confirm.leave_channel', { name }))) return;
     this.socket.emit('leave-channel', { code }, (res) => {
       if (res && res.error) { this._showToast(res.error, 'error'); return; }
-      this._showToast(`Left #${name}`, 'success');
+      this._showToast(t('toasts.left_channel', { name }), 'success');
       // Switch to another channel if we're currently in this one
       if (this.currentChannel === code) {
         const remaining = this.channels.filter(c => c.code !== code && !c.is_dm);
@@ -322,7 +322,7 @@ _setupUI() {
       const current = (ch && ch.voice_user_limit) || 0;
       const input = document.createElement('input');
       input.type = 'number'; input.min = '2'; input.max = '99';
-      input.value = current >= 2 ? current : ''; input.placeholder = '2–99 (blank=∞)'; input.className = 'cfn-input';
+      input.value = current >= 2 ? current : ''; input.placeholder = t('channel_functions.voice_limit_placeholder'); input.className = 'cfn-input';
       input.onclick = e2 => e2.stopPropagation();
       badge.replaceWith(input);
       input.focus(); input.select();
@@ -342,7 +342,7 @@ _setupUI() {
       const current = (ch && ch.voice_bitrate) || 0;
       const input = document.createElement('input');
       input.type = 'number'; input.min = '0'; input.max = '512';
-      input.value = current > 0 ? current : ''; input.placeholder = '32–512 (blank=auto)'; input.className = 'cfn-input';
+      input.value = current > 0 ? current : ''; input.placeholder = t('channel_functions.bitrate_placeholder'); input.className = 'cfn-input';
       input.onclick = e2 => e2.stopPropagation();
       badge.replaceWith(input);
       input.focus(); input.select();
@@ -367,7 +367,7 @@ _setupUI() {
       if (!badge) return;
       const input = document.createElement('input');
       input.type = 'number'; input.min = '0'; input.max = '720';
-      input.value = ''; input.placeholder = '1–720h (0=off)'; input.className = 'cfn-input';
+      input.value = ''; input.placeholder = t('channel_functions.self_destruct_placeholder'); input.className = 'cfn-input';
       input.onclick = e2 => e2.stopPropagation();
       badge.replaceWith(input);
       input.focus(); input.select();
@@ -409,7 +409,7 @@ _setupUI() {
     this._closeChannelCtxMenu();
     const ch = this.channels.find(c => c.code === code);
     if (!ch || !ch.parent_channel_id) return;
-    if (confirm(`Promote "${ch.name}" to a top-level channel?`)) {
+    if (confirm(t('confirm.promote_channel', { name: ch.name }))) {
       this.socket.emit('reparent-channel', { code, newParentCode: null });
     }
   });
@@ -628,8 +628,8 @@ _setupUI() {
   document.getElementById('webhook-copy-url-btn')?.addEventListener('click', () => {
     const urlEl = document.getElementById('webhook-url-display');
     const markCopied = () => {
-      document.getElementById('webhook-copy-url-btn').textContent = '✅ Copied';
-      setTimeout(() => { document.getElementById('webhook-copy-url-btn').textContent = '📋 Copy'; }, 2000);
+      document.getElementById('webhook-copy-url-btn').textContent = '✅ ' + t('common.copied');
+      setTimeout(() => { document.getElementById('webhook-copy-url-btn').textContent = '📋 ' + t('common.copy'); }, 2000);
     };
     navigator.clipboard.writeText(urlEl.value).then(markCopied).catch(() => {
       try {
@@ -705,7 +705,7 @@ _setupUI() {
     this._closeChannelCtxMenu();
     const ch = this.channels.find(c => c.code === code);
     if (!ch) return;
-    const name = await this._showPromptModal('Rename Channel', `Rename #${ch.name}:\nEnter new name:`, ch.name);
+    const name = await this._showPromptModal(t('modals.rename_channel.title'), t('modals.rename_channel.prompt', { name: ch.name }), ch.name);
     if (name && name.trim() && name.trim() !== ch.name) {
       this.socket.emit('rename-channel', { code, name: name.trim() });
     }
@@ -1358,7 +1358,7 @@ _setupUI() {
     } else if (action === 'edit') {
       this._startEditMessage(msgEl, msgId);
     } else if (action === 'delete') {
-      if (confirm('Delete this message?')) {
+      if (confirm(t('confirm.delete_message'))) {
         this.socket.emit('delete-message', { messageId: msgId });
       }
     } else if (action === 'pin') {
@@ -1614,7 +1614,7 @@ _setupUI() {
     } else if (action === 'mute') {
       this.socket.emit('mute-user', { userId, reason, duration });
     } else if (action === 'delete-user') {
-      if (!confirm(`Are you SURE you want to delete ${this.adminActionTarget.username}? This cannot be undone.`)) return;
+      if (!confirm(t('confirm.delete_user', { username: this.adminActionTarget.username }))) return;
       this.socket.emit('delete-user', { userId, reason, scrubMessages });
     }
 
@@ -1692,9 +1692,9 @@ _setupUI() {
     hint.textContent = '';
     hint.className = 'settings-hint';
 
-    if (!cur || !np) return hint.textContent = 'Fill in all fields';
-    if (np.length < 8) return hint.textContent = 'New password must be 8+ characters';
-    if (np !== conf)   return hint.textContent = 'Passwords do not match';
+    if (!cur || !np) return hint.textContent = t('settings.password_section.fill_fields');
+    if (np.length < 8) return hint.textContent = t('settings.password_section.too_short');
+    if (np !== conf)   return hint.textContent = t('settings.password_section.mismatch');
 
     // Flag to prevent force-logout from kicking us out
     this._justChangedPassword = true;
@@ -1710,7 +1710,7 @@ _setupUI() {
       });
       const data = await res.json();
       if (!res.ok) {
-        hint.textContent = data.error || 'Failed';
+        hint.textContent = data.error || t('settings.password_section.failed');
         hint.classList.add('error');
         return;
       }
@@ -1731,7 +1731,7 @@ _setupUI() {
         }
       }
 
-      hint.textContent = '✅ Password changed!';
+      hint.textContent = '✅ ' + t('settings.password_section.changed');
       hint.classList.add('success');
       document.getElementById('current-password').value = '';
       document.getElementById('new-password').value = '';
@@ -1740,7 +1740,7 @@ _setupUI() {
       setTimeout(() => { this._justChangedPassword = false; }, 5000);
     } catch {
       this._justChangedPassword = false;
-      hint.textContent = 'Network error';
+      hint.textContent = t('settings.password_section.network_error');
       hint.classList.add('error');
     }
   });
@@ -1761,7 +1761,7 @@ _setupUI() {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      if (!res.ok) { totpStatusText.textContent = data.error || 'Error'; return; }
+      if (!res.ok) { totpStatusText.textContent = data.error || t('settings.two_factor_section.error'); return; }
 
       // Hide all sub-areas first
       totpEnableArea.style.display = 'none';
@@ -1773,7 +1773,9 @@ _setupUI() {
         totpStatusText.textContent = '';
         totpManageArea.style.display = 'block';
         const remaining = document.getElementById('totp-backup-remaining');
-        if (remaining) remaining.textContent = `${data.backupCodesRemaining} backup code${data.backupCodesRemaining === 1 ? '' : 's'} remaining`;
+        if (remaining) remaining.textContent = data.backupCodesRemaining === 1
+          ? t('settings.two_factor_section.backup_codes_remaining_one', { count: data.backupCodesRemaining })
+          : t('settings.two_factor_section.backup_codes_remaining_other', { count: data.backupCodesRemaining });
         // Clear password input
         const pwInput = document.getElementById('totp-disable-password');
         if (pwInput) pwInput.value = '';
@@ -1783,7 +1785,7 @@ _setupUI() {
         totpEnableArea.style.display = 'block';
       }
     } catch {
-      totpStatusText.textContent = 'Connection error';
+      totpStatusText.textContent = t('settings.two_factor_section.connection_error');
     }
   };
 
@@ -1811,12 +1813,12 @@ _setupUI() {
         headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json' }
       });
       const data = await res.json();
-      if (!res.ok) { totpSetupStatus.textContent = data.error || 'Setup failed'; return; }
+      if (!res.ok) { totpSetupStatus.textContent = data.error || t('settings.two_factor_section.setup_failed'); return; }
 
       document.getElementById('totp-qr-img').src = data.qrDataUrl;
       document.getElementById('totp-secret-text').textContent = data.base32Secret;
     } catch {
-      totpSetupStatus.textContent = 'Connection error';
+      totpSetupStatus.textContent = t('settings.two_factor_section.connection_error');
     }
   });
 
@@ -1826,8 +1828,8 @@ _setupUI() {
     if (!secret) return;
     const copyBtn = document.getElementById('totp-copy-secret');
     const markCopied = () => {
-      copyBtn.textContent = '✅';
-      setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 1500);
+      copyBtn.textContent = '✅ ' + t('common.copied');
+      setTimeout(() => { copyBtn.textContent = '📋 ' + t('common.copy'); }, 1500);
     };
     navigator.clipboard.writeText(secret).then(markCopied).catch(() => {
       // Fallback for Electron / contexts where Clipboard API is restricted
@@ -1854,7 +1856,7 @@ _setupUI() {
   document.getElementById('totp-verify-setup-btn')?.addEventListener('click', async () => {
     const code = document.getElementById('totp-verify-code')?.value.trim();
     if (!code || code.length !== 6) {
-      if (totpSetupStatus) totpSetupStatus.textContent = 'Enter the 6-digit code from your authenticator';
+      if (totpSetupStatus) totpSetupStatus.textContent = t('settings.two_factor_section.verify_prompt');
       return;
     }
     try {
@@ -1865,7 +1867,7 @@ _setupUI() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (totpSetupStatus) { totpSetupStatus.textContent = data.error || 'Verification failed'; totpSetupStatus.classList.add('error'); }
+        if (totpSetupStatus) { totpSetupStatus.textContent = data.error || t('settings.two_factor_section.verify_failed'); totpSetupStatus.classList.add('error'); }
         return;
       }
       // Store fresh token — server bumped password_version to invalidate other sessions
@@ -1881,7 +1883,7 @@ _setupUI() {
       const codesEl = document.getElementById('totp-backup-codes');
       if (codesEl) codesEl.innerHTML = data.backupCodes.map(c => `<div>${c}</div>`).join('');
     } catch {
-      if (totpSetupStatus) totpSetupStatus.textContent = 'Connection error';
+      if (totpSetupStatus) totpSetupStatus.textContent = t('settings.two_factor_section.connection_error');
     }
   });
 
@@ -1892,8 +1894,8 @@ _setupUI() {
     const codes = Array.from(codesEl.querySelectorAll('div')).map(d => d.textContent).join('\n');
     const btn = document.getElementById('totp-copy-backup-btn');
     const markCopied = () => {
-      btn.textContent = '✅ Copied!';
-      setTimeout(() => { btn.textContent = '📋 Copy Backup Codes'; }, 2000);
+      btn.textContent = '✅ ' + t('common.copied') + '!';
+      setTimeout(() => { btn.textContent = '📋 ' + t('settings.two_factor_section.copy_backup_btn'); }, 2000);
     };
     navigator.clipboard.writeText(codes).then(markCopied).catch(() => {
       // Fallback for Electron / contexts where Clipboard API is restricted
@@ -1918,7 +1920,7 @@ _setupUI() {
   // Disable 2FA
   document.getElementById('totp-disable-btn')?.addEventListener('click', async () => {
     const pw = document.getElementById('totp-disable-password')?.value;
-    if (!pw) { if (totpManageStatus) totpManageStatus.textContent = 'Enter your password'; return; }
+    if (!pw) { if (totpManageStatus) totpManageStatus.textContent = t('settings.two_factor_section.disable_prompt'); return; }
     try {
       const res = await fetch('/api/auth/totp/disable', {
         method: 'POST',
@@ -1927,20 +1929,20 @@ _setupUI() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (totpManageStatus) { totpManageStatus.textContent = data.error || 'Failed'; totpManageStatus.classList.add('error'); }
+        if (totpManageStatus) { totpManageStatus.textContent = data.error || t('settings.two_factor_section.failed'); totpManageStatus.classList.add('error'); }
         return;
       }
-      this._showToast('Two-factor authentication disabled', 'info');
+      this._showToast(t('toasts.2fa_disabled'), 'info');
       loadTotpStatus();
     } catch {
-      if (totpManageStatus) totpManageStatus.textContent = 'Connection error';
+      if (totpManageStatus) totpManageStatus.textContent = t('settings.two_factor_section.connection_error');
     }
   });
 
   // Regenerate backup codes
   document.getElementById('totp-regen-backup-btn')?.addEventListener('click', async () => {
     const pw = document.getElementById('totp-disable-password')?.value;
-    if (!pw) { if (totpManageStatus) totpManageStatus.textContent = 'Enter your password'; return; }
+    if (!pw) { if (totpManageStatus) totpManageStatus.textContent = t('settings.two_factor_section.regen_prompt'); return; }
     try {
       const res = await fetch('/api/auth/totp/regenerate-backup', {
         method: 'POST',
@@ -1949,7 +1951,7 @@ _setupUI() {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (totpManageStatus) { totpManageStatus.textContent = data.error || 'Failed'; totpManageStatus.classList.add('error'); }
+        if (totpManageStatus) { totpManageStatus.textContent = data.error || t('settings.two_factor_section.failed'); totpManageStatus.classList.add('error'); }
         return;
       }
       // Show the new backup codes
@@ -1958,7 +1960,7 @@ _setupUI() {
       const codesEl = document.getElementById('totp-backup-codes');
       if (codesEl) codesEl.innerHTML = data.backupCodes.map(c => `<div>${c}</div>`).join('');
     } catch {
-      if (totpManageStatus) totpManageStatus.textContent = 'Connection error';
+      if (totpManageStatus) totpManageStatus.textContent = t('settings.two_factor_section.connection_error');
     }
   });
 
@@ -1971,12 +1973,14 @@ _setupUI() {
         headers: { 'Authorization': `Bearer ${this.token}` }
       });
       const data = await res.json();
-      if (!res.ok) { statusEl.textContent = data.error || 'Error'; return; }
+      if (!res.ok) { statusEl.textContent = data.error || t('settings.two_factor_section.error'); return; }
       statusEl.textContent = data.count > 0
-        ? `You have ${data.count} unused recovery code${data.count === 1 ? '' : 's'}.`
-        : 'You have no recovery codes. Generate some now.';
+        ? (data.count === 1
+            ? t('settings.recovery_section.status_one', { count: data.count })
+            : t('settings.recovery_section.status_other', { count: data.count }))
+        : t('settings.recovery_section.no_codes');
     } catch {
-      statusEl.textContent = 'Connection error';
+      statusEl.textContent = t('settings.recovery_section.connection_error');
     }
   };
 
@@ -2001,7 +2005,7 @@ _setupUI() {
   document.getElementById('recovery-generate-btn')?.addEventListener('click', async () => {
     const password = document.getElementById('recovery-gen-password')?.value;
     const statusEl = document.getElementById('recovery-gen-status');
-    if (!password) { statusEl.textContent = 'Enter your password to confirm'; return; }
+    if (!password) { statusEl.textContent = t('settings.recovery_section.confirm_prompt'); return; }
     statusEl.textContent = '';
     try {
       const res = await fetch('/api/auth/recovery-codes/generate', {
@@ -2010,7 +2014,7 @@ _setupUI() {
         body: JSON.stringify({ password })
       });
       const data = await res.json();
-      if (!res.ok) { statusEl.textContent = data.error || 'Failed'; return; }
+      if (!res.ok) { statusEl.textContent = data.error || t('settings.recovery_section.failed'); return; }
 
       const codesEl = document.getElementById('recovery-codes-list');
       if (codesEl) codesEl.innerHTML = data.codes.map(c => `<div>${c}</div>`).join('');
@@ -2018,7 +2022,7 @@ _setupUI() {
       document.getElementById('recovery-codes-area').style.display = '';
       loadRecoveryStatus();
     } catch {
-      statusEl.textContent = 'Connection error';
+      statusEl.textContent = t('settings.recovery_section.connection_error');
     }
   });
 
@@ -2028,8 +2032,8 @@ _setupUI() {
     const text = Array.from(codesEl.querySelectorAll('div')).map(d => d.textContent).join('\n');
     const btn = document.getElementById('recovery-copy-btn');
     const markCopied = () => {
-      btn.textContent = '✅ Copied!';
-      setTimeout(() => { btn.textContent = '📋 Copy Codes'; }, 2000);
+      btn.textContent = '✅ ' + t('common.copied') + '!';
+      setTimeout(() => { btn.textContent = '📋 ' + t('settings.recovery_section.copy_codes_btn'); }, 2000);
     };
     navigator.clipboard.writeText(text).then(markCopied).catch(() => {
       try {
@@ -2055,7 +2059,7 @@ _setupUI() {
   document.getElementById('plugin-refresh-btn')?.addEventListener('click', () => {
     if (window.HavenPluginLoader) {
       window.HavenPluginLoader.refresh();
-      this._showToast('Refreshing plugins & themes…', 'info');
+      this._showToast(t('toasts.plugins_refreshing'), 'info');
     }
   });
 
@@ -2070,10 +2074,10 @@ _setupUI() {
     overlay.style.display = 'flex';
     overlay.innerHTML = `
       <div class="modal" style="max-width:380px">
-        <h3>⚠️ Delete Account</h3>
-        <p class="modal-desc">This will permanently delete your account. This cannot be undone.</p>
+        <h3>⚠️ ${t('settings.delete_account_section.title')}</h3>
+        <p class="modal-desc">${t('settings.delete_account_section.desc')}</p>
         <div class="form-group compact">
-          <input type="password" id="self-delete-pw" placeholder="Enter your password" maxlength="128" autocomplete="current-password">
+          <input type="password" id="self-delete-pw" placeholder="${t('settings.delete_account_section.password_placeholder')}" maxlength="128" autocomplete="current-password">
         </div>
         <label class="toggle-row" style="margin:8px 0">
           <span>Delete all my messages</span>
@@ -2082,8 +2086,8 @@ _setupUI() {
         <small class="settings-hint" style="margin-bottom:8px;display:block">If unchecked, your messages will show as "[Deleted User]" instead.</small>
         <small class="settings-hint self-delete-status" style="display:block;margin-bottom:8px"></small>
         <div class="modal-actions">
-          <button class="btn-sm self-delete-cancel">Cancel</button>
-          <button class="btn-sm btn-danger-fill self-delete-confirm">Delete My Account</button>
+          <button class="btn-sm self-delete-cancel">${t('modals.common.cancel')}</button>
+          <button class="btn-sm btn-danger-fill self-delete-confirm">${t('settings.delete_account_section.btn')}</button>
         </div>
       </div>
     `;
@@ -2097,10 +2101,10 @@ _setupUI() {
       const scrub = document.getElementById('self-delete-scrub').checked;
       const status = overlay.querySelector('.self-delete-status');
 
-      if (!pw) { status.textContent = 'Password is required'; return; }
-      if (!confirm('Are you ABSOLUTELY sure? Your account will be gone forever.')) return;
+      if (!pw) { status.textContent = t('settings.delete_account_section.password_required'); return; }
+      if (!confirm(t('confirm.delete_account'))) return;
 
-      status.textContent = 'Deleting...';
+      status.textContent = t('settings.delete_account_section.deleting');
       overlay.querySelector('.self-delete-confirm').disabled = true;
 
       this.socket.emit('self-delete-account', { password: pw, scrubMessages: scrub }, (res) => {
@@ -2183,7 +2187,7 @@ _setupUI() {
   if (runCleanupBtn) {
     runCleanupBtn.addEventListener('click', () => {
       this.socket.emit('run-cleanup-now');
-      this._showToast('Cleanup triggered — check server console for results', 'success');
+      this._showToast(t('toasts.cleanup_triggered'), 'success');
     });
   }
 
@@ -2236,13 +2240,13 @@ _setupUI() {
     this.socket.emit('generate-server-code');
   });
   document.getElementById('clear-server-code-btn')?.addEventListener('click', () => {
-    if (!confirm('Clear the server invite code? Anyone with the old code won\'t be able to use it.')) return;
+    if (!confirm(t('confirm.clear_invite_code'))) return;
     this.socket.emit('clear-server-code');
   });
   document.getElementById('copy-server-code-btn')?.addEventListener('click', () => {
     const code = document.getElementById('server-code-value')?.textContent;
     if (code && code !== '—') {
-      const onCopied = () => this._showToast('Server code copied!', 'success');
+      const onCopied = () => this._showToast(t('toasts.server_code_copied'), 'success');
       navigator.clipboard.writeText(code).then(onCopied).catch(() => {
         try {
           const ta = document.createElement('textarea');
@@ -2282,13 +2286,13 @@ _setupServerBar() {
 
   document.getElementById('add-server-btn').addEventListener('click', () => {
     this._editingServerUrl = null;
-    document.getElementById('add-server-modal-title').textContent = 'Add a Server';
+    document.getElementById('add-server-modal-title').textContent = t('modals.add_server.title');
     document.getElementById('add-server-modal').style.display = 'flex';
     document.getElementById('add-server-name-input').value = '';
     document.getElementById('server-url-input').value = '';
     document.getElementById('server-url-input').disabled = false;
     document.getElementById('add-server-icon-input').value = '';
-    document.getElementById('save-server-btn').textContent = 'Add Server';
+    document.getElementById('save-server-btn').textContent = t('modals.add_server.add_btn');
     document.getElementById('add-server-name-input').focus();
   });
 
@@ -2345,7 +2349,7 @@ _setupServerBar() {
   document.getElementById('code-rotation-type-select')?.addEventListener('change', () => {
     const type = document.getElementById('code-rotation-type-select').value;
     const label = document.getElementById('rotation-interval-label');
-    if (label) label.textContent = type === 'time' ? 'Rotation Interval (minutes)' : 'Rotate After X Joins';
+    if (label) label.textContent = type === 'time' ? t('modals.code_settings.interval_label') : t('modals.code_settings.rotate_after_joins');
   });
 
   document.getElementById('code-settings-cancel-btn')?.addEventListener('click', () => {
@@ -2375,7 +2379,7 @@ _setupServerBar() {
     const channel = this.channels.find(c => c.code === this.currentChannel);
     if (!channel) return;
 
-    if (!confirm('Rotate the channel code now? Current code will become invalid.')) return;
+    if (!confirm(t('confirm.rotate_channel_code'))) return;
     this.socket.emit('rotate-channel-code', { channelId: channel.id });
     document.getElementById('code-settings-modal').style.display = 'none';
   });
@@ -2388,7 +2392,7 @@ _toggleCodeRotationFields() {
   // Update interval label based on rotation type
   const type = document.getElementById('code-rotation-type-select').value;
   const label = document.getElementById('rotation-interval-label');
-  if (label) label.textContent = type === 'time' ? 'Rotation Interval (minutes)' : 'Rotate After X Joins';
+  if (label) label.textContent = type === 'time' ? t('modals.code_settings.interval_label') : t('modals.code_settings.rotate_after_joins');
 },
 
 _addServer() {
@@ -2396,7 +2400,7 @@ _addServer() {
   const url = document.getElementById('server-url-input').value.trim();
   const iconInput = document.getElementById('add-server-icon-input').value.trim();
   const autoPull = document.getElementById('server-auto-icon').checked;
-  if (!name || !url) return this._showToast('Name and address are both required', 'error');
+  if (!name || !url) return this._showToast(t('toasts.name_address_required'), 'error');
 
   const editUrl = this._editingServerUrl;
   if (editUrl) {
@@ -2405,7 +2409,7 @@ _addServer() {
     this._editingServerUrl = null;
     document.getElementById('add-server-modal').style.display = 'none';
     this._renderServerBar();
-    this._showToast(`Updated "${name}"`, 'success');
+    this._showToast(t('toasts.server_updated', { name }), 'success');
     // Auto-pull icon if checked
     if (autoPull) this._autoPullServerIcon(editUrl);
   } else {
@@ -2414,7 +2418,7 @@ _addServer() {
     if (this.serverManager.add(name, url, icon)) {
       document.getElementById('add-server-modal').style.display = 'none';
       this._renderServerBar();
-      this._showToast(`Added "${name}"`, 'success');
+      this._showToast(t('toasts.server_added', { name }), 'success');
       // Auto-pull icon after health check completes
       if (autoPull) {
         const cleanUrl = url.replace(/\/+$/, '');
@@ -2422,7 +2426,7 @@ _addServer() {
         setTimeout(() => this._autoPullServerIcon(finalUrl), 2000);
       }
     } else {
-      this._showToast('Server already in your list', 'error');
+      this._showToast(t('toasts.server_already_in_list'), 'error');
     }
   }
 },
@@ -2439,12 +2443,12 @@ _editServer(url) {
   const server = this.serverManager.servers.find(s => s.url === url);
   if (!server) return;
   this._editingServerUrl = url;
-  document.getElementById('add-server-modal-title').textContent = 'Edit Server';
+  document.getElementById('add-server-modal-title').textContent = t('modals.manage_servers.edit_title');
   document.getElementById('add-server-name-input').value = server.name;
   document.getElementById('server-url-input').value = server.url;
   document.getElementById('server-url-input').disabled = true;
   document.getElementById('add-server-icon-input').value = server.icon || '';
-  document.getElementById('save-server-btn').textContent = 'Save';
+  document.getElementById('save-server-btn').textContent = t('modals.common.save');
   document.getElementById('add-server-modal').style.display = 'flex';
   document.getElementById('add-server-name-input').focus();
 },
@@ -2466,7 +2470,7 @@ _renderManageServersList() {
 
     const online = s.status.online;
     const statusClass = online === true ? 'online' : online === false ? 'offline' : 'unknown';
-    const statusText = online === true ? 'Online' : online === false ? 'Offline' : 'Checking...';
+    const statusText = online === true ? t('servers.online') : online === false ? t('servers.offline') : t('servers.checking');
     const initial = s.name.charAt(0).toUpperCase();
     const iconUrl = s.icon || (s.status.icon || null);
     const iconContent = iconUrl
@@ -2481,9 +2485,9 @@ _renderManageServersList() {
       </div>
       <span class="manage-server-status ${statusClass}">${statusText}</span>
       <div class="manage-server-actions">
-        <button class="manage-server-visit" title="Open in new tab">🔗</button>
-        <button class="manage-server-edit" title="Edit server">✏️</button>
-        <button class="manage-server-delete danger-action" title="Remove server">🗑️</button>
+        <button class="manage-server-visit" title="${t('servers.open_tab')}">🔗</button>
+        <button class="manage-server-edit" title="${t('servers.edit')}">✏️</button>
+        <button class="manage-server-delete danger-action" title="${t('servers.remove')}">🗑️</button>
       </div>
     `;
 
@@ -2499,11 +2503,11 @@ _renderManageServersList() {
       this._editServer(s.url);
     });
     row.querySelector('.manage-server-delete').addEventListener('click', () => {
-      if (!confirm(`Remove "${s.name}" from your server list?`)) return;
+      if (!confirm(t('confirm.remove_server', { name: s.name }))) return;
       this.serverManager.remove(s.url);
       this._renderServerBar();
       this._renderManageServersList();
-      this._showToast(`Removed "${s.name}"`, 'success');
+      this._showToast(t('toasts.server_removed_named', { name: s.name }), 'success');
     });
 
     // CSP-safe icon error handling: hide broken img, show initial letter
@@ -2538,7 +2542,7 @@ _renderServerBar() {
     const initial = s.name.charAt(0).toUpperCase();
     const online = s.status.online;
     const statusClass = online === true ? 'online' : online === false ? 'offline' : 'unknown';
-    const statusText = online === true ? '● Online' : online === false ? '○ Offline' : '◌ Checking...';
+    const statusText = online === true ? '● ' + t('servers.online') : online === false ? '○ ' + t('servers.offline') : '◌ ' + t('servers.checking');
     // Use custom icon, auto-pulled icon from health check, or letter initial
     const iconUrl = s.icon || (s.status.icon || null);
     const iconContent = iconUrl
@@ -2550,7 +2554,7 @@ _renderServerBar() {
         ${iconContent}
         <span class="server-status-dot ${statusClass}"></span>
         <span class="server-unread-dot"></span>
-        <button class="server-remove" title="Remove">&times;</button>
+        <button class="server-remove" title="${t('servers.remove')}">&times;</button>
       </div>
     `;
   }).join('');
@@ -2569,10 +2573,10 @@ _renderServerBar() {
       if (e.target.classList.contains('server-remove')) {
         e.stopPropagation();
         const serverName = el.getAttribute('title')?.split(' — ')[0] || el.dataset.url;
-        if (!confirm(`Remove "${serverName}" from your server list?`)) return;
+        if (!confirm(t('confirm.remove_server', { name: serverName }))) return;
         this.serverManager.remove(el.dataset.url);
         this._renderServerBar();
-        this._showToast('Server removed', 'success');
+        this._showToast(t('toasts.server_removed'), 'success');
         return;
       }
       if (window.havenDesktop?.switchServer) {
@@ -2602,7 +2606,7 @@ _setupImageUpload() {
   const messageArea = document.getElementById('message-area');
 
   uploadBtn.addEventListener('click', () => {
-    if (!this.currentChannel) return this._showToast('Select a channel first', 'error');
+    if (!this.currentChannel) return this._showToast(t('toasts.select_channel_first'), 'error');
     fileInput.click();
   });
 
@@ -2746,13 +2750,13 @@ _setupMobile() {
     document.getElementById('mobile-server-add-btn')?.addEventListener('click', () => {
       mobileServerMenu.classList.remove('open');
       this._editingServerUrl = null;
-      document.getElementById('add-server-modal-title').textContent = 'Add a Server';
+      document.getElementById('add-server-modal-title').textContent = t('modals.add_server.title');
       document.getElementById('add-server-modal').style.display = 'flex';
       document.getElementById('add-server-name-input').value = '';
       document.getElementById('server-url-input').value = '';
       document.getElementById('server-url-input').disabled = false;
       document.getElementById('add-server-icon-input').value = '';
-      document.getElementById('save-server-btn').textContent = 'Add Server';
+      document.getElementById('save-server-btn').textContent = t('modals.add_server.add_btn');
       document.getElementById('add-server-name-input').focus();
     });
   }
@@ -2877,7 +2881,7 @@ _renderMobileServerList() {
   if (!list || !this.serverManager) return;
   const servers = this.serverManager.getAll();
   if (servers.length === 0) {
-    list.innerHTML = '<div style="padding:8px 10px;color:var(--text-muted);font-size:12px;">No servers added yet</div>';
+    list.innerHTML = `<div style="padding:8px 10px;color:var(--text-muted);font-size:12px;">${t('servers.no_servers')}</div>`;
     return;
   }
   list.innerHTML = servers.map(s => {
@@ -2912,7 +2916,7 @@ _renderMobileSidebarServers() {
   if (!scroll || !this.serverManager) return;
   const servers = this.serverManager.getAll();
   if (servers.length === 0) {
-    scroll.innerHTML = '<span class="mobile-servers-empty">No servers added yet</span>';
+    scroll.innerHTML = `<span class="mobile-servers-empty">${t('servers.no_servers')}</span>`;
     return;
   }
   scroll.innerHTML = servers.map(s => {
@@ -2960,13 +2964,13 @@ _setupMobileSidebarServers() {
   // Add-server button
   document.getElementById('mobile-srv-add-btn')?.addEventListener('click', () => {
     this._editingServerUrl = null;
-    document.getElementById('add-server-modal-title').textContent = 'Add a Server';
+    document.getElementById('add-server-modal-title').textContent = t('modals.add_server.title');
     document.getElementById('add-server-modal').style.display = 'flex';
     document.getElementById('add-server-name-input').value = '';
     document.getElementById('server-url-input').value = '';
     document.getElementById('server-url-input').disabled = false;
     document.getElementById('add-server-icon-input').value = '';
-    document.getElementById('save-server-btn').textContent = 'Add Server';
+    document.getElementById('save-server-btn').textContent = t('modals.add_server.add_btn');
     document.getElementById('add-server-name-input').focus();
   });
   // Initial render
@@ -3031,7 +3035,7 @@ _addPollOptionRow(list, index) {
   const removeBtn = document.createElement('button');
   removeBtn.className = 'poll-option-remove';
   removeBtn.textContent = '\u00d7';
-  removeBtn.title = 'Remove';
+  removeBtn.title = t('modals.poll.remove_option');
   removeBtn.style.display = list.children.length >= 2 ? '' : 'none';
   removeBtn.addEventListener('click', () => {
     row.remove();
@@ -3282,10 +3286,10 @@ _saveRename() {
   const input = document.getElementById('rename-input');
   const newName = input.value.trim().replace(/\s+/g, ' ');
   if (!newName || newName.length < 2) {
-    return this._showToast('Display name must be at least 2 characters', 'error');
+    return this._showToast(t('toasts.display_name_too_short'), 'error');
   }
   if (!/^[a-zA-Z0-9_ ]+$/.test(newName)) {
-    return this._showToast('Letters, numbers, underscores, and spaces only', 'error');
+    return this._showToast(t('toasts.display_name_invalid_chars'), 'error');
   }
   this.socket.emit('rename-user', { username: newName });
   // Save bio
@@ -3306,7 +3310,7 @@ _uploadWithProgress(url, formData) {
     const text = document.getElementById('upload-progress-text');
     if (bar) { bar.style.display = 'flex'; }
     if (fill) { fill.style.width = '0%'; }
-    if (text) { text.textContent = 'Uploading...'; }
+    if (text) { text.textContent = t('common.uploading'); }
 
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
@@ -3353,7 +3357,7 @@ async _uploadImage(file) {
   const targetChannel = this.currentChannel;
   const _maxMb = parseInt(this.serverSettings?.max_upload_mb) || 25;
   if (file.size > _maxMb * 1024 * 1024) {
-    return this._showToast(`Image too large (max ${_maxMb} MB)`, 'error');
+    return this._showToast(t('toasts.image_too_large', { max: _maxMb }), 'error');
   }
 
   // Detect E2E DM — encrypt file bytes before uploading
@@ -3385,7 +3389,7 @@ async _uploadImage(file) {
       this.notifications.play('sent');
     } catch (err) {
       console.warn('[E2E] Image encryption failed:', err);
-      this._showToast('Encrypted image upload failed', 'error');
+      this._showToast(t('toasts.encrypted_image_failed'), 'error');
     }
     return;
   }
@@ -3404,7 +3408,7 @@ async _uploadImage(file) {
     });
     this.notifications.play('sent');
   } catch (err) {
-    this._showToast(err.message || 'Upload failed', 'error');
+    this._showToast(err.message || t('toasts.upload_failed'), 'error');
   }
 },
 

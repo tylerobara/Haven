@@ -91,9 +91,9 @@
       "join_btn": "Rejoindre",
       "create_channel": "Créer un salon",
       "channel_name_placeholder": "Nom du salon...",
-      "private_channel": "🔒 Privé",
+      "private_channel": "Privé",
       "private_hint": "(sur invitation)",
-      "temporary_channel": "⏱️ Temporaire",
+      "temporary_channel": "Temporaire",
       "temporary_hint": "(suppression auto)",
       "hours": "heures",
       "channels": "Salons",
@@ -115,11 +115,7 @@
       "close": "Fermer",
       "speed": "Vitesse",
       "vibrancy": "Vibrance",
-      "effect_speed": "Vitesse de l'effet",
-      "sacred_intensity": "Intensité sacrée",
-      "glitch_frequency": "Fréquence de glitch",
-      "crt_vignette": "Vignette CRT",
-      "crt_scanlines": "Scanlines CRT"
+      "effect_speed": "Vitesse de l'effet"
     },
 
     "actions": {
@@ -142,20 +138,33 @@
       "e2e_encrypted": "Chiffré de bout en bout",
       "protect_btn": "Protéger du nettoyage",
       "unprotect_btn": "Retirer la protection",
+      "unknown_user": "Inconnu",
       "placeholder": "Écrivez un message...",
       "placeholder_short": "Message..."
+    },
+
+    "input_bar": {
+      "emoji_btn": "Emoji",
+      "gif_btn": "Rechercher des GIFs",
+      "gif_label": "GIF",
+      "poll_btn": "Créer un sondage"
     },
 
     "profile": {
       "login_username": "Votre nom de connexion",
       "online": "En ligne",
       "offline": "Hors ligne",
-      "away": "Absent"
+      "away": "Absent",
+      "dnd": "Ne pas déranger",
+      "invisible": "Invisible",
+      "set_status": "Définir le statut",
+      "custom_status_placeholder": "Statut personnalisé..."
     }
   },
 
   "toasts": {
     "roles_updated": "Vos rôles ont été mis à jour",
+    "status_pending_reconnect": "Le statut sera mis à jour lors de la reconnexion",
     "channel_created": "Salon \"#{{name}}\" créé !\nCode : {{code}}",
     "channel_deleted": "Le salon a été supprimé",
     "channel_code_rotated": "Code du salon #{{name}} renouvelé",
@@ -192,12 +201,35 @@
     "encryption_key_unavailable": "Clé de chiffrement indisponible — message envoyé sans E2E",
     "encryption_failed": "Échec du chiffrement — message envoyé sans E2E",
     "join_voice_first": "Rejoignez d'abord le vocal pour partager de la musique",
-    "record_set": "🏆 {{user}} a établi un nouveau record sur {{game}} : {{score}} !"
+    "join_voice_required": "Rejoignez d'abord le vocal",
+    "paste_music_link": "Veuillez coller un lien musical",
+    "unsupported_music_link": "Lien non supporté — essayez Spotify, YouTube ou SoundCloud",
+    "no_more_results": "Plus de résultats",
+    "no_results_for": "Aucun résultat pour \"{{query}}\"",
+    "loading_more": "Chargement…",
+    "no_music_playing": "Aucune musique en cours",
+    "record_set": "{{user}} a établi un nouveau record sur {{game}} : {{score}} !"
   },
 
   "commands": {
     "play_usage": "Utilisation : /play <nom de la chanson> ou /play <url>",
     "gif_usage": "Utilisation : /gif <recherche>"
+  },
+
+  "msg_toolbar": {
+    "react": "Réagir",
+    "reply": "Répondre",
+    "pin": "Épingler",
+    "unpin": "Désépingler",
+    "edit": "Modifier",
+    "delete": "Supprimer"
+  },
+
+  "pinned_panel": {
+    "count_one": "{{count}} message épinglé",
+    "count_other": "{{count}} messages épinglés",
+    "no_messages": "Aucun message épinglé",
+    "pinned_by": "Épinglé par {{user}}"
   },
 
   "voice": {
@@ -212,7 +244,37 @@
     "kicked_user": "{{user}} expulsé du vocal",
     "full": "Vocal complet ({{current}}/{{max}})",
     "disabled": "Le vocal est désactivé dans ce salon",
-    "screen_share_disabled": "Le partage d'écran est désactivé dans ce salon"
+    "screen_share_disabled": "Le partage d'écran est désactivé dans ce salon",
+    "streams_disabled": "Les streams sont désactivés dans ce salon",
+    "music_disabled": "La musique est désactivée dans ce salon",
+    "joined": "Vocal rejoint",
+    "left": "Vocal quitté",
+    "mic_error": "Impossible d'accéder au microphone. Vérifiez les permissions ou utilisez HTTPS.",
+    "screen_share_stopped": "Partage d'écran arrêté",
+    "screen_share_started_audio": "Partage d'écran démarré avec audio",
+    "screen_share_started_no_audio": "Partage d'écran démarré (sans audio — activez-le dans le sélecteur du navigateur)",
+    "screen_share_cancelled": "Partage d'écran annulé ou non supporté",
+    "camera_stopped": "Caméra arrêtée",
+    "camera_started": "Caméra démarrée",
+    "camera_error": "Caméra indisponible ou permission refusée",
+    "stop_camera": "Arrêter la caméra",
+    "sharing_started": "{{who}} a commencé à partager son écran",
+    "status_muted": "Micro coupé",
+    "status_active": "Actif",
+    "status_deafened": "Sourdine activée",
+    "status_off": "Inactif",
+    "disconnect": "Déconnecter",
+    "music_stopped": "{{who}} a arrêté la musique",
+    "shuffle_on": "Lecture aléatoire activée",
+    "shuffle_off": "Lecture aléatoire désactivée",
+    "music_playing": "Musique en cours",
+
+    "panel": {
+      "camera": "Caméra",
+      "soundboard": "Soundboard",
+      "listen_together": "Écouter ensemble",
+      "settings": "Paramètres vocaux"
+    }
   },
 
   "channel": {
@@ -286,14 +348,14 @@
     "search_messages": "Rechercher des messages (Ctrl+F)",
     "pinned_messages": "Messages épinglés",
     "encryption_options": "Options de chiffrement",
-    "verify_encryption": "🔑 Vérifier le chiffrement",
-    "reset_encryption": "🔄 Réinitialiser les clés de chiffrement",
+    "verify_encryption": "Vérifier le chiffrement",
+    "reset_encryption": "Réinitialiser les clés de chiffrement",
     "search_placeholder": "Rechercher des messages...",
     "update_available": "Mise à jour disponible",
     "get_desktop_app": "Obtenir l'application bureau",
     "android_beta": "Bêta Android",
     "results": "Résultats",
-    "pinned_count": "📌 Messages épinglés",
+    "pinned_count": "Messages épinglés",
     "uploading": "Envoi en cours...",
     "cancel_reply": "Annuler la réponse",
     "message_placeholder_commands": "Écrivez un message... (/ pour les commandes)",
@@ -302,38 +364,161 @@
   },
 
   "media": {
-    "cameras": "📷 Caméras",
-    "streams": "🖥️ Flux",
+    "cameras": "Caméras",
+    "streams": "streams",
     "layout_auto": "Auto",
     "layout_stack": "Empilé",
     "layout_side": "Côte à côte",
     "layout_2x2": "2×2",
     "minimize": "Réduire",
     "close": "Fermer",
-    "listening_together": "🎵 Écoute en commun"
+    "listening_together": "Écoute en commun",
+
+    "camera_layout": "Disposition des caméras",
+    "change_layout": "Changer la disposition",
+    "layout_auto_title": "Grille automatique",
+    "layout_stack_title": "Empilement vertical",
+    "layout_side_title": "Côte à côte",
+    "layout_2x2_title": "Grille 2×2",
+    "camera_size": "Taille d'affichage des caméras",
+    "minimize_cameras": "Réduire les caméras",
+    "close_cameras": "Fermer les caméras",
+    "stream_layout": "Disposition des stream",
+    "stream_size": "Taille d'affichage des stream",
+    "minimize_streams": "Réduire les streams",
+    "close_streams": "Fermer les streams",
+    "music_popout": "Détacher le lecteur",
+    "music_prev": "Piste précédente",
+    "music_play_pause": "Lecture / Pause",
+    "music_next": "Piste suivante",
+    "music_shuffle": "Lecture aléatoire",
+    "music_seek": "Avancer",
+    "music_mute": "Couper la musique",
+    "music_volume": "Volume de la musique",
+    "music_stop": "Fermer / arrêter la musique",
+    "fullscreen": "Plein écran",
+    "exit_fullscreen": "Quitter le plein écran",
+    "pop_out_camera": "Détacher la caméra",
+    "pop_in_camera": "Rattacher la caméra",
+    "close_camera": "Fermer la caméra",
+    "pop_out_stream": "Détacher le stream",
+    "pop_in_stream": "Rattacher le stream",
+    "stream_minimize": "Réduire (garder l'audio)",
+    "stream_close": "Fermer (couper l'audio)",
+    "show_hidden_streams": "Afficher les stream masqués",
+    "hidden_streams_one": "{{count}} stream masqué",
+    "hidden_streams_other": "{{count}} streams masqués",
+    "spotify_volume_hint": "Utilisez les contrôles intégrés de Spotify pour le volume",
+    "mute_unmute": "Couper/Réactiver",
+    "stream_mute": "Couper/Réactiver l'audio du stream",
+    "stream_volume": "Volume du stream (0–200%)",
+    "pop_back_in": "Rattacher",
+    "show_music_player": "Cliquez pour afficher le lecteur",
+    "music_pip_minimize": "Réduire (retour au panneau)"
   },
 
   "right_sidebar": {
-    "voice_title": "🔊 Vocal",
+    "voice_title": "Vocal",
     "close_panel": "Fermer le panneau",
     "no_one_in_voice": "Personne dans le vocal",
-    "online_title": "👥 En ligne",
+    "online_title": "En ligne",
     "select_channel": "Sélectionnez un salon"
   },
 
+  "users": {
+    "no_one_here": "Personne ici",
+    "online_count": "En ligne — {{count}}",
+    "offline_count": "Hors ligne — {{count}}",
+    "opening_dm": "Ouverture d'un MP avec {{name}}…",
+    "direct_message": "Message privé",
+    "more_actions": "Plus d'actions",
+    "flappy_score_title": "Flappy Container : {{score}}",
+    "you_tag": "vous",
+    "view_full_bio": "Voir la bio complète",
+    "show_less": "Réduire",
+    "no_bio": "Pas encore de bio — cliquez sur Modifier le profil pour en ajouter une",
+    "edit_nickname": "Modifier le pseudo",
+    "set_nickname": "Définir un pseudo",
+    "edit_profile": "Modifier le profil",
+    "message_btn": "Message",
+    "profile_roles_label": "Rôles",
+    "member_since_label": "Membre depuis",
+    "streaming_live": "EN DIRECT",
+    "streaming_no_viewers": "Diffusion en cours",
+    "streaming_viewers_one": "Diffusion · {{count}} spectateur",
+    "streaming_viewers_other": "Diffusion · {{count}} spectateurs",
+    "watching_stream_title": "Regarde {{names}}",
+    "can_hear_again": "{{name}} peut à nouveau vous entendre",
+    "cannot_hear": "{{name}} ne peut plus vous entendre",
+    "nickname_cleared": "Pseudo effacé",
+    "nickname_set": "Pseudo défini sur \"{{name}}\"",
+    "typing": "{{name}} est en train d'écrire...",
+    "set_nickname_title": "Définir un pseudo",
+    "nickname_hint": "Seulement vous verrez ce pseudo pour {{name}}.",
+    "nickname_clear_btn": "Effacer",
+    "edit_profile_modal_title": "Modifier le profil",
+    "bio_label": "Bio",
+    "bio_max_hint": "(max 190 caractères)",
+    "bio_placeholder": "Parlez de vous…",
+    "gear_menu": {
+      "assign_role": "Attribuer un rôle",
+      "kick": "Expulser",
+      "mute": "Mettre en sourdine",
+      "ban": "Bannir",
+      "delete_user": "Supprimer l'utilisateur",
+      "transfer_admin": "Transférer l'administration"
+    },
+    "voice_menu": {
+      "volume": "Volume",
+      "volume_title": "Volume : {{vol}}%",
+      "watch_stream": "Regarder le stream",
+      "mute": "Mettre en sourdine",
+      "unmute": "Réactiver",
+      "deafen": "Couper",
+      "undeafen": "Rétablir",
+      "voice_kick": "Expulser du vocal",
+      "voice_kick_title": "Retirer du canal vocal",
+      "mute_hint": "Sourdine = vous ne les entendez pas",
+      "deafen_hint": "Couper = ils ne vous entendent pas"
+    }
+  },
+
+  "context": {
+    "view_profile": "Voir le profil",
+    "invite_to_channel": "Inviter dans un salon",
+    "no_users": "Aucun utilisateur",
+    "push_native_desktop": "Utilisation des notifications natives du bureau",
+    "push_requires_https": "Nécessite HTTPS",
+    "push_not_supported": "Non supporté",
+    "push_blocked_brave": "Bloqué par Brave",
+    "push_registration_failed": "Échec de l'inscription",
+    "push_enabled": "Activé",
+    "push_disabled": "Désactivé",
+    "push_blocked": "Bloqué",
+    "push_permission_denied": "Permission refusée",
+    "flash_not_installed": "Jeux Flash non installés (~37 Mo à télécharger)",
+    "flash_download_btn": "Télécharger les jeux Flash",
+    "flash_downloading": "Téléchargement…",
+    "flash_install_result": "Jeux Flash : {{installed}} installés, {{already}} déjà présents, {{errors}} échecs",
+    "flash_not_installed_label": "Non installé"
+  },
+
   "voice_settings": {
-    "audio_devices": "🎧 Périphériques audio",
+    "audio_devices": "Périphériques audio",
     "input": "Entrée",
     "default_mic": "Microphone par défaut",
     "output": "Sortie",
     "default_speaker": "Haut-parleur par défaut",
-    "noise_reduction": "🤫 Réduction du bruit",
+    "noise_reduction": "Réduction du bruit",
     "off": "Désactivé",
     "noise_gate": "Porte de bruit",
     "suppression_ai": "Suppression (IA)",
     "gate_sensitivity": "Sensibilité de la porte",
-    "mic_level": "🎙️ Niveau micro",
-    "screen_share_quality": "🖥️ Qualité du partage d'écran",
+    "gate_threshold": "Seuil de la porte",
+    "gate_slider_hint": "Porte de bruit : 0 = désactivé, 100 = agressif",
+    "noise_mode_hint": "Désactivé = aucun traitement, Porte = silence sous le seuil, Suppression = suppression IA du bruit (RNNoise)",
+    "mic_level": "Niveau micro",
+    "screen_share_quality": "Qualité du partage d'écran",
     "resolution": "Résolution",
     "resolution_source": "Source",
     "frame_rate": "Fréquence d'images"
@@ -352,63 +537,72 @@
   },
 
   "settings": {
-    "title": "⚙️ Paramètres",
+    "title": "Paramètres",
     "nav": {
       "user_group": "Utilisateur",
-      "language": "🌐 Langue",
-      "layout": "📐 Disposition",
-      "sounds": "🔔 Sons",
-      "push": "📲 Notifications",
-      "password": "🔒 Mot de passe",
-      "two_factor": "🔐 Double authentification",
-      "recovery": "🔑 Récupération",
-      "account": "⚠️ Compte",
-      "plugins": "🧩 Plugins & Thèmes",
-      "shortcuts": "⌨️ Raccourcis",
-      "desktop_app": "🖥️ Application bureau",
+      "language": "Langue",
+      "layout": "Disposition",
+      "sounds": "Sons",
+      "push": "Notifications",
+      "password": "Mot de passe",
+      "two_factor": "Double authentification",
+      "recovery": "Récupération",
+      "account": "Compte",
+      "plugins": "Plugins & Thèmes",
+      "shortcuts": "Raccourcis",
+      "desktop_app": "Application bureau",
       "admin_group": "Admin",
-      "branding": "🏠 Identité visuelle",
-      "members": "👥 Membres",
-      "whitelist": "🛡️ Liste blanche",
-      "invite": "🌐 Code d'invitation",
-      "cleanup": "🗑️ Nettoyage",
-      "limits": "📁 Limites",
-      "admin_sounds": "🔊 Sons",
-      "emojis": "😎 Emojis",
-      "roles": "👑 Rôles",
-      "tunnel": "🧭 Tunnel",
-      "bots": "🤖 Bots",
-      "import": "📦 Importer",
-      "mod_mode": "🔧 Mode mod"
+      "branding": "Identité visuelle",
+      "members": "Membres",
+      "whitelist": "Liste blanche",
+      "invite": "Code d'invitation",
+      "cleanup": "Nettoyage",
+      "limits": "Limites",
+      "admin_sounds": "Sons",
+      "emojis": "Emojis",
+      "roles": "Rôles",
+      "tunnel": "Tunnel",
+      "bots": "Bots",
+      "import": "Importer",
+      "mod_mode": "Mode mod"
     },
     "language_section": {
-      "title": "🌐 Langue",
+      "title": "Langue",
       "label": "Langue",
       "hint": "Les changements s'appliquent immédiatement"
     },
 
     "layout_density": {
-      "title": "📐 Densité de disposition",
+      "title": "Densité de disposition",
       "compact": "Compact",
+      "compact_hint": "Compact — espacement réduit, avatars plus petits",
       "cozy": "Confortable",
-      "spacious": "Espacé"
+      "cozy_hint": "Confortable — disposition équilibrée par défaut",
+      "spacious": "Espacé",
+      "spacious_hint": "Espacé — plus d'espace entre les éléments"
     },
     "font_size": {
-      "title": "🔤 Taille de police",
+      "title": "Taille de police",
       "small": "Petite",
+      "small_hint": "Petite — base 13px",
       "normal": "Normale",
+      "normal_hint": "Normale — base 15px (par défaut)",
       "large": "Grande",
-      "xl": "TG"
+      "large_hint": "Grande — base 17px",
+      "xl": "TG",
+      "xl_hint": "Très grande — base 20px"
     },
     "image_display": {
-      "title": "🖼️ Affichage des images",
+      "title": "Affichage des images",
       "thumbnail": "Miniature",
-      "full": "Complet"
+      "thumbnail_hint": "Miniature — aperçu réduit, cliquer pour agrandir",
+      "full": "Complet",
+      "full_hint": "Complet — images en grand format comme Discord"
     },
     "sounds_section": {
-      "title": "🔔 Sons",
+      "title": "Sons",
       "notifications": "Notifications",
-      "auto_accept_streams": "Accepter automatiquement les flux",
+      "auto_accept_streams": "Accepter automatiquement les streams",
       "volume": "Volume",
       "messages": "Messages",
       "msg_sent": "Message envoyé",
@@ -416,55 +610,88 @@
       "mentions": "@Mentions",
       "user_joined": "Utilisateur rejoint",
       "user_left": "Utilisateur parti",
-      "sound_manager_btn": "🎵 Gestionnaire de sons"
+      "sound_manager_btn": "Gestionnaire de sons"
     },
     "push_section": {
-      "title": "📲 Notifications push",
+      "title": "Notifications push",
       "enable": "Activer les notifications push",
       "checking": "Vérification..."
     },
     "password_section": {
-      "title": "🔒 Mot de passe",
+      "title": "Mot de passe",
       "current_placeholder": "Mot de passe actuel",
       "new_placeholder": "Nouveau mot de passe (8+ caractères)",
       "confirm_placeholder": "Confirmer le nouveau mot de passe",
-      "change_btn": "Changer le mot de passe"
+      "change_btn": "Changer le mot de passe",
+      "fill_fields": "Remplissez tous les champs",
+      "too_short": "Le nouveau mot de passe doit faire 8+ caractères",
+      "mismatch": "Les mots de passe ne correspondent pas",
+      "changed": "Mot de passe modifié !",
+      "failed": "Échec",
+      "network_error": "Erreur réseau"
     },
     "two_factor_section": {
-      "title": "🔐 Double authentification",
+      "title": "Double authentification",
+      "enable_hint": "Protégez votre compte avec une application d'authentification TOTP (Google Authenticator, Authy, etc.).",
       "enable_btn": "Activer la double authentification",
+      "copy_secret_title": "Copier le secret",
+      "copy_secret_btn": "Copier",
+      "disable_password_placeholder": "Entrez le mot de passe pour modifier",
       "setup_hint": "Scannez ce QR code avec votre application d'authentification :",
       "manual_hint": "Ou saisissez ce secret manuellement :",
       "verify_placeholder": "Entrez le code à 6 chiffres pour confirmer",
       "verify_btn": "Vérifier & Activer",
-      "backup_title": "🗝️ Codes de secours",
+      "backup_title": "Codes de secours",
       "backup_hint": "Conservez ces codes en lieu sûr. Chacun peut être utilisé une fois si vous perdez l'accès à votre application.",
-      "copy_backup_btn": "📋 Copier les codes de secours",
+      "copy_backup_btn": "Copier les codes de secours",
       "done_btn": "Terminé",
-      "enabled_text": "✅ La double authentification est activée",
+      "enabled_text": "La double authentification est activée",
       "disable_btn": "Désactiver la 2FA",
-      "regen_backup_btn": "Régénérer les codes de secours"
+      "regen_backup_btn": "Régénérer les codes de secours",
+      "error": "Erreur",
+      "backup_codes_remaining_one": "{{count}} code de secours restant",
+      "backup_codes_remaining_other": "{{count}} codes de secours restants",
+      "connection_error": "Erreur de connexion",
+      "setup_failed": "Échec de la configuration",
+      "verify_prompt": "Entrez le code à 6 chiffres de votre application d'authentification",
+      "verify_failed": "Échec de la vérification",
+      "disable_prompt": "Entrez votre mot de passe",
+      "failed": "Échec",
+      "regen_prompt": "Entrez votre mot de passe"
     },
     "recovery_section": {
-      "title": "🔑 Récupération de compte",
+      "title": "Récupération de compte",
+      "desc": "Générez des codes de récupération à usage unique pour retrouver l'accès si vous oubliez votre mot de passe. Conservez-les en lieu sûr — ils fonctionnent comme une clé de dernier recours.",
+      "e2e_warning": "<strong>Important :</strong> L'utilisation d'un code de récupération pour réinitialiser votre mot de passe détruira définitivement et irrémédiablement vos clés de chiffrement de bout en bout. Tout l'historique des messages directs chiffrés deviendra illisible. Cette action est irréversible.",
+      "save_hint": "Enregistrez ces codes maintenant — ils ne seront plus affichés. Chaque code ne peut être utilisé qu'une seule fois.",
       "confirm_password_placeholder": "Confirmez votre mot de passe",
       "generate_btn": "Générer des codes de récupération",
-      "copy_codes_btn": "📋 Copier les codes",
-      "done_btn": "Terminé"
+      "copy_codes_btn": "Copier les codes",
+      "done_btn": "Terminé",
+      "status_one": "Vous avez {{count}} code de récupération inutilisé.",
+      "status_other": "Vous avez {{count}} codes de récupération inutilisés.",
+      "no_codes": "Vous n'avez aucun code de récupération. Générez-en maintenant.",
+      "connection_error": "Erreur de connexion",
+      "confirm_prompt": "Entrez votre mot de passe pour confirmer",
+      "failed": "Échec"
     },
     "delete_account_section": {
-      "title": "⚠️ Supprimer le compte",
+      "title": "Supprimer le compte",
       "desc": "Supprimez définitivement votre compte. Cette action est irréversible.",
-      "btn": "Supprimer mon compte"
+      "btn": "Supprimer mon compte",
+      "password_required": "Le mot de passe est obligatoire",
+      "deleting": "Suppression...",
+      "password_placeholder": "Entrez votre mot de passe"
     },
     "plugins_section": {
-      "title": "🧩 Plugins & Thèmes",
-      "refresh_btn": "🔄 Actualiser",
+      "title": "Plugins & Thèmes",
+      "hint": "Déposez les fichiers <code>.plugin.js</code> dans le dossier <code>plugins/</code> et les fichiers <code>.theme.css</code> dans le dossier <code>themes/</code>, puis actualisez.",
+      "refresh_btn": "Actualiser",
       "plugins_label": "Plugins",
       "themes_label": "Thèmes"
     },
     "desktop_shortcuts_section": {
-      "title": "⌨️ Raccourcis bureau",
+      "title": "Raccourcis bureau",
       "mute_unmute": "Couper / Réactiver le micro",
       "deafen_undeafen": "Sourdine / Désactiver la sourdine",
       "ptt": "Push-to-Talk",
@@ -473,67 +700,67 @@
       "clear_btn": "Effacer"
     },
     "desktop_app_section": {
-      "title": "🖥️ Application bureau",
+      "title": "Application bureau",
       "start_on_login": "Démarrer à la connexion",
       "start_hidden": "Démarrer réduit dans la barre système",
       "minimize_to_tray": "Réduire dans la barre système à la fermeture",
       "force_sdr": "Forcer la couleur SDR (sRGB)"
     },
     "admin": {
-      "title": "🛡️ Admin",
-      "branding_title": "🏠 Identité visuelle",
+      "title": "Admin",
+      "branding_title": "Identité visuelle",
       "server_name": "Nom du serveur",
       "login_title": "Titre de connexion",
       "default_theme": "Thème par défaut",
       "no_theme": "Aucun (choix de l'utilisateur)",
       "upload_btn": "Téléverser",
       "remove_btn": "Supprimer",
-      "members_title": "👥 Membres",
+      "members_title": "Membres",
       "show_members": "Afficher les membres",
       "members_online_only": "En ligne uniquement",
       "members_all": "Tous les membres",
       "members_hidden": "Masqués",
-      "view_bans_btn": "📋 Voir les banissements",
-      "view_deleted_btn": "🗑️ Voir les comptes supprimés",
-      "view_all_members_btn": "👥 Voir tous les membres",
+      "view_bans_btn": "Voir les banissements",
+      "view_deleted_btn": "Voir les comptes supprimés",
+      "view_all_members_btn": "Voir tous les membres",
       "update_banner_label": "Bannière de mise à jour (admins uniquement)",
-      "whitelist_title": "🛡️ Liste blanche",
+      "whitelist_title": "Liste blanche",
       "whitelist_enabled": "Activée",
       "whitelist_username_placeholder": "Nom d'utilisateur...",
       "whitelist_add_btn": "Ajouter",
-      "invite_title": "🌐 Code d'invitation serveur",
+      "invite_title": "Code d'invitation serveur",
       "invite_generate_btn": "Générer",
       "invite_clear_btn": "Effacer",
-      "cleanup_title": "🗑️ Nettoyage automatique",
+      "cleanup_title": "Nettoyage automatique",
       "cleanup_enabled": "Activé",
       "cleanup_max_age": "Âge maximum (jours)",
       "cleanup_max_size": "Taille max de la BDD (Mo)",
-      "cleanup_run_btn": "🧹 Lancer le nettoyage",
-      "uploads_title": "📁 Envois & Limites",
+      "cleanup_run_btn": "Lancer le nettoyage",
+      "uploads_title": "Envois & Limites",
       "max_upload": "Taille max d'envoi (Mo)",
       "max_sound": "Taille max d'un son (Ko)",
       "max_emoji": "Taille max d'un emoji (Ko)",
       "max_poll_options": "Options max par sondage",
-      "sounds_title": "🔊 Sons personnalisés",
-      "manage_sounds_btn": "⚙️ Gérer les sons",
-      "emojis_title": "😎 Emojis personnalisés",
-      "manage_emojis_btn": "⚙️ Gérer les emojis",
-      "roles_title": "👑 Gestion des rôles",
-      "manage_roles_btn": "⚙️ Gérer les rôles",
-      "reset_roles_btn": "🔄 Réinitialiser par défaut",
-      "tunnel_title": "🧭 Tunnel",
+      "sounds_title": "Sons personnalisés",
+      "manage_sounds_btn": "Gérer les sons",
+      "emojis_title": "Emojis personnalisés",
+      "manage_emojis_btn": "Gérer les emojis",
+      "roles_title": "Gestion des rôles",
+      "manage_roles_btn": "Gérer les rôles",
+      "reset_roles_btn": "Réinitialiser par défaut",
+      "tunnel_title": "Tunnel",
       "tunnel_provider": "Fournisseur",
       "tunnel_start_btn": "Démarrer le tunnel",
       "tunnel_inactive": "Inactif",
-      "bots_title": "🤖 Webhooks / Bots",
-      "manage_bots_btn": "⚙️ Gérer les bots",
+      "bots_title": "Webhooks / Bots",
+      "manage_bots_btn": "Gérer les bots",
       "no_bots": "Aucun bot configuré",
-      "import_title": "📦 Import Discord",
-      "import_btn": "📦 Importer depuis Discord",
-      "modmode_title": "🔧 Mode mod",
-      "modmode_toggle_btn": "🔧 Activer/désactiver le mode mod",
+      "import_title": "Import Discord",
+      "import_btn": "Importer depuis Discord",
+      "modmode_title": "Mode mod",
+      "modmode_toggle_btn": "Activer/désactiver le mode mod",
       "modmode_reset_btn": "↺ Réinitialiser la disposition",
-      "save_btn": "💾 Sauvegarder les paramètres",
+      "save_btn": "Sauvegarder les paramètres",
       "save_hint": "Les modifications s'appliquent uniquement après avoir cliqué sur Sauvegarder. Fermer (✕) pour annuler.",
       "login_title_hint": "Titre personnalisé affiché sur l'écran de connexion sous le logo HAVEN.",
       "server_icon_hint": "Icône du serveur (carrée, max 2 Mo)",
@@ -583,16 +810,16 @@
     "wizard": {
       "title": "Bienvenue sur Haven",
       "subtitle": "Configurons votre serveur. Cela ne prend qu'une minute.",
-      "step1_title": "🏠 Votre serveur",
+      "step1_title": "Votre serveur",
       "step1_desc": "Tout est déjà en marche. Voici ce qui a été configuré automatiquement :",
-      "check_ssl": "✅ Certificats SSL générés (connexions chiffrées)",
-      "check_db": "✅ Base de données créée",
-      "check_keys": "✅ Clés de sécurité générées",
-      "check_admin": "✅ Compte administrateur créé (c'est vous !)",
+      "check_ssl": "Certificats SSL générés (connexions chiffrées)",
+      "check_db": "Base de données créée",
+      "check_keys": "Clés de sécurité générées",
+      "check_admin": "Compte administrateur créé (c'est vous !)",
       "server_name_label": "Nom de votre serveur :",
       "server_name_placeholder": "ex. Mon serveur, Le repaire",
       "server_name_hint": "C'est ce que vos amis voient dans leur liste de serveurs.",
-      "step2_title": "📢 Créer votre premier salon",
+      "step2_title": "Créer votre premier salon",
       "step2_desc": "Les salons sont l'endroit où les conversations se déroulent. Créez-en un pour commencer.",
       "channel_name_label": "Nom du salon :",
       "channel_name_placeholder": "ex. Général, Jeux, Discussion",
@@ -600,16 +827,16 @@
       "invite_code": "Code d'invitation :",
       "copy_btn": "Copier",
       "share_hint": "Partagez ce code avec vos amis pour qu'ils puissent rejoindre ce salon.",
-      "step3_title": "🌐 Accès internet",
+      "step3_title": "Accès internet",
       "step3_desc": "Voulez-vous que des amis extérieurs à votre WiFi se connectent ? Vérifions si votre serveur est accessible depuis internet.",
       "checking_port": "Vérification de l'accessibilité du port...",
-      "check_connection_btn": "🔍 Vérifier ma connexion",
+      "check_connection_btn": "Vérifier ma connexion",
       "lan_only_hint": "Réseau local uniquement ? Si vos amis sont sur le même WiFi, vous pouvez ignorer cette étape.",
-      "step4_title": "🎉 Vous êtes prêt !",
+      "step4_title": "Vous êtes prêt !",
       "step4_desc": "Haven est opérationnel et prêt pour vos amis.",
-      "check_configured": "✅ Serveur configuré",
-      "check_channel_created": "✅ Premier salon créé",
-      "check_port_skipped": "⏭️ Vérification du port ignorée",
+      "check_configured": "Serveur configuré",
+      "check_channel_created": "Premier salon créé",
+      "check_port_skipped": "Vérification du port ignorée",
       "how_friends_join": "Comment vos amis se connectent :",
       "step_browser": "Ils ouvrent {{url}} dans leur navigateur",
       "step_cert": "Cliquer sur « Avancé » → « Continuer » sur l'avertissement du certificat",
@@ -619,7 +846,7 @@
       "back_btn": "← Retour",
       "skip_btn": "Ignorer la configuration",
       "next_btn": "Suivant →",
-      "get_started_btn": "🚀 Commencer"
+      "get_started_btn": "Commencer"
     },
     "code_settings": {
       "title": "Paramètres du code de salon",
@@ -633,7 +860,8 @@
       "rotation_time": "Basé sur le temps — rotation toutes les X minutes",
       "rotation_joins": "Basé sur les connexions — rotation après X nouvelles connexions",
       "interval_label": "Intervalle de rotation (minutes)",
-      "rotate_now_btn": "🔄 Changer maintenant"
+      "rotate_after_joins": "Changer après X connexions",
+      "rotate_now_btn": "Changer maintenant"
     },
     "add_server": {
       "title": "Ajouter un serveur",
@@ -671,7 +899,9 @@
       "scope_server": "Serveur entier"
     },
     "organize": {
-      "title": "📋 Organiser",
+      "title": "Organiser",
+      "back_btn": "← Retour",
+      "back_title": "Retour à la liste des salons",
       "sort_label": "Tri :",
       "sort_manual": "Manuel",
       "sort_alpha": "Alphabétique",
@@ -683,59 +913,70 @@
       "cat_az": "A → Z",
       "cat_za": "Z → A",
       "move_up": "⬆ Haut",
+      "move_up_title": "Monter le salon sélectionné",
       "move_down": "⬇ Bas",
+      "move_down_title": "Descendre le salon sélectionné",
       "tag_placeholder": "Nom du tag…",
-      "tag_set_btn": "🏷️ Définir",
-      "tag_remove_btn": "✕"
+      "tag_set_btn": "Définir",
+      "tag_set_title": "Appliquer le tag",
+      "tag_remove_btn": "✕",
+      "tag_remove_title": "Retirer le tag"
     },
     "dm_organize": {
-      "title": "📋 Organiser les MPs",
+      "title": "Organiser les MPs",
       "desc": "Classez vos conversations en catégories repliables",
       "sort_label": "Tri :",
       "sort_manual": "Manuel",
       "sort_alpha": "Alphabétique",
       "sort_recent": "Activité récente",
-      "category_placeholder": "Catégorie…"
+      "category_placeholder": "Catégorie…",
+      "category_set_title": "Appliquer la catégorie",
+      "category_remove_title": "Retirer la catégorie"
     },
     "move_channel": {
-      "title": "📦 Déplacer le salon"
+      "title": "Déplacer le salon"
+    },
+    "rename_channel": {
+      "title": "Renommer le salon",
+      "prompt": "Renommer #{{name}} :\nEntrez le nouveau nom :"
     },
     "poll": {
-      "title": "📊 Créer un sondage",
+      "title": "Créer un sondage",
       "question_label": "Question",
       "question_placeholder": "Qu'est-ce que vous voulez demander ?",
       "options_label": "Options",
       "add_option_btn": "+ Ajouter une option",
       "multi_vote": "Autoriser plusieurs votes",
       "anonymous": "Votes anonymes",
-      "create_btn": "Créer le sondage"
+      "create_btn": "Créer le sondage",
+      "remove_option": "Supprimer"
     },
     "sub_panel": {
-      "title": "📡 Abonnements aux sous-salons",
+      "title": "Abonnements aux sous-salons",
       "desc": "Abonnez-vous pour recevoir des notifications. Les salons non abonnés apparaissent toujours mais ne vous notifient pas."
     },
     "create_sub": {
       "title": "Créer un sous-salon",
       "name_label": "Nom du sous-salon",
       "name_placeholder": "nom-du-sous-salon...",
-      "private_label": "🔒 Privé",
+      "private_label": "Privé",
       "private_hint": "(sur invitation, caché des non-membres)",
-      "temporary_label": "⏱️ Temporaire",
+      "temporary_label": "Temporaire",
       "temporary_hint": "(suppression auto)",
       "hours": "heures",
-      "admin_note": "ℹ️ Les admins ont toujours accès à tous les salons, y compris les privés.",
+      "admin_note": "Les admins ont toujours accès à tous les salons, y compris les privés.",
       "create_btn": "Créer"
     },
     "webhook": {
-      "title": "🤖 Webhooks",
+      "title": "Webhooks",
       "name_label": "Nom du nouveau webhook",
       "name_placeholder": "Mon Bot",
       "create_btn": "Créer",
-      "token_warning": "⚠️ Copiez cette URL maintenant — vous ne reverrez plus le token complet !",
-      "copy_btn": "📋 Copier"
+      "token_warning": "Copiez cette URL maintenant — vous ne reverrez plus le token complet !",
+      "copy_btn": "Copier"
     },
     "channel_roles": {
-      "title": "👑 Rôles du salon",
+      "title": "Rôles du salon",
       "members_title": "Membres",
       "role_config_title": "Configuration du rôle",
       "select_role": "-- Sélectionner un rôle --",
@@ -746,11 +987,11 @@
       "select_to_configure": "Sélectionnez un rôle à configurer"
     },
     "activities": {
-      "title": "🎮 Activités"
+      "title": "Activités"
     },
     "game_overlay": {
       "volume_label": "Volume du jeu",
-      "popout_btn": "↗️ Détacher",
+      "popout_btn": "Détacher",
       "close_btn": "✕ Fermer"
     },
     "push_error": {
@@ -759,10 +1000,26 @@
       "got_it": "J'ai compris"
     },
     "e2e_password": {
-      "title": "🔐 Mot de passe requis",
+      "title": "Mot de passe requis",
       "desc": "Le chiffrement de bout en bout nécessite votre mot de passe pour déverrouiller vos clés. Saisissez votre mot de passe pour continuer.",
       "placeholder": "Entrez votre mot de passe",
       "unlock_btn": "Déverrouiller"
+    },
+
+    "e2e_verify": {
+      "desc": "Comparez ce numéro de sécurité avec <strong>{{name}}</strong> via un autre canal (en personne, appel téléphonique, SMS, etc.). S'ils correspondent, votre conversation est chiffrée de bout en bout et personne ne l'intercepte.",
+      "copy_btn": "Copier le code"
+    },
+
+    "e2e_reset": {
+      "warning_irreversible": "<strong>Cette action est irréversible.</strong> La réinitialisation de vos clés de chiffrement va :",
+      "li_new_keys": "Générer une toute nouvelle paire de clés",
+      "li_unreadable": "Rendre <strong>TOUS</strong> les messages chiffrés précédents <strong>définitivement illisibles</strong> — pour vous et votre interlocuteur",
+      "li_reverify": "Obliger vos partenaires à re-vérifier le chiffrement avec vous",
+      "warning_permanent": "<strong>Cette action est définitive. Il n'existe aucune récupération possible. Les messages sont perdus à jamais.</strong>",
+      "type_confirm": "Tapez <strong>RESET</strong> pour confirmer :",
+      "confirm_placeholder": "RESET",
+      "confirm_btn": "Réinitialiser mes clés"
     },
     "android_beta": {
       "title": "Application Android Haven",
@@ -773,7 +1030,7 @@
       "feature_chat": "Chat et vocal complets",
       "feature_built": "Construite de zéro pour Haven",
       "note": "Demandez l'accès à la bêta fermée sur Google Play :",
-      "request_btn": "🚀 Demander l'accès bêta",
+      "request_btn": "Demander l'accès bêta",
       "later_btn": "Peut-être plus tard",
       "dont_show": "Ne plus afficher"
     },
@@ -785,56 +1042,57 @@
       "feature_tray": "Réduire dans la barre système",
       "feature_audio": "Routage audio par application",
       "feature_launcher": "Lanceur de serveur intégré",
-      "install_btn": "⬇ Installer Haven",
+      "install_btn": "Installer Haven",
       "later_btn": "Peut-être plus tard",
       "dont_show": "Ne plus afficher"
     },
     "donors": {
       "title": "Merci",
       "subtitle": "Haven est construit avec amour et maintenu en vie grâce à la générosité de personnes comme vous. Chaque donation — grande ou petite — signifie énormément.",
-      "sponsors_title": "✨ Sponsors",
-      "donors_title": "💛 Donateurs",
+      "sponsors_title": "Sponsors",
+      "donors_title": "Donateurs",
       "note": "Les nouveaux donateurs seront ajoutés à chaque version. Si vous avez donné et ne voyez pas votre nom, il apparaîtra dans la prochaine mise à jour !",
-      "kofi_btn": "☕ Soutenir Haven sur Ko-fi"
+      "kofi_btn": "Soutenir Haven sur Ko-fi"
     },
     "listen_together": {
-      "title": "🎵 Écoute en commun",
+      "title": "Écoute en commun",
       "desc": "Collez un lien Spotify, YouTube ou SoundCloud pour le partager avec tout le monde dans le vocal",
       "link_label": "Lien musical",
       "link_placeholder": "https://open.spotify.com/track/...",
       "share_btn": "Partager avec le salon"
     },
     "manage_servers": {
-      "title": "⚙ Gérer les serveurs",
+      "title": "Gérer les serveurs",
       "desc": "Modifiez ou supprimez vos serveurs liés",
-      "add_btn": "+ Ajouter un serveur"
+      "add_btn": "+ Ajouter un serveur",
+      "edit_title": "Modifier le serveur"
     },
     "sound_manager": {
-      "title": "🔊 Gestionnaire de sons",
-      "soundboard_tab": "🎵 Soundboard",
-      "assign_tab": "🔔 Assigner aux événements",
-      "manage_tab": "⚙️ Gérer",
+      "title": "Gestionnaire de sons",
+      "soundboard_tab": "Soundboard",
+      "assign_tab": "Assigner aux événements",
+      "manage_tab": "Gérer",
       "search_placeholder": "Rechercher des sons...",
       "no_sounds": "Aucun son disponible",
-      "new_message": "📨 Nouveau message",
-      "msg_sent": "📤 Message envoyé",
-      "mention": "📢 @Mention",
-      "user_joined": "👋 Utilisateur rejoint",
-      "user_left": "🚪 Utilisateur parti",
+      "new_message": "Nouveau message",
+      "msg_sent": "Message envoyé",
+      "mention": "@Mention",
+      "user_joined": "Utilisateur rejoint",
+      "user_left": "Utilisateur parti",
       "name_placeholder": "Nom du son...",
       "upload_btn": "Téléverser",
       "no_custom_sounds": "Aucun son personnalisé téléversé"
     },
     "emoji_mgmt": {
-      "title": "😎 Gestion des emojis",
+      "title": "Gestion des emojis",
       "name_placeholder": "nom_emoji",
       "upload_btn": "Téléverser",
       "no_emojis": "Aucun emoji personnalisé téléversé",
       "crop_applied": "Recadrage appliqué — prêt à téléverser",
-      "adjust_btn": "✏️ Ajuster"
+      "adjust_btn": "Ajuster"
     },
     "emoji_crop": {
-      "title": "✂️ Recadrer l'emoji",
+      "title": "Recadrer l'emoji",
       "hint": "Glisser pour repositionner · Curseur pour zoomer",
       "confirm_btn": "Utiliser ce recadrage"
     },
@@ -842,10 +1100,10 @@
       "title": "Utilisateurs bannis"
     },
     "deleted_users": {
-      "title": "🗑️ Comptes supprimés"
+      "title": "Comptes supprimés"
     },
     "all_members": {
-      "title": "👥 Tous les membres",
+      "title": "Tous les membres",
       "search_placeholder": "Rechercher des utilisateurs...",
       "filter_all": "Tous",
       "filter_online": "En ligne",
@@ -854,12 +1112,12 @@
       "filter_banned": "Bannis"
     },
     "role_management": {
-      "title": "👑 Gestion des rôles",
+      "title": "Gestion des rôles",
       "new_role_btn": "+ Nouveau rôle",
       "select_to_edit": "Sélectionnez un rôle à modifier"
     },
     "assign_role": {
-      "title": "👑 Assigner un rôle",
+      "title": "Assigner un rôle",
       "role_label": "Rôle",
       "select_role": "-- Sélectionner un rôle --",
       "scope_label": "Portée",
@@ -868,7 +1126,7 @@
       "assign_btn": "Assigner"
     },
     "role_assign_center": {
-      "title": "👑 Assignation des rôles",
+      "title": "Assignation des rôles",
       "subtitle": "Sélectionnez un utilisateur, puis un salon, puis configurez son rôle.",
       "users_pane": "Utilisateurs",
       "search_users_placeholder": "Rechercher des utilisateurs…",
@@ -876,18 +1134,19 @@
       "select_user_hint": "← Sélectionnez un utilisateur",
       "config_pane": "Configuration du rôle",
       "select_channel_hint": "← Sélectionnez un salon",
-      "manage_roles_btn": "⚙️ Gérer les rôles",
+      "manage_roles_btn": "Gérer les rôles",
+      "manage_roles_title": "Ouvrir la gestion des rôles",
       "save_btn": "Enregistrer les modifications"
     },
     "bot_mgmt": {
-      "title": "🤖 Gestion des bots",
+      "title": "Gestion des bots",
       "new_bot_btn": "+ Nouveau bot",
       "select_or_create": "Sélectionnez un bot à modifier ou créez-en un nouveau"
     },
     "discord_import": {
-      "title": "📦 Importer depuis Discord",
-      "file_tab": "📁 Téléverser un fichier",
-      "connect_tab": "🔗 Se connecter à Discord",
+      "title": "Importer depuis Discord",
+      "file_tab": "Téléverser un fichier",
+      "connect_tab": "Se connecter à Discord",
       "dropzone_text": "Déposez le fichier ici ou parcourez",
       "dropzone_hint": ".json ou .zip — jusqu'à 500 Mo",
       "uploading": "Envoi en cours...",
@@ -898,52 +1157,95 @@
       "select_channels": "Sélectionnez les salons à récupérer :",
       "deselect_all": "Tout désélectionner",
       "select_all": "Tout sélectionner",
-      "fetch_btn": "📥 Récupérer les messages",
+      "fetch_btn": "Récupérer les messages",
       "back_to_servers": "← Retour aux serveurs",
       "preview_select_hint": "Sélectionnez les salons à importer. Vous pouvez les renommer avant d'importer.",
-      "import_selected_btn": "📦 Importer la sélection",
+      "import_selected_btn": "Importer la sélection",
       "import_complete": "Importation terminée !"
     }
   },
 
   "context_menu": {
     "channel": {
-      "mute": "🔔 Mettre en sourdine",
-      "unmute": "🔕 Désactiver la sourdine",
-      "join_voice": "🎙️ Rejoindre le vocal",
-      "disconnect_voice": "📴 Quitter le vocal",
-      "leave": "🚪 Quitter le salon",
-      "rename": "✏️ Renommer le salon",
-      "create_sub": "📁 Créer un sous-salon",
-      "organize": "📋 Organiser",
-      "move_to": "📦 Déplacer vers…",
-      "promote": "⬆️ Promouvoir en salon",
-      "functions": "⚙️ Fonctions du salon",
-      "roles": "👑 Rôles",
-      "webhooks": "🤖 Webhooks",
-      "delete": "🗑️ Supprimer le salon"
+      "mute": "Mettre en sourdine",
+      "unmute": "Désactiver la sourdine",
+      "join_voice": "Rejoindre le vocal",
+      "disconnect_voice": "Quitter le vocal",
+      "leave": "Quitter le salon",
+      "rename": "Renommer le salon",
+      "create_sub": "Créer un sous-salon",
+      "organize": "Organiser",
+      "move_to": "Déplacer vers…",
+      "promote": "Promouvoir en salon",
+      "functions": "Fonctions du salon",
+      "roles": "Rôles",
+      "webhooks": "Webhooks",
+      "delete": "Supprimer le salon"
     },
     "dm": {
-      "mute": "🔔 Mettre en sourdine",
-      "unmute": "🔕 Désactiver la sourdine",
-      "delete": "🗑️ Supprimer la conversation"
+      "mute": "Mettre en sourdine",
+      "unmute": "Désactiver la sourdine",
+      "delete": "Supprimer la conversation"
     }
   },
 
   "channel_functions": {
-    "voice": "🎙️ Vocal",
-    "text": "💬 Texte",
-    "streams": "🖥️ Flux",
-    "music": "🎵 Musique",
-    "media": "🖼️ Médias",
-    "slow_mode": "🐢 Mode lent",
-    "cleanup_guard": "🛡️ Protection nettoyage",
-    "voice_limit": "👥 Limite vocal",
-    "voice_bitrate": "🎚️ Débit vocal",
+    "voice": "Vocal",
+    "voice_hint": "Activer ou désactiver le chat vocal dans ce salon",
+    "text": "Texte",
+    "text_hint": "Activer ou désactiver le chat textuel dans ce salon",
+    "streams": "Stream",
+    "streams_hint": "Autoriser le partage d'écran et la caméra (nécessite le vocal)",
+    "music": "Musique",
+    "music_hint": "Autoriser l'écoute en commun / la lecture musicale (nécessite le vocal)",
+    "media": "Médias",
+    "media_hint": "Autoriser les images, vidéos et fichiers dans ce salon",
+    "slow_mode": "Mode lent",
+    "slow_mode_hint": "Imposer un délai entre les messages (0 = désactivé)",
+    "cleanup_guard": "Protection nettoyage",
+    "cleanup_guard_hint": "Protéger ce salon du nettoyage automatique des messages",
+    "voice_limit": "Limite vocal",
+    "voice_limit_hint": "Limiter les utilisateurs vocaux simultanés (cliquer pour définir ; vide = illimité)",
+    "voice_bitrate": "Débit vocal",
+    "voice_bitrate_hint": "Plafonner le débit audio vocal en kbps (0 = auto / sans limite)",
     "voice_bitrate_auto": "Auto",
-    "self_destruct": "⏱️ Auto-destruction",
-    "announcement": "📢 Annonce",
+    "self_destruct": "Auto-destruction",
+    "self_destruct_hint": "Définir un minuteur d'auto-destruction — le salon se supprime après le nombre d'heures indiqué (0 = désactivé)",
+    "announcement": "Annonce",
+    "announcement_hint": "Salon d'annonces — les messages utilisent un son de notification distinct et un fond doré",
     "on": "ON",
-    "off": "OFF"
+    "off": "OFF",
+    "voice_limit_placeholder": "2–99 (vide=∞)",
+    "bitrate_placeholder": "32–512 (vide=auto)",
+    "self_destruct_placeholder": "1–720h (0=désactivé)"
+  },
+
+  "confirm": {
+    "delete_channel": "Supprimer ce salon ?\nTous les messages seront définitivement perdus.",
+    "delete_channel_sure": "Êtes-vous ABSOLUMENT sûr ?\nCette action est irréversible !",
+    "leave_channel": "Quitter le salon \"{{name}}\" ?\nVous aurez besoin du code pour le rejoindre à nouveau.",
+    "promote_channel": "Promouvoir \"{{name}}\" en salon de premier niveau ?",
+    "delete_message": "Supprimer ce message ?",
+    "delete_user": "Êtes-vous SÛR de vouloir supprimer {{username}} ? Cette action est irréversible.",
+    "delete_account": "Êtes-vous ABSOLUMENT sûr ? Votre compte sera définitivement supprimé.",
+    "clear_invite_code": "Effacer le code d'invitation du serveur ? Les personnes avec l'ancien code ne pourront plus l'utiliser.",
+    "rotate_channel_code": "Changer le code du salon maintenant ? Le code actuel deviendra invalide.",
+    "remove_server": "Retirer \"{{name}}\" de votre liste de serveurs ?"
+  },
+
+  "servers": {
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "checking": "Vérification...",
+    "no_servers": "Aucun serveur ajouté",
+    "open_tab": "Ouvrir dans un nouvel onglet",
+    "edit": "Modifier le serveur",
+    "remove": "Supprimer"
+  },
+
+  "common": {
+    "copy": "Copier",
+    "copied": "Copié",
+    "uploading": "Envoi en cours..."
   }
 }

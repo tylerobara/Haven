@@ -91,9 +91,9 @@
       "join_btn": "Join",
       "create_channel": "Create Channel",
       "channel_name_placeholder": "Channel name...",
-      "private_channel": "🔒 Private",
+      "private_channel": "Private",
       "private_hint": "(invite-only)",
-      "temporary_channel": "⏱️ Temporary",
+      "temporary_channel": "Temporary",
       "temporary_hint": "(auto-delete)",
       "hours": "hours",
       "channels": "Channels",
@@ -115,11 +115,7 @@
       "close": "Close",
       "speed": "Speed",
       "vibrancy": "Vibrancy",
-      "effect_speed": "Effect Speed",
-      "sacred_intensity": "Sacred Intensity",
-      "glitch_frequency": "Glitch Frequency",
-      "crt_vignette": "CRT Vignette",
-      "crt_scanlines": "CRT Scanlines"
+      "effect_speed": "Effect Speed"
     },
 
     "actions": {
@@ -142,20 +138,33 @@
       "e2e_encrypted": "End-to-end encrypted",
       "protect_btn": "Protect from cleanup",
       "unprotect_btn": "Unprotect",
+      "unknown_user": "Unknown",
       "placeholder": "Type a message...",
       "placeholder_short": "Message..."
+    },
+
+    "input_bar": {
+      "emoji_btn": "Emoji",
+      "gif_btn": "Search GIFs",
+      "gif_label": "GIF",
+      "poll_btn": "Create Poll"
     },
 
     "profile": {
       "login_username": "Your login username",
       "online": "Online",
       "offline": "Offline",
-      "away": "Away"
+      "away": "Away",
+      "dnd": "Do Not Disturb",
+      "invisible": "Invisible",
+      "set_status": "Set status",
+      "custom_status_placeholder": "Custom status..."
     }
   },
 
   "toasts": {
     "roles_updated": "Your roles have been updated",
+    "status_pending_reconnect": "Status will update when reconnected",
     "channel_created": "Channel \"#{{name}}\" created!\nCode: {{code}}",
     "channel_deleted": "Channel was deleted",
     "channel_code_rotated": "Channel code rotated for #{{name}}",
@@ -192,12 +201,35 @@
     "encryption_key_unavailable": "Encryption key unavailable — message sent without E2E",
     "encryption_failed": "Encryption failed — message sent without E2E",
     "join_voice_first": "Join voice first to share music",
-    "record_set": "🏆 {{user}} set a new {{game}} record: {{score}}!"
+    "join_voice_required": "Join voice first",
+    "paste_music_link": "Please paste a music link",
+    "unsupported_music_link": "Unsupported link — try Spotify, YouTube, or SoundCloud",
+    "no_more_results": "No more results",
+    "no_results_for": "No results for \"{{query}}\"",
+    "loading_more": "Loading more…",
+    "no_music_playing": "No music playing",
+    "record_set": "{{user}} set a new {{game}} record: {{score}}!"
   },
 
   "commands": {
     "play_usage": "Usage: /play <song name> or /play <url>",
     "gif_usage": "Usage: /gif <search query>"
+  },
+
+  "msg_toolbar": {
+    "react": "React",
+    "reply": "Reply",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+
+  "pinned_panel": {
+    "count_one": "{{count}} pinned message",
+    "count_other": "{{count}} pinned messages",
+    "no_messages": "No pinned messages",
+    "pinned_by": "Pinned by {{user}}"
   },
 
   "voice": {
@@ -212,7 +244,37 @@
     "kicked_user": "Kicked {{user}} from voice",
     "full": "Voice is full ({{current}}/{{max}})",
     "disabled": "Voice is disabled in this channel",
-    "screen_share_disabled": "Screen sharing is disabled in this channel"
+    "screen_share_disabled": "Screen sharing is disabled in this channel",
+    "streams_disabled": "Streams are disabled in this channel",
+    "music_disabled": "Music is disabled in this channel",
+    "joined": "Joined voice chat",
+    "left": "Left voice chat",
+    "mic_error": "Could not access microphone. Check permissions or use HTTPS.",
+    "screen_share_stopped": "Stopped screen sharing",
+    "screen_share_started_audio": "Screen sharing started with audio",
+    "screen_share_started_no_audio": "Screen sharing started (no audio — enable it in the browser picker)",
+    "screen_share_cancelled": "Screen share cancelled or not supported",
+    "camera_stopped": "Camera stopped",
+    "camera_started": "Camera started",
+    "camera_error": "Camera unavailable or permission denied",
+    "stop_camera": "Stop Camera",
+    "sharing_started": "{{who}} started sharing their screen",
+    "status_muted": "Muted",
+    "status_active": "Active",
+    "status_deafened": "Deafened",
+    "status_off": "Off",
+    "disconnect": "Disconnect",
+    "music_stopped": "{{who}} stopped the music",
+    "shuffle_on": "Shuffle on",
+    "shuffle_off": "Shuffle off",
+    "music_playing": "Music playing",
+
+    "panel": {
+      "camera": "Camera",
+      "soundboard": "Soundboard",
+      "listen_together": "Listen Together",
+      "settings": "Voice Settings"
+    }
   },
 
   "channel": {
@@ -286,14 +348,14 @@
     "search_messages": "Search messages (Ctrl+F)",
     "pinned_messages": "Pinned messages",
     "encryption_options": "Encryption options",
-    "verify_encryption": "🔑 Verify Encryption",
-    "reset_encryption": "🔄 Reset Encryption Keys",
+    "verify_encryption": "Verify Encryption",
+    "reset_encryption": "Reset Encryption Keys",
     "search_placeholder": "Search messages...",
     "update_available": "Update Available",
     "get_desktop_app": "Get the Desktop App",
     "android_beta": "Android Beta",
     "results": "Results",
-    "pinned_count": "📌 Pinned Messages",
+    "pinned_count": "Pinned Messages",
     "uploading": "Uploading...",
     "cancel_reply": "Cancel reply",
     "message_placeholder_commands": "Type a message... (/ for commands)",
@@ -302,38 +364,161 @@
   },
 
   "media": {
-    "cameras": "📷 Cameras",
-    "streams": "🖥️ Streams",
+    "cameras": "Cameras",
+    "streams": "Streams",
     "layout_auto": "Auto",
     "layout_stack": "Stack",
     "layout_side": "Side",
     "layout_2x2": "2×2",
     "minimize": "Minimize",
     "close": "Close",
-    "listening_together": "🎵 Listening Together"
+    "listening_together": "Listening Together",
+
+    "camera_layout": "Camera layout",
+    "change_layout": "Change layout",
+    "layout_auto_title": "Auto grid",
+    "layout_stack_title": "Vertical stack",
+    "layout_side_title": "Side by side",
+    "layout_2x2_title": "2×2 Grid",
+    "camera_size": "Camera display size",
+    "minimize_cameras": "Minimize cameras",
+    "close_cameras": "Close cameras",
+    "stream_layout": "Stream layout",
+    "stream_size": "Stream display size",
+    "minimize_streams": "Minimize streams",
+    "close_streams": "Close streams",
+    "music_popout": "Pop out player",
+    "music_prev": "Previous track",
+    "music_play_pause": "Play/Pause",
+    "music_next": "Next track",
+    "music_shuffle": "Shuffle",
+    "music_seek": "Seek",
+    "music_mute": "Mute music",
+    "music_volume": "Music volume",
+    "music_stop": "Close / stop music",
+    "fullscreen": "Fullscreen",
+    "exit_fullscreen": "Exit fullscreen",
+    "pop_out_camera": "Pop out camera",
+    "pop_in_camera": "Pop in camera",
+    "close_camera": "Close camera",
+    "pop_out_stream": "Pop out stream",
+    "pop_in_stream": "Pop in stream",
+    "stream_minimize": "Minimize (keep audio)",
+    "stream_close": "Close (stop audio)",
+    "show_hidden_streams": "Show hidden streams",
+    "hidden_streams_one": "{{count}} stream hidden",
+    "hidden_streams_other": "{{count}} streams hidden",
+    "spotify_volume_hint": "Use Spotify's built-in controls for volume",
+    "mute_unmute": "Mute/Unmute",
+    "stream_mute": "Mute/Unmute stream audio",
+    "stream_volume": "Stream volume (0–200%)",
+    "pop_back_in": "Pop back in",
+    "show_music_player": "Click to show music player",
+    "music_pip_minimize": "Minimize (back to panel)"
   },
 
   "right_sidebar": {
-    "voice_title": "🔊 Voice",
+    "voice_title": "Voice",
     "close_panel": "Close panel",
     "no_one_in_voice": "No one in voice",
-    "online_title": "👥 Online",
+    "online_title": "Online",
     "select_channel": "Select a channel"
   },
 
+  "users": {
+    "no_one_here": "No one here",
+    "online_count": "Online — {{count}}",
+    "offline_count": "Offline — {{count}}",
+    "opening_dm": "Opening DM with {{name}}…",
+    "direct_message": "Direct Message",
+    "more_actions": "More Actions",
+    "flappy_score_title": "Flappy Container: {{score}}",
+    "you_tag": "you",
+    "view_full_bio": "View Full Bio",
+    "show_less": "Show Less",
+    "no_bio": "No bio yet — click Edit Profile to add one",
+    "edit_nickname": "Edit Nickname",
+    "set_nickname": "Set Nickname",
+    "edit_profile": "Edit Profile",
+    "message_btn": "Message",
+    "profile_roles_label": "Roles",
+    "member_since_label": "Member Since",
+    "streaming_live": "LIVE",
+    "streaming_no_viewers": "Streaming",
+    "streaming_viewers_one": "Streaming · {{count}} viewer",
+    "streaming_viewers_other": "Streaming · {{count}} viewers",
+    "watching_stream_title": "Watching {{names}}",
+    "can_hear_again": "{{name}} can hear you again",
+    "cannot_hear": "{{name}} can no longer hear you",
+    "nickname_cleared": "Nickname cleared",
+    "nickname_set": "Nickname set to \"{{name}}\"",
+    "typing": "{{name}} is typing...",
+    "set_nickname_title": "Set Nickname",
+    "nickname_hint": "Only you will see this nickname for {{name}}.",
+    "nickname_clear_btn": "Clear",
+    "edit_profile_modal_title": "Edit Profile",
+    "bio_label": "Bio",
+    "bio_max_hint": "(max 190 chars)",
+    "bio_placeholder": "Tell people about yourself…",
+    "gear_menu": {
+      "assign_role": "Assign Role",
+      "kick": "Kick",
+      "mute": "Mute",
+      "ban": "Ban",
+      "delete_user": "Delete User",
+      "transfer_admin": "Transfer Admin"
+    },
+    "voice_menu": {
+      "volume": "Volume",
+      "volume_title": "Volume: {{vol}}%",
+      "watch_stream": "Watch Stream",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "deafen": "Deafen",
+      "undeafen": "Undeafen",
+      "voice_kick": "Voice Kick",
+      "voice_kick_title": "Remove from voice channel",
+      "mute_hint": "Mute = you can't hear them",
+      "deafen_hint": "Deafen = they can't hear you"
+    }
+  },
+
+  "context": {
+    "view_profile": "View Profile",
+    "invite_to_channel": "Invite to Channel",
+    "no_users": "No users",
+    "push_native_desktop": "Using native desktop notifications",
+    "push_requires_https": "Requires HTTPS",
+    "push_not_supported": "Not supported",
+    "push_blocked_brave": "Blocked by Brave",
+    "push_registration_failed": "Registration failed",
+    "push_enabled": "Enabled",
+    "push_disabled": "Disabled",
+    "push_blocked": "Blocked",
+    "push_permission_denied": "Permission denied",
+    "flash_not_installed": "Flash games not installed (~37 MB download)",
+    "flash_download_btn": "Download Flash Games",
+    "flash_downloading": "Downloading…",
+    "flash_install_result": "Flash games: {{installed}} installed, {{already}} already had, {{errors}} failed",
+    "flash_not_installed_label": "Not installed"
+  },
+
   "voice_settings": {
-    "audio_devices": "🎧 Audio Devices",
+    "audio_devices": "Audio Devices",
     "input": "Input",
     "default_mic": "Default Microphone",
     "output": "Output",
     "default_speaker": "Default Speaker",
-    "noise_reduction": "🤫 Noise Reduction",
+    "noise_reduction": "Noise Reduction",
     "off": "Off",
     "noise_gate": "Noise Gate",
     "suppression_ai": "Suppression (AI)",
     "gate_sensitivity": "Gate Sensitivity",
-    "mic_level": "🎙️ Mic Level",
-    "screen_share_quality": "🖥️ Screen Share Quality",
+    "gate_threshold": "Gate threshold",
+    "gate_slider_hint": "Noise gate: 0 = off, 100 = aggressive",
+    "noise_mode_hint": "Off = no processing, Gate = silence below threshold, Suppress = AI noise removal (RNNoise)",
+    "mic_level": "Mic Level",
+    "screen_share_quality": "Screen Share Quality",
     "resolution": "Resolution",
     "resolution_source": "Source",
     "frame_rate": "Frame Rate"
@@ -352,61 +537,70 @@
   },
 
   "settings": {
-    "title": "⚙️ Settings",
+    "title": "Settings",
     "nav": {
       "user_group": "User",
-      "language": "🌐 Language",
-      "layout": "📐 Layout",
-      "sounds": "🔔 Sounds",
-      "push": "📲 Push",
-      "password": "🔒 Password",
-      "two_factor": "🔐 Two-Factor",
-      "recovery": "🔑 Recovery",
-      "account": "⚠️ Account",
-      "plugins": "🧩 Plugins & Themes",
-      "shortcuts": "⌨️ Shortcuts",
-      "desktop_app": "🖥️ Desktop App",
+      "language": "Language",
+      "layout": "Layout",
+      "sounds": "Sounds",
+      "push": "Push",
+      "password": "Password",
+      "two_factor": "Two-Factor",
+      "recovery": "Recovery",
+      "account": "Account",
+      "plugins": "Plugins & Themes",
+      "shortcuts": "Shortcuts",
+      "desktop_app": "Desktop App",
       "admin_group": "Admin",
-      "branding": "🏠 Branding",
-      "members": "👥 Members",
-      "whitelist": "🛡️ Whitelist",
-      "invite": "🌐 Invite Code",
-      "cleanup": "🗑️ Cleanup",
-      "limits": "📁 Limits",
-      "admin_sounds": "🔊 Sounds",
-      "emojis": "😎 Emojis",
-      "roles": "👑 Roles",
-      "tunnel": "🧭 Tunnel",
-      "bots": "🤖 Bots",
-      "import": "📦 Import",
-      "mod_mode": "🔧 Mod Mode"
+      "branding": "Branding",
+      "members": "Members",
+      "whitelist": "Whitelist",
+      "invite": "Invite Code",
+      "cleanup": "Cleanup",
+      "limits": "Limits",
+      "admin_sounds": "Sounds",
+      "emojis": "Emojis",
+      "roles": "Roles",
+      "tunnel": "Tunnel",
+      "bots": "Bots",
+      "import": "Import",
+      "mod_mode": "Mod Mode"
     },
     "language_section": {
-      "title": "🌐 Language",
+      "title": "Language",
       "label": "Language",
       "hint": "Changes apply immediately"
     },
 
     "layout_density": {
-      "title": "📐 Layout Density",
+      "title": "Layout Density",
       "compact": "Compact",
+      "compact_hint": "Compact — tighter spacing, smaller avatars",
       "cozy": "Cozy",
-      "spacious": "Spacious"
+      "cozy_hint": "Cozy — default balanced layout",
+      "spacious": "Spacious",
+      "spacious_hint": "Spacious — more breathing room"
     },
     "font_size": {
-      "title": "🔤 Font Size",
+      "title": "Font Size",
       "small": "Small",
+      "small_hint": "Small — 13px base",
       "normal": "Normal",
+      "normal_hint": "Normal — 15px base (default)",
       "large": "Large",
-      "xl": "XL"
+      "large_hint": "Large — 17px base",
+      "xl": "XL",
+      "xl_hint": "Extra Large — 20px base"
     },
     "image_display": {
-      "title": "🖼️ Image Display",
+      "title": "Image Display",
       "thumbnail": "Thumbnail",
-      "full": "Full"
+      "thumbnail_hint": "Thumbnail — small preview, click to enlarge",
+      "full": "Full",
+      "full_hint": "Full — large inline images like Discord"
     },
     "sounds_section": {
-      "title": "🔔 Sounds",
+      "title": "Sounds",
       "notifications": "Notifications",
       "auto_accept_streams": "Auto-accept Streams",
       "volume": "Volume",
@@ -416,55 +610,88 @@
       "mentions": "@Mentions",
       "user_joined": "User Joined",
       "user_left": "User Left",
-      "sound_manager_btn": "🎵 Sound Manager"
+      "sound_manager_btn": "Sound Manager"
     },
     "push_section": {
-      "title": "📲 Push Notifications",
+      "title": "Push Notifications",
       "enable": "Enable Push",
       "checking": "Checking..."
     },
     "password_section": {
-      "title": "🔒 Password",
+      "title": "Password",
       "current_placeholder": "Current password",
       "new_placeholder": "New password (8+ chars)",
       "confirm_placeholder": "Confirm new password",
-      "change_btn": "Change Password"
+      "change_btn": "Change Password",
+      "fill_fields": "Fill in all fields",
+      "too_short": "New password must be 8+ characters",
+      "mismatch": "Passwords do not match",
+      "changed": "Password changed!",
+      "failed": "Failed",
+      "network_error": "Network error"
     },
     "two_factor_section": {
-      "title": "🔐 Two-Factor Authentication",
+      "title": "Two-Factor Authentication",
+      "enable_hint": "Protect your account with a TOTP authenticator app (Google Authenticator, Authy, etc.).",
       "enable_btn": "Enable Two-Factor Auth",
+      "copy_secret_title": "Copy secret",
+      "copy_secret_btn": "Copy",
+      "disable_password_placeholder": "Enter password to modify",
       "setup_hint": "Scan this QR code with your authenticator app:",
       "manual_hint": "Or enter this secret manually:",
       "verify_placeholder": "Enter 6-digit code to confirm",
       "verify_btn": "Verify & Activate",
-      "backup_title": "🗝️ Backup Codes",
+      "backup_title": "Backup Codes",
       "backup_hint": "Save these codes somewhere safe. Each can be used once if you lose access to your authenticator.",
-      "copy_backup_btn": "📋 Copy Backup Codes",
+      "copy_backup_btn": "Copy Backup Codes",
       "done_btn": "Done",
-      "enabled_text": "✅ Two-factor authentication is enabled",
+      "enabled_text": "Two-factor authentication is enabled",
       "disable_btn": "Disable 2FA",
-      "regen_backup_btn": "Regenerate Backup Codes"
+      "regen_backup_btn": "Regenerate Backup Codes",
+      "error": "Error",
+      "backup_codes_remaining_one": "{{count}} backup code remaining",
+      "backup_codes_remaining_other": "{{count}} backup codes remaining",
+      "connection_error": "Connection error",
+      "setup_failed": "Setup failed",
+      "verify_prompt": "Enter the 6-digit code from your authenticator",
+      "verify_failed": "Verification failed",
+      "disable_prompt": "Enter your password",
+      "failed": "Failed",
+      "regen_prompt": "Enter your password"
     },
     "recovery_section": {
-      "title": "🔑 Account Recovery",
+      "title": "Account Recovery",
+      "desc": "Generate one-time recovery codes to regain access if you forget your password. Store them somewhere safe — they work like a last-resort key.",
+      "e2e_warning": "<strong>Important:</strong> Using a recovery code to reset your password will permanently and irreversibly destroy your end-to-end encryption keys. All encrypted direct message history will become unreadable. There is no way to undo this.",
+      "save_hint": "Save these codes now — they will not be shown again. Each code can only be used once.",
       "confirm_password_placeholder": "Confirm your password",
       "generate_btn": "Generate Recovery Codes",
-      "copy_codes_btn": "📋 Copy Codes",
-      "done_btn": "Done"
+      "copy_codes_btn": "Copy Codes",
+      "done_btn": "Done",
+      "status_one": "You have {{count}} unused recovery code.",
+      "status_other": "You have {{count}} unused recovery codes.",
+      "no_codes": "You have no recovery codes. Generate some now.",
+      "connection_error": "Connection error",
+      "confirm_prompt": "Enter your password to confirm",
+      "failed": "Failed"
     },
     "delete_account_section": {
-      "title": "⚠️ Delete Account",
+      "title": "Delete Account",
       "desc": "Permanently delete your account. This cannot be undone.",
-      "btn": "Delete My Account"
+      "btn": "Delete My Account",
+      "password_required": "Password is required",
+      "deleting": "Deleting...",
+      "password_placeholder": "Enter your password"
     },
     "plugins_section": {
-      "title": "🧩 Plugins & Themes",
-      "refresh_btn": "🔄 Refresh",
+      "title": "Plugins & Themes",
+      "hint": "Drop <code>.plugin.js</code> files into the <code>plugins/</code> folder and <code>.theme.css</code> files into the <code>themes/</code> folder, then refresh.",
+      "refresh_btn": "Refresh",
       "plugins_label": "Plugins",
       "themes_label": "Themes"
     },
     "desktop_shortcuts_section": {
-      "title": "⌨️ Desktop Shortcuts",
+      "title": "Desktop Shortcuts",
       "mute_unmute": "Mute / Unmute",
       "deafen_undeafen": "Deafen / Undeafen",
       "ptt": "Push-to-Talk",
@@ -473,67 +700,67 @@
       "clear_btn": "Clear"
     },
     "desktop_app_section": {
-      "title": "🖥️ Desktop App",
+      "title": "Desktop App",
       "start_on_login": "Start on Login",
       "start_hidden": "Start Hidden to Tray",
       "minimize_to_tray": "Minimize to Tray on Close",
       "force_sdr": "Force SDR (sRGB) Color"
     },
     "admin": {
-      "title": "🛡️ Admin",
-      "branding_title": "🏠 Server Branding",
+      "title": "Admin",
+      "branding_title": "Server Branding",
       "server_name": "Server Name",
       "login_title": "Login Title",
       "default_theme": "Default Theme",
       "no_theme": "None (user's choice)",
       "upload_btn": "Upload",
       "remove_btn": "Remove",
-      "members_title": "👥 Members",
+      "members_title": "Members",
       "show_members": "Show Members",
       "members_online_only": "Online Only",
       "members_all": "All Members",
       "members_hidden": "Hidden",
-      "view_bans_btn": "📋 View Bans",
-      "view_deleted_btn": "🗑️ View Deleted Users",
-      "view_all_members_btn": "👥 View All Members",
+      "view_bans_btn": "View Bans",
+      "view_deleted_btn": "View Deleted Users",
+      "view_all_members_btn": "View All Members",
       "update_banner_label": "Update banner (admins only)",
-      "whitelist_title": "🛡️ Whitelist",
+      "whitelist_title": "Whitelist",
       "whitelist_enabled": "Enabled",
       "whitelist_username_placeholder": "Username...",
       "whitelist_add_btn": "Add",
-      "invite_title": "🌐 Server Invite Code",
+      "invite_title": "Server Invite Code",
       "invite_generate_btn": "Generate",
       "invite_clear_btn": "Clear",
-      "cleanup_title": "🗑️ Auto-Cleanup",
+      "cleanup_title": "Auto-Cleanup",
       "cleanup_enabled": "Enabled",
       "cleanup_max_age": "Max Age (days)",
       "cleanup_max_size": "Max DB Size (MB)",
-      "cleanup_run_btn": "🧹 Run Cleanup Now",
-      "uploads_title": "📁 Uploads & Limits",
+      "cleanup_run_btn": "Run Cleanup Now",
+      "uploads_title": "Uploads & Limits",
       "max_upload": "Max Upload Size (MB)",
       "max_sound": "Max Sound File Size (KB)",
       "max_emoji": "Max Emoji File Size (KB)",
       "max_poll_options": "Max Poll Options",
-      "sounds_title": "🔊 Custom Sounds",
-      "manage_sounds_btn": "⚙️ Manage Sounds",
-      "emojis_title": "😎 Custom Emojis",
-      "manage_emojis_btn": "⚙️ Manage Emojis",
-      "roles_title": "👑 Role Management",
-      "manage_roles_btn": "⚙️ Manage Roles",
-      "reset_roles_btn": "🔄 Reset to Default",
-      "tunnel_title": "🧭 Tunnel",
+      "sounds_title": "Custom Sounds",
+      "manage_sounds_btn": "Manage Sounds",
+      "emojis_title": "Custom Emojis",
+      "manage_emojis_btn": "Manage Emojis",
+      "roles_title": "Role Management",
+      "manage_roles_btn": "Manage Roles",
+      "reset_roles_btn": "Reset to Default",
+      "tunnel_title": "Tunnel",
       "tunnel_provider": "Provider",
       "tunnel_start_btn": "Start Tunnel",
       "tunnel_inactive": "Inactive",
-      "bots_title": "🤖 Webhooks / Bots",
-      "manage_bots_btn": "⚙️ Manage Bots",
+      "bots_title": "Webhooks / Bots",
+      "manage_bots_btn": "Manage Bots",
       "no_bots": "No bots configured",
-      "import_title": "📦 Discord Import",
-      "import_btn": "📦 Import from Discord",
-      "modmode_title": "🔧 Mod Mode",
-      "modmode_toggle_btn": "🔧 Toggle Mod Mode",
+      "import_title": "Discord Import",
+      "import_btn": "Import from Discord",
+      "modmode_title": "Mod Mode",
+      "modmode_toggle_btn": "Toggle Mod Mode",
       "modmode_reset_btn": "↺ Reset Layout",
-      "save_btn": "💾 Save Settings",
+      "save_btn": "Save Settings",
       "save_hint": "Changes only apply when you click Save. Close (✕) to cancel.",
       "login_title_hint": "Custom title displayed on the login screen below the HAVEN logo.",
       "server_icon_hint": "Server icon (square, max 2 MB)",
@@ -583,16 +810,16 @@
     "wizard": {
       "title": "Welcome to Haven",
       "subtitle": "Let's get your server ready. This only takes a minute.",
-      "step1_title": "🏠 Your Server",
+      "step1_title": "Your Server",
       "step1_desc": "Everything is already running. Here's what was set up automatically:",
-      "check_ssl": "✅ SSL certificates generated (encrypted connections)",
-      "check_db": "✅ Database created",
-      "check_keys": "✅ Security keys generated",
-      "check_admin": "✅ Admin account created (that's you!)",
+      "check_ssl": "SSL certificates generated (encrypted connections)",
+      "check_db": "Database created",
+      "check_keys": "Security keys generated",
+      "check_admin": "Admin account created (that's you!)",
       "server_name_label": "Your server name:",
       "server_name_placeholder": "e.g. My Server, The Hideout",
       "server_name_hint": "This is what your friends see in their server list.",
-      "step2_title": "📢 Create Your First Channel",
+      "step2_title": "Create Your First Channel",
       "step2_desc": "Channels are where conversations happen. Create one to get started.",
       "channel_name_label": "Channel name:",
       "channel_name_placeholder": "e.g. General, Gaming, Hangout",
@@ -600,16 +827,16 @@
       "invite_code": "Invite code:",
       "copy_btn": "Copy",
       "share_hint": "Share this code with friends so they can join this channel.",
-      "step3_title": "🌐 Internet Access",
+      "step3_title": "Internet Access",
       "step3_desc": "Want friends outside your WiFi to connect? Let's check if your server is reachable from the internet.",
       "checking_port": "Checking port reachability...",
-      "check_connection_btn": "🔍 Check My Connection",
+      "check_connection_btn": "Check My Connection",
       "lan_only_hint": "LAN only? If your friends are on the same WiFi, you can skip this — it will work automatically.",
-      "step4_title": "🎉 You're All Set!",
+      "step4_title": "You're All Set!",
       "step4_desc": "Haven is running and ready for your friends.",
-      "check_configured": "✅ Server configured",
-      "check_channel_created": "✅ First channel created",
-      "check_port_skipped": "⏭️ Port check skipped",
+      "check_configured": "Server configured",
+      "check_channel_created": "First channel created",
+      "check_port_skipped": "Port check skipped",
       "how_friends_join": "How friends join:",
       "step_browser": "They open {{url}} in their browser",
       "step_cert": "Click \"Advanced\" → \"Proceed\" on the certificate warning",
@@ -619,7 +846,7 @@
       "back_btn": "← Back",
       "skip_btn": "Skip Setup",
       "next_btn": "Next →",
-      "get_started_btn": "🚀 Get Started"
+      "get_started_btn": "Get Started"
     },
     "code_settings": {
       "title": "Channel Code Settings",
@@ -633,7 +860,8 @@
       "rotation_time": "Time-based — rotate every X minutes",
       "rotation_joins": "Join-based — rotate after X new joins",
       "interval_label": "Rotation Interval (minutes)",
-      "rotate_now_btn": "🔄 Rotate Now"
+      "rotate_after_joins": "Rotate After X Joins",
+      "rotate_now_btn": "Rotate Now"
     },
     "add_server": {
       "title": "Add a Server",
@@ -671,7 +899,9 @@
       "scope_server": "Server-wide"
     },
     "organize": {
-      "title": "📋 Organize",
+      "title": "Organize",
+      "back_btn": "← Back",
+      "back_title": "Back to channel list",
       "sort_label": "Sort:",
       "sort_manual": "Manual",
       "sort_alpha": "Alphabetical",
@@ -683,59 +913,70 @@
       "cat_az": "A → Z",
       "cat_za": "Z → A",
       "move_up": "⬆ Up",
+      "move_up_title": "Move selected channel up",
       "move_down": "⬇ Down",
+      "move_down_title": "Move selected channel down",
       "tag_placeholder": "Tag name…",
-      "tag_set_btn": "🏷️ Set",
-      "tag_remove_btn": "✕"
+      "tag_set_btn": "Set",
+      "tag_set_title": "Apply tag",
+      "tag_remove_btn": "✕",
+      "tag_remove_title": "Remove tag"
     },
     "dm_organize": {
-      "title": "📋 Organize DMs",
+      "title": "Organize DMs",
       "desc": "Tag your conversations into collapsible categories",
       "sort_label": "Sort:",
       "sort_manual": "Manual",
       "sort_alpha": "Alphabetical",
       "sort_recent": "Recent Activity",
-      "category_placeholder": "Category…"
+      "category_placeholder": "Category…",
+      "category_set_title": "Apply category",
+      "category_remove_title": "Remove category"
     },
     "move_channel": {
-      "title": "📦 Move Channel"
+      "title": "Move Channel"
+    },
+    "rename_channel": {
+      "title": "Rename Channel",
+      "prompt": "Rename #{{name}}:\nEnter new name:"
     },
     "poll": {
-      "title": "📊 Create Poll",
+      "title": "Create Poll",
       "question_label": "Question",
       "question_placeholder": "What do you want to ask?",
       "options_label": "Options",
       "add_option_btn": "+ Add Option",
       "multi_vote": "Allow multiple votes",
       "anonymous": "Anonymous votes",
-      "create_btn": "Create Poll"
+      "create_btn": "Create Poll",
+      "remove_option": "Remove"
     },
     "sub_panel": {
-      "title": "📡 Sub-channel Subscriptions",
+      "title": "Sub-channel Subscriptions",
       "desc": "Subscribe to get notifications. Unsubscribed channels still appear but won't notify you."
     },
     "create_sub": {
       "title": "Create Sub-channel",
       "name_label": "Sub-channel name",
       "name_placeholder": "sub-channel name...",
-      "private_label": "🔒 Private",
+      "private_label": "Private",
       "private_hint": "(invite-only, hidden from non-members)",
-      "temporary_label": "⏱️ Temporary",
+      "temporary_label": "Temporary",
       "temporary_hint": "(auto-delete)",
       "hours": "hours",
-      "admin_note": "ℹ️ Admins always have access to all channels, including private ones.",
+      "admin_note": "Admins always have access to all channels, including private ones.",
       "create_btn": "Create"
     },
     "webhook": {
-      "title": "🤖 Webhooks",
+      "title": "Webhooks",
       "name_label": "New Webhook Name",
       "name_placeholder": "My Bot",
       "create_btn": "Create",
-      "token_warning": "⚠️ Copy this URL now — you won't see the full token again!",
-      "copy_btn": "📋 Copy"
+      "token_warning": "Copy this URL now — you won't see the full token again!",
+      "copy_btn": "Copy"
     },
     "channel_roles": {
-      "title": "👑 Channel Roles",
+      "title": "Channel Roles",
       "members_title": "Members",
       "role_config_title": "Role Configuration",
       "select_role": "-- Select Role --",
@@ -746,11 +987,11 @@
       "select_to_configure": "Select a role to configure"
     },
     "activities": {
-      "title": "🎮 Activities"
+      "title": "Activities"
     },
     "game_overlay": {
       "volume_label": "Game Volume",
-      "popout_btn": "↗️ Pop Out",
+      "popout_btn": "Pop Out",
       "close_btn": "✕ Close"
     },
     "push_error": {
@@ -759,10 +1000,26 @@
       "got_it": "Got It"
     },
     "e2e_password": {
-      "title": "🔐 Password Required",
+      "title": "Password Required",
       "desc": "End-to-end encryption requires your password to unlock your keys. Enter your account password to continue.",
       "placeholder": "Enter your password",
       "unlock_btn": "Unlock"
+    },
+
+    "e2e_verify": {
+      "desc": "Compare this safety number with <strong>{{name}}</strong> using another channel (in person, phone call, text, etc.). If they match, your conversation is end-to-end encrypted and no one is intercepting.",
+      "copy_btn": "Copy Code"
+    },
+
+    "e2e_reset": {
+      "warning_irreversible": "<strong>This action is irreversible.</strong> Resetting your encryption keys will:",
+      "li_new_keys": "Generate a completely new key pair",
+      "li_unreadable": "Make <strong>ALL</strong> previous encrypted DM messages <strong>permanently unreadable</strong> — for both you and the person you were talking to",
+      "li_reverify": "Require your DM partners to re-verify encryption with you",
+      "warning_permanent": "<strong>This cannot be undone. There is no recovery. The messages are gone forever.</strong>",
+      "type_confirm": "Type <strong>RESET</strong> to confirm:",
+      "confirm_placeholder": "RESET",
+      "confirm_btn": "Reset My Keys"
     },
     "android_beta": {
       "title": "Haven Android App",
@@ -773,7 +1030,7 @@
       "feature_chat": "Full chat & voice support",
       "feature_built": "Built from the ground up for Haven",
       "note": "Request access to the closed beta on Google Play:",
-      "request_btn": "🚀 Request Beta Access",
+      "request_btn": "Request Beta Access",
       "later_btn": "Maybe later",
       "dont_show": "Don't show this again"
     },
@@ -785,56 +1042,57 @@
       "feature_tray": "Minimize to system tray",
       "feature_audio": "Per-app audio routing",
       "feature_launcher": "Built-in server launcher",
-      "install_btn": "⬇ Install Haven",
+      "install_btn": "Install Haven",
       "later_btn": "Maybe later",
       "dont_show": "Don't show this again"
     },
     "donors": {
       "title": "Thank You",
       "subtitle": "Haven is built with love and kept alive by the generosity of people like you. Every donation — big or small — means the world.",
-      "sponsors_title": "✨ Sponsors",
-      "donors_title": "💛 Donors",
+      "sponsors_title": "Sponsors",
+      "donors_title": "Donors",
       "note": "New donors will be added each release. If you've donated and don't see your name, it'll be in the next update!",
-      "kofi_btn": "☕ Support Haven on Ko-fi"
+      "kofi_btn": "Support Haven on Ko-fi"
     },
     "listen_together": {
-      "title": "🎵 Listen Together",
+      "title": "Listen Together",
       "desc": "Paste a link from Spotify, YouTube, or SoundCloud to share with everyone in voice",
       "link_label": "Music Link",
       "link_placeholder": "https://open.spotify.com/track/...",
       "share_btn": "Share with Channel"
     },
     "manage_servers": {
-      "title": "⚙ Manage Servers",
+      "title": "Manage Servers",
       "desc": "Edit or remove your linked servers",
-      "add_btn": "+ Add Server"
+      "add_btn": "+ Add Server",
+      "edit_title": "Edit Server"
     },
     "sound_manager": {
-      "title": "🔊 Sound Manager",
-      "soundboard_tab": "🎵 Soundboard",
-      "assign_tab": "🔔 Assign to Events",
-      "manage_tab": "⚙️ Manage",
+      "title": "Sound Manager",
+      "soundboard_tab": "Soundboard",
+      "assign_tab": "Assign to Events",
+      "manage_tab": "Manage",
       "search_placeholder": "Search sounds...",
       "no_sounds": "No sounds available",
-      "new_message": "📨 New Message",
-      "msg_sent": "📤 Message Sent",
-      "mention": "📢 @Mention",
-      "user_joined": "👋 User Joined",
-      "user_left": "🚪 User Left",
+      "new_message": "New Message",
+      "msg_sent": "Message Sent",
+      "mention": "@Mention",
+      "user_joined": "User Joined",
+      "user_left": "User Left",
       "name_placeholder": "Sound name...",
       "upload_btn": "Upload",
       "no_custom_sounds": "No custom sounds uploaded"
     },
     "emoji_mgmt": {
-      "title": "😎 Emoji Management",
+      "title": "Emoji Management",
       "name_placeholder": "emoji_name",
       "upload_btn": "Upload",
       "no_emojis": "No custom emojis uploaded",
       "crop_applied": "Crop applied — ready to upload",
-      "adjust_btn": "✏️ Adjust"
+      "adjust_btn": "Adjust"
     },
     "emoji_crop": {
-      "title": "✂️ Crop Emoji",
+      "title": "Crop Emoji",
       "hint": "Drag to reposition · Slider to zoom",
       "confirm_btn": "Use This Crop"
     },
@@ -842,10 +1100,10 @@
       "title": "Banned Users"
     },
     "deleted_users": {
-      "title": "🗑️ Deleted Users"
+      "title": "Deleted Users"
     },
     "all_members": {
-      "title": "👥 All Members",
+      "title": "All Members",
       "search_placeholder": "Search users...",
       "filter_all": "All",
       "filter_online": "Online",
@@ -854,12 +1112,12 @@
       "filter_banned": "Banned"
     },
     "role_management": {
-      "title": "👑 Role Management",
+      "title": "Role Management",
       "new_role_btn": "+ New Role",
       "select_to_edit": "Select a role to edit"
     },
     "assign_role": {
-      "title": "👑 Assign Role",
+      "title": "Assign Role",
       "role_label": "Role",
       "select_role": "-- Select Role --",
       "scope_label": "Scope",
@@ -868,7 +1126,7 @@
       "assign_btn": "Assign"
     },
     "role_assign_center": {
-      "title": "👑 Role Assignment",
+      "title": "Role Assignment",
       "subtitle": "Select a user, then a channel, then configure their role.",
       "users_pane": "Users",
       "search_users_placeholder": "Search users…",
@@ -876,18 +1134,19 @@
       "select_user_hint": "← Select a user",
       "config_pane": "Role Configuration",
       "select_channel_hint": "← Select a channel",
-      "manage_roles_btn": "⚙️ Manage Roles",
+      "manage_roles_btn": "Manage Roles",
+      "manage_roles_title": "Open role management",
       "save_btn": "Save Changes"
     },
     "bot_mgmt": {
-      "title": "🤖 Bot Management",
+      "title": "Bot Management",
       "new_bot_btn": "+ New Bot",
       "select_or_create": "Select a bot to edit, or create a new one"
     },
     "discord_import": {
-      "title": "📦 Import from Discord",
-      "file_tab": "📁 Upload File",
-      "connect_tab": "🔗 Connect to Discord",
+      "title": "Import from Discord",
+      "file_tab": "Upload File",
+      "connect_tab": "Connect to Discord",
       "dropzone_text": "Drop file here or browse",
       "dropzone_hint": ".json or .zip — up to 500 MB",
       "uploading": "Uploading...",
@@ -898,52 +1157,95 @@
       "select_channels": "Select channels to fetch:",
       "deselect_all": "Deselect All",
       "select_all": "Select All",
-      "fetch_btn": "📥 Fetch Messages",
+      "fetch_btn": "Fetch Messages",
       "back_to_servers": "← Back to servers",
       "preview_select_hint": "Select channels to import. You can rename them before importing.",
-      "import_selected_btn": "📦 Import Selected",
+      "import_selected_btn": "Import Selected",
       "import_complete": "Import complete!"
     }
   },
 
   "context_menu": {
     "channel": {
-      "mute": "🔔 Mute Channel",
-      "unmute": "🔕 Unmute Channel",
-      "join_voice": "🎙️ Join Voice",
-      "disconnect_voice": "📴 Disconnect Voice",
-      "leave": "🚪 Leave Channel",
-      "rename": "✏️ Rename Channel",
-      "create_sub": "📁 Create Sub-channel",
-      "organize": "📋 Organize",
-      "move_to": "📦 Move to…",
-      "promote": "⬆️ Promote to Channel",
-      "functions": "⚙️ Channel Functions",
-      "roles": "👑 Roles",
-      "webhooks": "🤖 Webhooks",
-      "delete": "🗑️ Delete Channel"
+      "mute": "Mute Channel",
+      "unmute": "Unmute Channel",
+      "join_voice": "Join Voice",
+      "disconnect_voice": "Disconnect Voice",
+      "leave": "Leave Channel",
+      "rename": "Rename Channel",
+      "create_sub": "Create Sub-channel",
+      "organize": "Organize",
+      "move_to": "Move to…",
+      "promote": "Promote to Channel",
+      "functions": "Channel Functions",
+      "roles": "Roles",
+      "webhooks": "Webhooks",
+      "delete": "Delete Channel"
     },
     "dm": {
-      "mute": "🔔 Mute DM",
-      "unmute": "🔕 Unmute DM",
-      "delete": "🗑️ Delete DM"
+      "mute": "Mute DM",
+      "unmute": "Unmute DM",
+      "delete": "Delete DM"
     }
   },
 
   "channel_functions": {
-    "voice": "🎙️ Voice",
-    "text": "💬 Text",
-    "streams": "🖥️ Streams",
-    "music": "🎵 Music",
-    "media": "🖼️ Media",
-    "slow_mode": "🐢 Slow Mode",
-    "cleanup_guard": "🛡️ Cleanup Guard",
-    "voice_limit": "👥 Voice Limit",
-    "voice_bitrate": "🎚️ Voice Bitrate",
+    "voice": "Voice",
+    "voice_hint": "Enable or disable voice chat in this channel",
+    "text": "Text",
+    "text_hint": "Enable or disable text chat in this channel",
+    "streams": "Streams",
+    "streams_hint": "Allow screen sharing and camera (requires voice)",
+    "music": "Music",
+    "music_hint": "Allow Listen Together / music playback (requires voice)",
+    "media": "Media",
+    "media_hint": "Allow image, video, and file uploads in this channel",
+    "slow_mode": "Slow Mode",
+    "slow_mode_hint": "Require a cooldown between messages (0 = off)",
+    "cleanup_guard": "Cleanup Guard",
+    "cleanup_guard_hint": "Protect this channel from automatic message cleanup",
+    "voice_limit": "Voice Limit",
+    "voice_limit_hint": "Limit simultaneous voice users (click to set; blank = unlimited)",
+    "voice_bitrate": "Voice Bitrate",
+    "voice_bitrate_hint": "Cap voice audio bitrate in kbps (0 = auto / no cap)",
     "voice_bitrate_auto": "Auto",
-    "self_destruct": "⏱️ Self Destruct",
-    "announcement": "📢 Announcement",
+    "self_destruct": "Self Destruct",
+    "self_destruct_hint": "Set a self-destruct timer — channel auto-deletes after the specified hours (0 = off)",
+    "announcement": "Announcement",
+    "announcement_hint": "Announcement channel — messages use a distinct notification sound and gold highlight",
     "on": "ON",
-    "off": "OFF"
+    "off": "OFF",
+    "voice_limit_placeholder": "2–99 (blank=∞)",
+    "bitrate_placeholder": "32–512 (blank=auto)",
+    "self_destruct_placeholder": "1–720h (0=off)"
+  },
+
+  "confirm": {
+    "delete_channel": "Delete this channel?\nAll messages will be permanently lost.",
+    "delete_channel_sure": "Are you ABSOLUTELY sure?\nThis action cannot be undone!",
+    "leave_channel": "Leave channel \"{{name}}\"?\nYou'll need the channel code to rejoin.",
+    "promote_channel": "Promote \"{{name}}\" to a top-level channel?",
+    "delete_message": "Delete this message?",
+    "delete_user": "Are you SURE you want to delete {{username}}? This cannot be undone.",
+    "delete_account": "Are you ABSOLUTELY sure? Your account will be gone forever.",
+    "clear_invite_code": "Clear the server invite code? Anyone with the old code won't be able to use it.",
+    "rotate_channel_code": "Rotate the channel code now? Current code will become invalid.",
+    "remove_server": "Remove \"{{name}}\" from your server list?"
+  },
+
+  "servers": {
+    "online": "Online",
+    "offline": "Offline",
+    "checking": "Checking...",
+    "no_servers": "No servers added yet",
+    "open_tab": "Open in new tab",
+    "edit": "Edit server",
+    "remove": "Remove"
+  },
+
+  "common": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "uploading": "Uploading..."
   }
 }

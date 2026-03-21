@@ -32,8 +32,8 @@ async _sendMessage() {
         return;
       }
       if (cmd === 'play') {
-        if (!arg) { this._showToast('Usage: /play <song name> or /play <url>', 'error'); }
-        else if (!this.voice || !this.voice.inVoice) { this._showToast('Join voice first to share music', 'error'); }
+        if (!arg) { this._showToast(t('commands.play_usage'), 'error'); }
+        else if (!this.voice || !this.voice.inVoice) { this._showToast(t('toasts.join_voice_first'), 'error'); }
         else if (this._getMusicEmbed(arg)) {
           // Direct URL — share immediately
           this.socket.emit('music-share', { code: this.voice.currentChannel, url: arg });
@@ -42,7 +42,7 @@ async _sendMessage() {
           this._musicSearchQuery = arg;
           this._musicSearchOffset = 0;
           this.socket.emit('music-search', { query: arg, offset: 0 });
-          this._showToast('Searching…', 'info');
+          this._showToast(t('toasts.searching'), 'info');
         }
         input.value = '';
         input.style.height = 'auto';
@@ -51,7 +51,7 @@ async _sendMessage() {
         return;
       }
       if (cmd === 'gif') {
-        if (!arg) { this._showToast('Usage: /gif <search query>', 'error'); }
+        if (!arg) { this._showToast(t('commands.gif_usage'), 'error'); }
         else { this._showGifSlashResults(arg); }
         input.value = '';
         input.style.height = 'auto';
@@ -93,7 +93,7 @@ async _sendMessage() {
         partner = this._getE2EPartner();
       }
       if (!partner) {
-        this._showToast('Encryption key unavailable — message sent without E2E', 'warning');
+        this._showToast(t('toasts.encryption_key_unavailable'), 'warning');
       }
     }
 
@@ -104,7 +104,7 @@ async _sendMessage() {
         payload.encrypted = true;
       } catch (err) {
         console.warn('[E2E] Encryption failed:', err);
-        this._showToast('Encryption failed — message sent without E2E', 'warning');
+        this._showToast(t('toasts.encryption_failed'), 'warning');
       }
     }
     this.socket.emit('send-message', payload);
@@ -409,31 +409,31 @@ _createMessageEl(msg, prevMsg) {
 
   const reactionsHtml = this._renderReactions(msg.id, msg.reactions || []);
   const pollHtml = msg.poll ? this._renderPollWidget(msg.id, msg.poll) : '';
-  const editedHtml = msg.edited_at ? `<span class="edited-tag" title="Edited at ${new Date(msg.edited_at).toLocaleString()}">(edited)</span>` : '';
-  const pinnedTag = msg.pinned ? '<span class="pinned-tag" title="Pinned message">📌</span>' : '';
-  const archivedTag = msg.is_archived ? '<span class="archived-tag" title="Protected from cleanup">🛡️</span>' : '';
-  const e2eTag = msg._e2e ? '<span class="e2e-tag" title="End-to-end encrypted">🔒</span>' : '';
+  const editedHtml = msg.edited_at ? `<span class="edited-tag" title="${t('app.messages.edited_at', { date: new Date(msg.edited_at).toLocaleString() })}">${t('app.messages.edited')}</span>` : '';
+  const pinnedTag = msg.pinned ? `<span class="pinned-tag" title="${t('app.messages.pinned')}">📌</span>` : '';
+  const archivedTag = msg.is_archived ? `<span class="archived-tag" title="${t('app.messages.protected')}">🛡️</span>` : '';
+  const e2eTag = msg._e2e ? `<span class="e2e-tag" title="${t('app.messages.e2e_encrypted')}">🔒</span>` : '';
 
   // Build toolbar with context-aware buttons
-  let toolbarBtns = `<button data-action="react" title="React">😀</button><button data-action="reply" title="Reply">↩️</button>`;
+  let toolbarBtns = `<button data-action="react" title="${t('msg_toolbar.react')}">😀</button><button data-action="reply" title="${t('msg_toolbar.reply')}">↩️</button>`;
   const canPin = this.user.isAdmin || this._canModerate();
   const canArchive = this.user.isAdmin || this._hasPerm('archive_messages');
   const canDelete = msg.user_id === this.user.id || this.user.isAdmin || this._canModerate();
   if (canPin) {
     toolbarBtns += msg.pinned
-      ? `<button data-action="unpin" title="Unpin">📌</button>`
-      : `<button data-action="pin" title="Pin">📌</button>`;
+      ? `<button data-action="unpin" title="${t('msg_toolbar.unpin')}">📌</button>`
+      : `<button data-action="pin" title="${t('msg_toolbar.pin')}">📌</button>`;
   }
   if (canArchive) {
     toolbarBtns += msg.is_archived
-      ? `<button data-action="unarchive" title="Unprotect">🛡️</button>`
-      : `<button data-action="archive" title="Protect from cleanup">🛡️</button>`;
+      ? `<button data-action="unarchive" title="${t('app.messages.unprotect_btn')}">🛡️</button>`
+      : `<button data-action="archive" title="${t('app.messages.protect_btn')}">🛡️</button>`;
   }
   if (msg.user_id === this.user.id) {
-    toolbarBtns += `<button data-action="edit" title="Edit">✏️</button>`;
+    toolbarBtns += `<button data-action="edit" title="${t('msg_toolbar.edit')}">✏️</button>`;
   }
   if (canDelete) {
-    toolbarBtns += `<button data-action="delete" title="Delete">🗑️</button>`;
+    toolbarBtns += `<button data-action="delete" title="${t('msg_toolbar.delete')}">🗑️</button>`;
   }
   const toolbarHtml = `<div class="msg-toolbar">${toolbarBtns}</div>`;
   const replyHtml = msg.replyContext ? this._renderReplyBanner(msg.replyContext) : '';
@@ -460,7 +460,7 @@ _createMessageEl(msg, prevMsg) {
       </div>
       ${e2eTag}
       ${toolbarHtml}
-      <button class="msg-dots-btn" aria-label="Message actions">⋯</button>
+      <button class="msg-dots-btn" aria-label="${t('app.actions.message_actions')}">⋯</button>
     `;
     return el;
   }
@@ -528,7 +528,7 @@ _createMessageEl(msg, prevMsg) {
         ${reactionsHtml}
       </div>
       ${toolbarHtml}
-      <button class="msg-dots-btn" aria-label="Message actions">⋯</button>
+      <button class="msg-dots-btn" aria-label="${t('app.actions.message_actions')}">⋯</button>
     </div>
   `;
   return el;
@@ -540,7 +540,7 @@ _createMessageEl(msg, prevMsg) {
  */
 _promoteCompactToFull(compactEl) {
   const userId = parseInt(compactEl.dataset.userId);
-  const username = compactEl.dataset.username || 'Unknown';
+  const username = compactEl.dataset.username || t('app.messages.unknown_user');
   const time = compactEl.dataset.time;
   const msgId = compactEl.dataset.msgId;
   const isPinned = compactEl.dataset.pinned === '1';
@@ -552,8 +552,8 @@ _promoteCompactToFull(compactEl) {
   const toolbarHtml = toolbarEl ? toolbarEl.outerHTML : '';
   const reactionsEl = compactEl.querySelector('.reactions-row');
   const reactionsHtml = reactionsEl ? reactionsEl.outerHTML : '';
-  const pinnedTag = isPinned ? '<span class="pinned-tag" title="Pinned message">📌</span>' : '';
-  const e2eTag = compactEl.dataset.e2e === '1' ? '<span class="e2e-tag" title="End-to-end encrypted">🔒</span>' : '';
+  const pinnedTag = isPinned ? `<span class="pinned-tag" title="${t('app.messages.pinned')}">📌</span>` : '';
+  const e2eTag = compactEl.dataset.e2e === '1' ? `<span class="e2e-tag" title="${t('app.messages.e2e_encrypted')}">🔒</span>` : '';
 
   const color = this._getUserColor(username);
   const initial = username.charAt(0).toUpperCase();
@@ -592,7 +592,7 @@ _promoteCompactToFull(compactEl) {
         ${reactionsHtml}
       </div>
       ${toolbarHtml}
-      <button class="msg-dots-btn" aria-label="Message actions">⋯</button>
+      <button class="msg-dots-btn" aria-label="${t('app.actions.message_actions')}">⋯</button>
     </div>
   `;
 },
@@ -614,10 +614,10 @@ _renderPinnedPanel(pins) {
   const list = document.getElementById('pinned-list');
   const count = document.getElementById('pinned-count');
 
-  count.textContent = `📌 ${pins.length} pinned message${pins.length !== 1 ? 's' : ''}`;
+  count.textContent = `📌 ${t(pins.length !== 1 ? 'pinned_panel.count_other' : 'pinned_panel.count_one', { count: pins.length })}`;
 
   if (pins.length === 0) {
-    list.innerHTML = '<p class="muted-text" style="padding:12px">No pinned messages</p>';
+    list.innerHTML = `<p class="muted-text" style="padding:12px">${t('pinned_panel.no_messages')}</p>`;
   } else {
     list.innerHTML = pins.map(p => `
       <div class="pinned-item" data-msg-id="${p.id}">
@@ -626,7 +626,7 @@ _renderPinnedPanel(pins) {
           <span class="pinned-item-time">${this._formatTime(p.created_at)}</span>
         </div>
         <div class="pinned-item-content">${this._formatContent(p.content)}</div>
-        <div class="pinned-item-footer">Pinned by ${this._escapeHtml(p.pinned_by)}</div>
+        <div class="pinned-item-footer">${t('pinned_panel.pinned_by', { user: this._escapeHtml(p.pinned_by) })}</div>
       </div>
     `).join('');
   }

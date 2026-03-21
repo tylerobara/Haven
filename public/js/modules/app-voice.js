@@ -7,7 +7,7 @@ async _joinVoice() {
   // Block voice join in text-only channels
   const _jvChk = this.channels.find(c => c.code === this.currentChannel);
   if (_jvChk && _jvChk.voice_enabled === 0) {
-    this._showToast('Voice is disabled in this channel', 'error');
+    this._showToast(t('voice.disabled'), 'error');
     return;
   }
   // voice.join() auto-leaves old channel if connected
@@ -22,21 +22,21 @@ async _joinVoice() {
     const _ssBtn = document.getElementById('screen-share-btn');
     if (_ssBtn && _jvCh && _jvCh.streams_enabled === 0) {
       _ssBtn.disabled = true;
-      _ssBtn.title = 'Streams are disabled in this channel';
+      _ssBtn.title = t('voice.streams_disabled');
     }
     const _camBtn = document.getElementById('voice-cam-btn');
     if (_camBtn && _jvCh && _jvCh.streams_enabled === 0) {
       _camBtn.disabled = true;
-      _camBtn.title = 'Streams are disabled in this channel';
+      _camBtn.title = t('voice.streams_disabled');
     }
     const _musicBtn = document.getElementById('voice-listen-together-btn');
     if (_musicBtn && _jvCh && _jvCh.music_enabled === 0) {
       _musicBtn.disabled = true;
-      _musicBtn.title = 'Music is disabled in this channel';
+      _musicBtn.title = t('voice.music_disabled');
     }
-    this._showToast('Joined voice chat', 'success');
+    this._showToast(t('voice.joined'), 'success');
   } else {
-    this._showToast('Could not access microphone. Check permissions or use HTTPS.', 'error');
+    this._showToast(t('voice.mic_error'), 'error');
   }
 },
 
@@ -47,14 +47,14 @@ _leaveVoice() {
   this._updateVoiceStatus(false);
   this._updateVoiceBar();
   this._hideMusicPanel();
-  this._showToast('Left voice chat', 'info');
+  this._showToast(t('voice.left'), 'info');
 },
 
 _toggleMute() {
   const muted = this.voice.toggleMute();
   const btn = document.getElementById('voice-mute-btn');
   btn.textContent = '🎙️';
-  btn.title = muted ? 'Unmute' : 'Mute';
+  btn.title = muted ? t('voice.unmute') : t('voice.mute');
   btn.classList.toggle('muted', muted);
 
   // Audible cue
@@ -62,10 +62,10 @@ _toggleMute() {
 
   if (muted) {
     this._setLed('status-voice-led', 'warn');
-    document.getElementById('status-voice-text').textContent = 'Muted';
+    document.getElementById('status-voice-text').textContent = t('voice.status_muted');
   } else if (!this.voice.isDeafened) {
     this._setLed('status-voice-led', 'on');
-    document.getElementById('status-voice-text').textContent = 'Active';
+    document.getElementById('status-voice-text').textContent = t('voice.status_active');
   }
 },
 
@@ -73,7 +73,7 @@ _toggleDeafen() {
   const deafened = this.voice.toggleDeafen();
   const btn = document.getElementById('voice-deafen-btn');
   btn.textContent = deafened ? '�' : '🔊';
-  btn.title = deafened ? 'Undeafen' : 'Deafen';
+  btn.title = deafened ? t('voice.undeafen') : t('voice.deafen');
   btn.classList.toggle('muted', deafened);
 
   // Audible cue
@@ -81,13 +81,13 @@ _toggleDeafen() {
 
   if (deafened) {
     this._setLed('status-voice-led', 'danger');
-    document.getElementById('status-voice-text').textContent = 'Deafened';
+    document.getElementById('status-voice-text').textContent = t('voice.status_deafened');
   } else if (this.voice.isMuted) {
     this._setLed('status-voice-led', 'warn');
-    document.getElementById('status-voice-text').textContent = 'Muted';
+    document.getElementById('status-voice-text').textContent = t('voice.status_muted');
   } else {
     this._setLed('status-voice-led', 'on');
-    document.getElementById('status-voice-text').textContent = 'Active';
+    document.getElementById('status-voice-text').textContent = t('voice.status_active');
   }
 },
 
@@ -113,21 +113,21 @@ _updateVoiceButtons(inVoice) {
 
   if (!inVoice) {
     document.getElementById('voice-mute-btn').textContent = '🎙️';
-    document.getElementById('voice-mute-btn').title = 'Mute';
+    document.getElementById('voice-mute-btn').title = t('voice.mute');
     document.getElementById('voice-mute-btn').classList.remove('muted');
     document.getElementById('voice-deafen-btn').textContent = '🔊';
-    document.getElementById('voice-deafen-btn').title = 'Deafen';
+    document.getElementById('voice-deafen-btn').title = t('voice.deafen');
     document.getElementById('voice-deafen-btn').classList.remove('muted');
     document.getElementById('screen-share-btn').textContent = '🖥️';
-    document.getElementById('screen-share-btn').title = 'Share Screen';
+    document.getElementById('screen-share-btn').title = t('voice.screen_share');
     document.getElementById('screen-share-btn').classList.remove('sharing');
     document.getElementById('screen-share-btn').disabled = false;
     document.getElementById('voice-cam-btn').textContent = '📷';
-    document.getElementById('voice-cam-btn').title = 'Camera';
+    document.getElementById('voice-cam-btn').title = t('voice.panel.camera');
     document.getElementById('voice-cam-btn').classList.remove('sharing');
     document.getElementById('voice-cam-btn').disabled = false;
     const _ltnBtn = document.getElementById('voice-listen-together-btn');
-    if (_ltnBtn) { _ltnBtn.disabled = false; _ltnBtn.title = 'Listen Together'; }
+    if (_ltnBtn) { _ltnBtn.disabled = false; _ltnBtn.title = t('voice.panel.listen_together'); }
     document.getElementById('voice-ns-slider').value = 10;
     // Hide voice settings sub-panel
     const vsPanel = document.getElementById('voice-settings-panel');
@@ -156,10 +156,10 @@ _updateVoiceButtons(inVoice) {
 _updateVoiceStatus(inVoice) {
   if (inVoice) {
     this._setLed('status-voice-led', 'on');
-    document.getElementById('status-voice-text').textContent = 'Active';
+    document.getElementById('status-voice-text').textContent = t('voice.status_active');
   } else {
     this._setLed('status-voice-led', 'off');
-    document.getElementById('status-voice-text').textContent = 'Off';
+    document.getElementById('status-voice-text').textContent = t('voice.status_off');
   }
 },
 
@@ -169,7 +169,7 @@ _updateVoiceBar() {
   if (this.voice && this.voice.inVoice && this.voice.currentChannel) {
     const ch = this.channels.find(c => c.code === this.voice.currentChannel);
     const name = ch ? (ch.is_dm && ch.dm_target ? `@ ${ch.dm_target.username}` : `# ${ch.name}`) : this.voice.currentChannel;
-    bar.innerHTML = `<span class="voice-bar-icon">🔊</span><span class="voice-bar-channel">${this._escapeHtml(name)}</span><button class="voice-bar-leave" id="voice-bar-leave-btn" title="Disconnect">✕</button>`;
+    bar.innerHTML = `<span class="voice-bar-icon">🔊</span><span class="voice-bar-channel">${this._escapeHtml(name)}</span><button class="voice-bar-leave" id="voice-bar-leave-btn" title="${t('voice.disconnect')}">✕</button>`;
     bar.style.display = 'flex';
     document.getElementById('voice-bar-leave-btn').addEventListener('click', () => this._leaveVoice());
   } else {
@@ -188,34 +188,34 @@ async _toggleScreenShare() {
   // Block screen share if streams are disabled in this channel
   const _ssCh = this.channels.find(c => c.code === this.voice.currentChannel);
   if (_ssCh && _ssCh.streams_enabled === 0) {
-    this._showToast('Streams are disabled in this channel', 'error');
+    this._showToast(t('voice.streams_disabled'), 'error');
     return;
   }
 
   if (this.voice.isScreenSharing) {
     await this.voice.stopScreenShare();
     document.getElementById('screen-share-btn').textContent = '🖥️';
-    document.getElementById('screen-share-btn').title = 'Share Screen';
+    document.getElementById('screen-share-btn').title = t('voice.screen_share');
     document.getElementById('screen-share-btn').classList.remove('sharing');
-    this._showToast('Stopped screen sharing', 'info');
+    this._showToast(t('voice.screen_share_stopped'), 'info');
   } else {
     const ok = await this.voice.shareScreen();
     if (ok) {
       document.getElementById('screen-share-btn').textContent = '🛑';
-      document.getElementById('screen-share-btn').title = 'Stop Sharing';
+      document.getElementById('screen-share-btn').title = t('voice.stop_share');
       document.getElementById('screen-share-btn').classList.add('sharing');
       // Show our own screen in the viewer
       this._handleScreenStream(this.user.id, this.voice.screenStream);
       // Show audio/no-audio badge
       if (this.voice.screenHasAudio) {
         this._handleScreenAudio(this.user.id);
-        this._showToast('Screen sharing started with audio', 'success');
+        this._showToast(t('voice.screen_share_started_audio'), 'success');
       } else {
         this._handleScreenNoAudio(this.user.id);
-        this._showToast('Screen sharing started (no audio — enable it in the browser picker)', 'info');
+        this._showToast(t('voice.screen_share_started_no_audio'), 'info');
       }
     } else {
-      this._showToast('Screen share cancelled or not supported', 'error');
+      this._showToast(t('voice.screen_share_cancelled'), 'error');
     }
   }
 },
@@ -227,20 +227,20 @@ async _toggleWebcam() {
   if (this.voice.isWebcamActive) {
     await this.voice.stopWebcam();
     btn.textContent = '📷';
-    btn.title = 'Camera';
+    btn.title = t('voice.panel.camera');
     btn.classList.remove('sharing');
     this._handleWebcamStream(this.user.id, null);
-    this._showToast('Camera stopped', 'info');
+    this._showToast(t('voice.camera_stopped'), 'info');
   } else {
     const ok = await this.voice.startWebcam();
     if (ok) {
       btn.textContent = '🛑';
-      btn.title = 'Stop Camera';
+      btn.title = t('voice.stop_camera');
       btn.classList.add('sharing');
       this._handleWebcamStream(this.user.id, this.voice.webcamStream);
-      this._showToast('Camera started', 'success');
+      this._showToast(t('voice.camera_started'), 'success');
     } else {
-      this._showToast('Camera unavailable or permission denied', 'error');
+      this._showToast(t('voice.camera_error'), 'error');
     }
   }
 },
@@ -284,7 +284,7 @@ _handleWebcamStream(userId, stream) {
       // Pop-out button (PiP)
       const popoutBtn = document.createElement('button');
       popoutBtn.className = 'stream-popout-btn';
-      popoutBtn.title = 'Pop out camera';
+      popoutBtn.title = t('media.pop_out_camera');
       popoutBtn.textContent = '⧉';
       popoutBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -295,7 +295,7 @@ _handleWebcamStream(userId, stream) {
       // Fullscreen button
       const fsBtnWC = document.createElement('button');
       fsBtnWC.className = 'stream-fullscreen-btn';
-      fsBtnWC.title = 'Fullscreen';
+      fsBtnWC.title = t('media.fullscreen');
       fsBtnWC.textContent = '⛶';
       fsBtnWC.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -312,7 +312,7 @@ _handleWebcamStream(userId, stream) {
       // Minimize button — collapses tile but keeps in grid
       const minBtn = document.createElement('button');
       minBtn.className = 'stream-minimize-btn';
-      minBtn.title = 'Minimize';
+      minBtn.title = t('media.minimize');
       minBtn.textContent = '─';
       minBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -333,7 +333,7 @@ _handleWebcamStream(userId, stream) {
       // Close button — removes tile entirely
       const closeBtn = document.createElement('button');
       closeBtn.className = 'stream-close-btn';
-      closeBtn.title = 'Close camera';
+      closeBtn.title = t('media.close_camera');
       closeBtn.textContent = '✕';
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -349,7 +349,7 @@ _handleWebcamStream(userId, stream) {
           const btn = document.getElementById('webcam-toggle');
           if (btn) {
             btn.textContent = '📷';
-            btn.title = 'Camera';
+            btn.title = t('voice.panel.camera');
             btn.classList.remove('sharing');
           }
         }
@@ -410,7 +410,7 @@ _handleWebcamStream(userId, stream) {
       const btn = document.getElementById('voice-cam-btn');
       if (btn) {
         btn.textContent = '📷';
-        btn.title = 'Camera';
+        btn.title = t('voice.panel.camera');
         btn.classList.remove('sharing');
       }
     }
@@ -542,11 +542,11 @@ _popOutWebcam(tile, userId) {
   if (document.pictureInPictureEnabled && !video.disablePictureInPicture) {
     video.requestPictureInPicture().then(() => {
       const popoutBtn = tile.querySelector('.stream-popout-btn');
-      if (popoutBtn) { popoutBtn.textContent = '⧈'; popoutBtn.title = 'Pop in camera'; }
+      if (popoutBtn) { popoutBtn.textContent = '⧈'; popoutBtn.title = t('media.pop_in_camera'); }
       tile.classList.add('webcam-popped-out');
 
       video.addEventListener('leavepictureinpicture', () => {
-        if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = 'Pop out camera'; }
+        if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = t('media.pop_out_camera'); }
         tile.classList.remove('webcam-popped-out');
       }, { once: true });
     }).catch(() => {
@@ -577,11 +577,11 @@ _popOutWebcamOverlay(tile, userId) {
   pip.innerHTML = `
     <div class="music-pip-embed stream-pip-video"></div>
     <div class="music-pip-controls">
-      <button class="music-pip-btn stream-pip-popin" title="Pop back in">⧈</button>
+      <button class="music-pip-btn stream-pip-popin" title="${t('media.pop_back_in')}">⧈</button>
       <span class="music-pip-label">📷 ${who}</span>
       <span class="music-pip-vol-icon" title="Window opacity">👁</span>
       <input type="range" class="music-pip-vol pip-opacity-slider" min="20" max="100" value="${savedOpacity}">
-      <button class="music-pip-btn stream-pip-fullscreen" title="Fullscreen">⤢</button>
+      <button class="music-pip-btn stream-pip-fullscreen" title="${t('media.fullscreen')}">⤢</button>
       <button class="music-pip-btn stream-pip-close" title="Close">✕</button>
     </div>
   `;
@@ -599,18 +599,18 @@ _popOutWebcamOverlay(tile, userId) {
   pipVideo.play().catch(() => {});
 
   const popoutBtn = tile.querySelector('.stream-popout-btn');
-  if (popoutBtn) { popoutBtn.textContent = '⧈'; popoutBtn.title = 'Pop in camera'; }
+  if (popoutBtn) { popoutBtn.textContent = '⧈'; popoutBtn.title = t('media.pop_in_camera'); }
   tile.classList.add('webcam-popped-out');
 
   const popIn = () => {
     pip.remove();
-    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = 'Pop out camera'; }
+    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = t('media.pop_out_camera'); }
     tile.classList.remove('webcam-popped-out');
   };
 
   const closePip = () => {
     pip.remove();
-    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = 'Pop out camera'; }
+    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = t('media.pop_out_camera'); }
     tile.classList.remove('webcam-popped-out');
   };
 
@@ -656,7 +656,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
     if (!autoAccept && userId !== null && userId !== this.user.id) {
       const peer = this.voice.peers.get(userId);
       const who = peer ? peer.username : 'Someone';
-      this._showToast(`${this._escapeHtml(who)} started sharing their screen`, 'info', {
+      this._showToast(t('voice.sharing_started', { who: this._escapeHtml(who) }), 'info', {
         label: 'Join',
         onClick: () => this._handleScreenStream(userId, stream, { force: true })
       }, 8000);
@@ -691,7 +691,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
 
       const muteBtn = document.createElement('button');
       muteBtn.className = 'stream-mute-btn';
-      muteBtn.title = 'Mute/Unmute stream audio';
+      muteBtn.title = t('media.stream_mute');
       muteBtn.textContent = '🔊';
       muteBtn.dataset.muted = 'false';
 
@@ -700,7 +700,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
       volSlider.className = 'stream-vol-slider';
       volSlider.min = '0';
       volSlider.max = '200';
-      volSlider.title = 'Stream volume (0–200%)';
+      volSlider.title = t('media.stream_volume');
 
       const volPct = document.createElement('span');
       volPct.className = 'stream-vol-pct';
@@ -759,7 +759,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
       // Pop-out button
       const popoutBtn = document.createElement('button');
       popoutBtn.className = 'stream-popout-btn';
-      popoutBtn.title = 'Pop out stream';
+      popoutBtn.title = t('media.pop_out_stream');
       popoutBtn.textContent = '⧉';
       popoutBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -770,7 +770,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
       // Fullscreen button — makes the video element fill the screen
       const fsBtn = document.createElement('button');
       fsBtn.className = 'stream-fullscreen-btn';
-      fsBtn.title = 'Fullscreen';
+      fsBtn.title = t('media.fullscreen');
       fsBtn.textContent = '⛶';
       fsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -787,7 +787,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
       // Minimize button — hides tile but KEEPS audio playing
       const minBtn = document.createElement('button');
       minBtn.className = 'stream-minimize-btn';
-      minBtn.title = 'Minimize (keep audio)';
+      minBtn.title = t('media.stream_minimize');
       minBtn.textContent = '─';
       minBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -798,7 +798,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
       // Close button — hides tile and mutes its audio (can be restored from hidden bar)
       const closeBtn = document.createElement('button');
       closeBtn.className = 'stream-close-btn';
-      closeBtn.title = 'Close (stop audio)';
+      closeBtn.title = t('media.stream_close');
       closeBtn.textContent = '✕';
       closeBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -876,7 +876,7 @@ _handleScreenStream(userId, stream, { force = false } = {}) {
       const ssBtn = document.getElementById('screen-share-btn');
       if (ssBtn) {
         ssBtn.textContent = '🖥️';
-        ssBtn.title = 'Share Screen';
+        ssBtn.title = t('voice.screen_share');
         ssBtn.classList.remove('sharing');
       }
     }
@@ -1153,7 +1153,7 @@ _updateHiddenStreamsBar() {
     document.querySelector('.voice-controls')?.appendChild(bar);
   }
 
-  bar.innerHTML = `<button class="hidden-stream-restore-btn" title="Show hidden streams">🖥 ${hiddenTiles.length} stream${hiddenTiles.length > 1 ? 's' : ''} hidden</button>`;
+  bar.innerHTML = `<button class="hidden-stream-restore-btn" title="${t('media.show_hidden_streams')}">🖥 ${t(hiddenTiles.length === 1 ? 'media.hidden_streams_one' : 'media.hidden_streams_other', { count: hiddenTiles.length })}</button>`;
 
   // Bind restore button — clicking it restores all hidden streams
   bar.querySelector('.hidden-stream-restore-btn').addEventListener('click', () => {
@@ -1367,12 +1367,12 @@ _popOutStream(tile, userId) {
   if (document.pictureInPictureEnabled && !video.disablePictureInPicture) {
     video.requestPictureInPicture().then(() => {
       const popoutBtn = tile.querySelector('.stream-popout-btn');
-      if (popoutBtn) { popoutBtn.textContent = '\u29C8'; popoutBtn.title = 'Pop in stream'; }
+      if (popoutBtn) { popoutBtn.textContent = '\u29C8'; popoutBtn.title = t('media.pop_in_stream'); }
       tile.classList.add('stream-popped-out');
       this._updateStreamContainerCollapse();
 
       video.addEventListener('leavepictureinpicture', () => {
-        if (popoutBtn) { popoutBtn.textContent = '\u29C9'; popoutBtn.title = 'Pop out stream'; }
+        if (popoutBtn) { popoutBtn.textContent = '\u29C9'; popoutBtn.title = t('media.pop_out_stream'); }
         tile.classList.remove('stream-popped-out');
         this._updateStreamContainerCollapse();
       }, { once: true });
@@ -1408,11 +1408,11 @@ _popOutStreamWindow(tile, userId) {
   pip.innerHTML = `
     <div class="music-pip-embed stream-pip-video"></div>
     <div class="music-pip-controls">
-      <button class="music-pip-btn stream-pip-popin" title="Pop back in">⧈</button>
+      <button class="music-pip-btn stream-pip-popin" title="${t('media.pop_back_in')}">⧈</button>
       <span class="music-pip-label">🖥️ ${who}</span>
       <span class="music-pip-vol-icon stream-pip-opacity-icon" title="Window opacity">👁</span>
       <input type="range" class="music-pip-vol pip-opacity-slider stream-pip-opacity" min="20" max="100" value="${savedOpacity}">
-      <button class="music-pip-btn stream-pip-fullscreen" title="Fullscreen">⤢</button>
+      <button class="music-pip-btn stream-pip-fullscreen" title="${t('media.fullscreen')}">⤢</button>
       <button class="music-pip-btn stream-pip-close" title="Close">✕</button>
     </div>
   `;
@@ -1430,14 +1430,14 @@ _popOutStreamWindow(tile, userId) {
   pipVideo.play().catch(() => {});
 
   const popoutBtn = tile.querySelector('.stream-popout-btn');
-  if (popoutBtn) { popoutBtn.textContent = '⧈'; popoutBtn.title = 'Pop in stream'; }
+  if (popoutBtn) { popoutBtn.textContent = '⧈'; popoutBtn.title = t('media.pop_in_stream'); }
   tile.classList.add('stream-popped-out');
   this._updateStreamContainerCollapse();
 
   // Pop-in handler (minimize — return to inline grid)
   const popIn = () => {
     pip.remove();
-    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = 'Pop out stream'; }
+    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = t('media.pop_out_stream'); }
     tile.classList.remove('stream-popped-out');
     this._updateStreamContainerCollapse();
   };
@@ -1445,7 +1445,7 @@ _popOutStreamWindow(tile, userId) {
   // Close handler (destroy PiP overlay AND hide the inline tile)
   const closePip = () => {
     pip.remove();
-    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = 'Pop out stream'; }
+    if (popoutBtn) { popoutBtn.textContent = '⧉'; popoutBtn.title = t('media.pop_out_stream'); }
     tile.classList.remove('stream-popped-out');
     this._updateStreamContainerCollapse();
     // Also hide the stream tile — user wants to close the stream, not just pop back in
@@ -1491,7 +1491,7 @@ _popOutStreamWindow(tile, userId) {
 
 _openMusicModal() {
   if (!this.voice || !this.voice.inVoice) {
-    this._showToast('Join voice first to share music', 'error');
+    this._showToast(t('toasts.join_voice_first'), 'error');
     return;
   }
   document.getElementById('music-link-input').value = '';
@@ -1521,12 +1521,12 @@ _previewMusicLink(url) {
 
 _shareMusic() {
   const url = document.getElementById('music-link-input').value.trim();
-  if (!url) { this._showToast('Please paste a music link', 'error'); return; }
+  if (!url) { this._showToast(t('toasts.paste_music_link'), 'error'); return; }
   if (!this._getMusicEmbed(url)) {
-    this._showToast('Unsupported link — try Spotify, YouTube, or SoundCloud', 'error');
+    this._showToast(t('toasts.unsupported_music_link'), 'error');
     return;
   }
-  if (!this.voice || !this.voice.inVoice) { this._showToast('Join voice first', 'error'); return; }
+  if (!this.voice || !this.voice.inVoice) { this._showToast(t('toasts.join_voice_required'), 'error'); return; }
   this.socket.emit('music-share', { code: this.voice.currentChannel, url });
   this._closeMusicModal();
 },
@@ -1544,7 +1544,7 @@ _showMusicSearchResults(data) {
 
   const { results, query, offset } = data;
   if (!results || results.length === 0) {
-    this._showToast(offset > 0 ? 'No more results' : `No results for "${query}"`, 'error');
+    this._showToast(offset > 0 ? t('toasts.no_more_results') : t('toasts.no_results_for', { query }), 'error');
     return;
   }
 
@@ -1588,7 +1588,7 @@ _showMusicSearchResults(data) {
     this._musicSearchOffset = newOffset;
     this.socket.emit('music-search', { query: this._musicSearchQuery, offset: newOffset });
     this._closeMusicSearchPicker();
-    this._showToast('Loading more…', 'info');
+    this._showToast(t('toasts.loading_more'), 'info');
   });
 
   picker.querySelectorAll('.music-search-picker-play').forEach(btn => {
@@ -1680,11 +1680,11 @@ _handleMusicShared(data) {
   const volSlider = document.getElementById('music-volume-slider');
   const muteBtn = document.getElementById('music-mute-btn');
   if (isSpotify) {
-    if (volSlider) { volSlider.disabled = true; volSlider.title = 'Use Spotify\'s built-in controls for volume'; }
-    if (muteBtn) { muteBtn.disabled = true; muteBtn.title = 'Use Spotify\'s built-in controls for volume'; }
+    if (volSlider) { volSlider.disabled = true; volSlider.title = t('media.spotify_volume_hint'); }
+    if (muteBtn) { muteBtn.disabled = true; muteBtn.title = t('media.spotify_volume_hint'); }
   } else {
     if (volSlider) { volSlider.disabled = false; volSlider.title = ''; }
-    if (muteBtn) { muteBtn.disabled = false; muteBtn.title = 'Mute/Unmute'; }
+    if (muteBtn) { muteBtn.disabled = false; muteBtn.title = t('media.mute_unmute'); }
   }
 
   // Show next/prev/shuffle for SoundCloud & YouTube playlists only (not single YT videos, not Spotify)
@@ -1836,7 +1836,7 @@ _handleMusicStopped(data) {
   this._musicPlaying = false;
   this._hideMusicPanel();
   const who = data.userId === this.user?.id ? 'You' : (data.username || 'Someone');
-  this._showToast(`${who} stopped the music`, 'info');
+  this._showToast(t('voice.music_stopped', { who }), 'info');
 },
 
 _handleMusicControl(data) {
@@ -1929,7 +1929,7 @@ _musicToggleShuffle() {
       this._musicSCCurrentIndex = next;
       this._musicSCWidget.skip(next);
     }
-    this._showToast(this._musicSCShuffle ? 'Shuffle on' : 'Shuffle off', 'info');
+    this._showToast(this._musicSCShuffle ? t('voice.shuffle_on') : t('voice.shuffle_off'), 'info');
   } catch { /* player may not support shuffle */ }
 },
 
@@ -1996,7 +1996,7 @@ _popOutMusicPlayer() {
   const panel = document.getElementById('music-panel');
   const container = document.getElementById('music-embed-container');
   if (!container || !container.innerHTML.trim()) {
-    this._showToast('No music playing', 'error');
+    this._showToast(t('toasts.no_music_playing'), 'error');
     return;
   }
 
@@ -2019,15 +2019,15 @@ _popOutMusicPlayer() {
 
   pip.innerHTML = `
     <div class="music-pip-header" id="music-pip-drag">
-      <button class="music-pip-btn" id="music-pip-popin" title="Minimize (back to panel)">─</button>
+      <button class="music-pip-btn" id="music-pip-popin" title="${t('media.music_pip_minimize')}">─</button>
       <span class="music-pip-label">🎵 ${platform}</span>
-      <button class="music-pip-btn" id="music-pip-fullscreen" title="Fullscreen">⤢</button>
-      <button class="music-pip-btn" id="music-pip-close" title="Close / stop music">✕</button>
+      <button class="music-pip-btn" id="music-pip-fullscreen" title="${t('media.fullscreen')}">⤢</button>
+      <button class="music-pip-btn" id="music-pip-close" title="${t('media.music_stop')}">✕</button>
     </div>
     <div class="music-pip-embed" id="music-pip-embed"></div>
     <div class="music-pip-controls">
-      <button class="music-pip-btn" id="music-pip-pp" title="Play/Pause">${playing ? '⏸' : '▶'}</button>
-      <span class="music-pip-vol-icon" id="music-pip-mute" title="Mute">🔊</span>
+      <button class="music-pip-btn" id="music-pip-pp" title="${t('media.music_play_pause')}">${playing ? '⏸' : '▶'}</button>
+      <span class="music-pip-vol-icon" id="music-pip-mute" title="${t('media.music_mute')}">🔊</span>
       <input type="range" class="music-pip-vol" id="music-pip-vol" min="0" max="100" value="${volume}">
       <span class="pip-opacity-divider"></span>
       <span class="music-pip-vol-icon" id="music-pip-opacity-icon" title="Window opacity">👁</span>
@@ -2055,7 +2055,7 @@ _popOutMusicPlayer() {
 
   // Update popout button icon to show "pop-in"
   const popBtn = document.getElementById('music-popout-btn');
-  if (popBtn) { popBtn.textContent = '⧈'; popBtn.title = 'Pop back in'; }
+  if (popBtn) { popBtn.textContent = '⧈'; popBtn.title = t('media.pop_back_in'); }
 
   // ── PiP controls ──
   document.getElementById('music-pip-popin').addEventListener('click', () => this._popInMusicPlayer());
@@ -2097,9 +2097,9 @@ _popOutMusicPlayer() {
     const fsBtn = document.getElementById('music-pip-fullscreen');
     if (!fsBtn) return;
     if (document.fullscreenElement === pip) {
-      fsBtn.textContent = '⤡'; fsBtn.title = 'Exit fullscreen';
+      fsBtn.textContent = '⤡'; fsBtn.title = t('media.exit_fullscreen');
     } else {
-      fsBtn.textContent = '⤢'; fsBtn.title = 'Fullscreen';
+      fsBtn.textContent = '⤢'; fsBtn.title = t('media.fullscreen');
     }
   });
 
@@ -2134,7 +2134,7 @@ _popInMusicPlayer() {
 
   // Restore popout button icon
   const popBtn = document.getElementById('music-popout-btn');
-  if (popBtn) { popBtn.textContent = '⧉'; popBtn.title = 'Pop out player'; }
+  if (popBtn) { popBtn.textContent = '⧉'; popBtn.title = t('media.music_popout'); }
 },
 
 _initPipDrag(pip, handle) {
@@ -2180,8 +2180,8 @@ _showMusicIndicator() {
   ind = document.createElement('button');
   ind.id = 'music-indicator';
   ind.className = 'music-indicator';
-  ind.textContent = '🎵 Music playing';
-  ind.title = 'Click to show music player';
+  ind.textContent = `🎵 ${t('voice.music_playing')}`;
+  ind.title = t('media.show_music_player');
   ind.addEventListener('click', () => {
     // If PiP is active, pop back in first
     if (this._musicPip) {

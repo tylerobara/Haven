@@ -6,7 +6,7 @@ _renderOnlineUsers(users) {
   this._lastOnlineUsers = users;
   const el = document.getElementById('online-users');
   if (users.length === 0) {
-    el.innerHTML = '<p class="muted-text">No one here</p>';
+    el.innerHTML = `<p class="muted-text">${t('users.no_one_here')}</p>`;
     return;
   }
 
@@ -36,15 +36,15 @@ _renderOnlineUsers(users) {
 
   let html = '';
   if (onlineUsers.length > 0) {
-    html += `<div class="user-group-label">Online — ${onlineUsers.length}</div>`;
+    html += `<div class="user-group-label">${t('users.online_count', { count: onlineUsers.length })}</div>`;
     html += onlineUsers.map(u => this._renderUserItem(u, scoreLookup)).join('');
   }
   if (offlineUsers.length > 0) {
-    html += `<div class="user-group-label offline-label">Offline — ${offlineUsers.length}</div>`;
+    html += `<div class="user-group-label offline-label">${t('users.offline_count', { count: offlineUsers.length })}</div>`;
     html += offlineUsers.map(u => this._renderUserItem(u, scoreLookup)).join('');
   }
   if (!onlineUsers.length && !offlineUsers.length) {
-    html = '<p class="muted-text">No one here</p>';
+    html = `<p class="muted-text">${t('users.no_one_here')}</p>`;
   }
 
   el.innerHTML = html;
@@ -68,7 +68,7 @@ _renderOnlineUsers(users) {
       const targetId = parseInt(btn.dataset.dmUid);
       if (isNaN(targetId)) return;
       const targetName = btn.closest('.user-item')?.querySelector('.user-item-name')?.textContent || 'user';
-      this._showToast(`Opening DM with ${targetName}…`, 'info');
+      this._showToast(t('users.opening_dm', { name: targetName }), 'info');
       btn.disabled = true;
       btn.style.opacity = '0.5';
       this.socket.emit('start-dm', { targetUserId: targetId });
@@ -87,12 +87,12 @@ _showUserGearMenu(anchorEl, userId, username) {
   const isAdmin = this.user.isAdmin;
 
   let items = '';
-  if (canPromote) items += `<button class="gear-menu-item" data-action="assign-role">👑 Assign Role</button>`;
-  if (canMod) items += `<button class="gear-menu-item" data-action="kick">👢 Kick</button>`;
-  if (canMod) items += `<button class="gear-menu-item" data-action="mute">🔇 Mute</button>`;
-  if (isAdmin) items += `<button class="gear-menu-item gear-menu-danger" data-action="ban">⛔ Ban</button>`;
-  if (isAdmin) items += `<button class="gear-menu-item gear-menu-danger" data-action="delete-user">🗑️ Delete User</button>`;
-  if (isAdmin) items += `<div class="gear-menu-divider"></div><button class="gear-menu-item gear-menu-danger" data-action="transfer-admin">🔑 Transfer Admin</button>`;
+  if (canPromote) items += `<button class="gear-menu-item" data-action="assign-role">👑 ${t('users.gear_menu.assign_role')}</button>`;
+  if (canMod) items += `<button class="gear-menu-item" data-action="kick">👢 ${t('users.gear_menu.kick')}</button>`;
+  if (canMod) items += `<button class="gear-menu-item" data-action="mute">🔇 ${t('users.gear_menu.mute')}</button>`;
+  if (isAdmin) items += `<button class="gear-menu-item gear-menu-danger" data-action="ban">⛔ ${t('users.gear_menu.ban')}</button>`;
+  if (isAdmin) items += `<button class="gear-menu-item gear-menu-danger" data-action="delete-user">🗑️ ${t('users.gear_menu.delete_user')}</button>`;
+  if (isAdmin) items += `<div class="gear-menu-divider"></div><button class="gear-menu-item gear-menu-danger" data-action="transfer-admin">🔑 ${t('users.gear_menu.transfer_admin')}</button>`;
 
   const menu = document.createElement('div');
   menu.className = 'user-gear-menu';
@@ -150,7 +150,7 @@ _renderUserItem(u, scoreLookup) {
   const onlineClass = u.online === false ? ' offline' : '';
   const score = scoreLookup[u.id] || 0;
   const scoreBadge = score > 0
-    ? `<span class="user-score-badge" title="Flappy Container: ${score}">🚢${score}</span>`
+    ? `<span class="user-score-badge" title="${t('users.flappy_score_title', { score })}">🚢${score}</span>`
     : '';
 
   // Status dot color
@@ -186,11 +186,11 @@ _renderUserItem(u, scoreLookup) {
   // Build tooltip
   const tooltipRole = u.role ? `<div class="tooltip-role" style="color:${roleColor}">● ${this._escapeHtml(u.role.name)}</div>` : '';
   const tooltipStatus = u.statusText ? `<div class="tooltip-status">${this._escapeHtml(u.statusText)}</div>` : '';
-  const tooltipOnline = u.online === false ? '<div class="tooltip-status">Offline</div>' : '';
+  const tooltipOnline = u.online === false ? `<div class="tooltip-status">${t('app.profile.offline')}</div>` : '';
   const tooltip = `<div class="user-item-tooltip"><div class="tooltip-username">${this._escapeHtml(u.username)}</div>${tooltipRole}${tooltipStatus}${tooltipOnline}</div>`;
 
   const dmBtn = u.id !== this.user.id
-    ? `<button class="user-action-btn user-dm-btn" data-dm-uid="${u.id}" title="Direct Message">💬</button>`
+    ? `<button class="user-action-btn user-dm-btn" data-dm-uid="${u.id}" title="${t('users.direct_message')}">💬</button>`
     : '';
 
   // Show DM + Gear icon. Gear opens a dropdown with mod actions.
@@ -198,7 +198,7 @@ _renderUserItem(u, scoreLookup) {
   const canPromote = this._hasPerm('promote_user') && u.id !== this.user.id;
   const hasGear = canModThis || canPromote;
   const gearBtn = hasGear
-    ? `<button class="user-action-btn user-gear-btn" data-uid="${u.id}" data-uname="${this._escapeHtml(u.username)}" title="More Actions">⚙️</button>`
+    ? `<button class="user-action-btn user-gear-btn" data-uid="${u.id}" data-uname="${this._escapeHtml(u.username)}" title="${t('users.more_actions')}">⚙️</button>`
     : '';
   const modBtns = (dmBtn || gearBtn)
     ? `<div class="user-admin-actions">${dmBtn}${gearBtn}</div>`
@@ -238,8 +238,8 @@ _showProfilePopup(profile) {
   // Status dot
   const statusClass = profile.status === 'dnd' ? 'dnd' : profile.status === 'away' ? 'away'
     : profile.status === 'invisible' ? 'invisible' : (!profile.online ? 'away' : '');
-  const statusLabel = profile.status === 'dnd' ? 'Do Not Disturb' : profile.status === 'away' ? 'Away'
-    : profile.status === 'invisible' ? 'Invisible' : (profile.online ? 'Online' : 'Offline');
+  const statusLabel = profile.status === 'dnd' ? t('app.profile.dnd') : profile.status === 'away' ? t('app.profile.away')
+    : profile.status === 'invisible' ? t('app.profile.invisible') : (profile.online ? t('app.profile.online') : t('app.profile.offline'));
 
   // Roles
   const rolesHtml = (profile.roles && profile.roles.length > 0)
@@ -259,18 +259,18 @@ _showProfilePopup(profile) {
   const bioHtml = bioText
     ? `<div class="profile-popup-bio">
          <span class="profile-bio-short">${this._escapeHtml(bioShort)}</span>
-         ${bioText.length > 80 ? `<span class="profile-bio-full" style="display:none">${this._escapeHtml(bioText)}</span><button class="profile-bio-toggle">View Full Bio</button>` : ''}
+         ${bioText.length > 80 ? `<span class="profile-bio-full" style="display:none">${this._escapeHtml(bioText)}</span><button class="profile-bio-toggle">${t('users.view_full_bio')}</button>` : ''}
        </div>`
-    : (isSelf ? `<div class="profile-popup-bio profile-bio-empty">No bio yet — click Edit Profile to add one</div>` : '');
+    : (isSelf ? `<div class="profile-popup-bio profile-bio-empty">${t('users.no_bio')}</div>` : '');
 
   // Join date
   const joinDate = profile.createdAt ? new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 
   // Action buttons
-  const nickBtnLabel = currentNick ? '✏️ Edit Nickname' : '🏷️ Set Nickname';
+  const nickBtnLabel = currentNick ? `✏️ ${t('users.edit_nickname')}` : `🏷️ ${t('users.set_nickname')}`;
   const actionsHtml = isSelf
-    ? `<button class="profile-popup-action-btn profile-edit-btn" id="profile-popup-edit-btn">✏️ Edit Profile</button>`
-    : `<button class="profile-popup-action-btn profile-dm-btn" data-dm-uid="${profile.id}">💬 Message</button><button class="profile-popup-action-btn profile-nick-btn" data-nick-uid="${profile.id}" data-nick-uname="${this._escapeHtml(profile.username)}">${nickBtnLabel}</button>`;
+    ? `<button class="profile-popup-action-btn profile-edit-btn" id="profile-popup-edit-btn">✏️ ${t('users.edit_profile')}</button>`
+    : `<button class="profile-popup-action-btn profile-dm-btn" data-dm-uid="${profile.id}">💬 ${t('users.message_btn')}</button><button class="profile-popup-action-btn profile-nick-btn" data-nick-uid="${profile.id}" data-nick-uname="${this._escapeHtml(profile.username)}">${nickBtnLabel}</button>`;
 
   const popup = document.createElement('div');
   popup.id = 'profile-popup';
@@ -292,8 +292,8 @@ _showProfilePopup(profile) {
       ${statusTextHtml}
       ${bioHtml}
       <div class="profile-popup-divider"></div>
-      ${rolesHtml ? `<div class="profile-popup-section-label">Roles</div><div class="profile-popup-roles">${rolesHtml}</div>` : ''}
-      ${joinDate ? `<div class="profile-popup-section-label">Member Since</div><div class="profile-popup-join-date">${joinDate}</div>` : ''}
+      ${rolesHtml ? `<div class="profile-popup-section-label">${t('users.profile_roles_label')}</div><div class="profile-popup-roles">${rolesHtml}</div>` : ''}
+      ${joinDate ? `<div class="profile-popup-section-label">${t('users.member_since_label')}</div><div class="profile-popup-join-date">${joinDate}</div>` : ''}
       <div class="profile-popup-actions">${actionsHtml}</div>
     </div>
   `;
@@ -331,11 +331,11 @@ _showProfilePopup(profile) {
       if (full.style.display === 'none') {
         full.style.display = '';
         short.style.display = 'none';
-        bioToggle.textContent = 'Show Less';
+        bioToggle.textContent = t('users.show_less');
       } else {
         full.style.display = 'none';
         short.style.display = '';
-        bioToggle.textContent = 'View Full Bio';
+        bioToggle.textContent = t('users.view_full_bio');
       }
     });
   }
@@ -347,7 +347,7 @@ _showProfilePopup(profile) {
       const targetId = parseInt(dmBtnEl.dataset.dmUid);
       this.socket.emit('start-dm', { targetUserId: targetId });
       this._closeProfilePopup();
-      this._showToast(`Opening DM with ${profile.displayName}…`, 'info');
+      this._showToast(t('users.opening_dm', { name: profile.displayName }), 'info');
     });
   }
 
@@ -488,13 +488,13 @@ _openEditProfileModal(profile) {
   modal.style.display = 'flex';
   modal.innerHTML = `
     <div class="modal edit-profile-modal-box">
-      <h3>Edit Profile</h3>
-      <label class="edit-profile-label">Bio <span class="muted-text">(max 190 chars)</span></label>
-      <textarea id="edit-profile-bio" class="edit-profile-textarea" maxlength="190" placeholder="Tell people about yourself…">${this._escapeHtml(profile.bio || '')}</textarea>
+      <h3>${t('users.edit_profile_modal_title')}</h3>
+      <label class="edit-profile-label">${t('users.bio_label')} <span class="muted-text">${t('users.bio_max_hint')}</span></label>
+      <textarea id="edit-profile-bio" class="edit-profile-textarea" maxlength="190" placeholder="${t('users.bio_placeholder')}">${this._escapeHtml(profile.bio || '')}</textarea>
       <div class="edit-profile-char-count"><span id="edit-profile-chars">${(profile.bio || '').length}</span>/190</div>
       <div class="modal-actions">
-        <button class="btn-sm" id="edit-profile-cancel">Cancel</button>
-        <button class="btn-sm btn-accent" id="edit-profile-save">Save</button>
+        <button class="btn-sm" id="edit-profile-cancel">${t('modals.common.cancel')}</button>
+        <button class="btn-sm btn-accent" id="edit-profile-save">${t('modals.common.save')}</button>
       </div>
     </div>
   `;
@@ -523,7 +523,7 @@ _renderVoiceUsers(users) {
   this._lastVoiceUsers = users; // Cache for re-render on stream info updates
   const el = document.getElementById('voice-users');
   if (users.length === 0) {
-    el.innerHTML = '<p class="muted-text">No one in voice</p>';
+    el.innerHTML = `<p class="muted-text">${t('right_sidebar.no_one_in_voice')}</p>`;
     return;
   }
   const streams = this._streamInfo || [];
@@ -541,11 +541,11 @@ _renderVoiceUsers(users) {
     if (isStreaming) {
       const myStream = streams.find(s => s.sharerId === u.id);
       const viewerCount = myStream ? myStream.viewers.length : 0;
-      streamBadge = `<span class="voice-stream-badge live" title="Streaming${viewerCount ? ' · ' + viewerCount + ' viewer' + (viewerCount > 1 ? 's' : '') : ''}">🔴 LIVE${viewerCount ? ' · ' + viewerCount : ''}</span>`;
+      streamBadge = `<span class="voice-stream-badge live" title="${viewerCount ? t(viewerCount === 1 ? 'users.streaming_viewers_one' : 'users.streaming_viewers_other', { count: viewerCount }) : t('users.streaming_no_viewers')}">🔴 ${t('users.streaming_live')}${viewerCount ? ' · ' + viewerCount : ''}</span>`;
     }
     if (isWatching) {
       const watchNames = watchingStreams.map(s => s.sharerName).join(', ');
-      streamBadge += `<span class="voice-stream-badge watching" title="Watching ${watchNames}">👁</span>`;
+      streamBadge += `<span class="voice-stream-badge watching" title="${t('users.watching_stream_title', { names: watchNames })}">👁</span>`;
     }
 
     return `
@@ -553,7 +553,7 @@ _renderVoiceUsers(users) {
         <span class="user-dot voice"${dotStyle}></span>
         <span class="user-item-name"${this._nicknames[u.id] ? ` title="${this._escapeHtml(u.username)}"` : ''}>${this._escapeHtml(this._getNickname(u.id, u.username))}</span>
         ${streamBadge}
-        ${isSelf ? '<span class="you-tag">you</span>' : `<button class="voice-user-menu-btn" data-user-id="${u.id}" data-username="${this._escapeHtml(u.username)}" title="User options">⋯</button>`}
+        ${isSelf ? `<span class="you-tag">${t('users.you_tag')}</span>` : `<button class="voice-user-menu-btn" data-user-id="${u.id}" data-username="${this._escapeHtml(u.username)}" title="${t('users.more_actions')}">⋯</button>`}
       </div>
     `;
   }).join('');
@@ -625,19 +625,19 @@ _showVoiceUserMenu(anchorEl, userId, username) {
   menu.innerHTML = `
     <div class="voice-user-menu-header">${this._escapeHtml(this._getNickname(userId, username))}</div>
     <div class="voice-user-menu-row">
-      <span class="voice-user-menu-label">🔊 Volume</span>
-      <input type="range" class="volume-slider voice-user-vol-slider" min="0" max="200" value="${savedVol}" title="Volume: ${savedVol}%">
+      <span class="voice-user-menu-label">🔊 ${t('users.voice_menu.volume')}</span>
+      <input type="range" class="volume-slider voice-user-vol-slider" min="0" max="200" value="${savedVol}" title="${t('users.voice_menu.volume_title', { vol: savedVol })}">
       <span class="voice-user-vol-value">${savedVol}%</span>
     </div>
     <div class="voice-user-menu-actions">
-      ${hiddenTile ? `<button class="voice-user-menu-action" data-action="watch-stream">🖥 Watch Stream</button>` : ''}
-      <button class="voice-user-menu-action" data-action="mute-user">${isMuted ? '🔊 Unmute' : '🔇 Mute'}</button>
-      <button class="voice-user-menu-action ${isDeafened ? 'active' : ''}" data-action="deafen-user">${isDeafened ? '🔊 Undeafen' : '🔇 Deafen'}</button>
-      ${canKick ? `<button class="voice-user-menu-action danger" data-action="voice-kick" title="Remove from voice channel">🚪 Voice Kick</button>` : ''}
+      ${hiddenTile ? `<button class="voice-user-menu-action" data-action="watch-stream">🖥 ${t('users.voice_menu.watch_stream')}</button>` : ''}
+      <button class="voice-user-menu-action" data-action="mute-user">${isMuted ? `🔊 ${t('users.voice_menu.unmute')}` : `🔇 ${t('users.voice_menu.mute')}`}</button>
+      <button class="voice-user-menu-action ${isDeafened ? 'active' : ''}" data-action="deafen-user">${isDeafened ? `🔊 ${t('users.voice_menu.undeafen')}` : `🔇 ${t('users.voice_menu.deafen')}`}</button>
+      ${canKick ? `<button class="voice-user-menu-action danger" data-action="voice-kick" title="${t('users.voice_menu.voice_kick_title')}">🚪 ${t('users.voice_menu.voice_kick')}</button>` : ''}
     </div>
     <div class="voice-user-menu-hint">
-      <small>Mute = you can't hear them</small><br>
-      <small>Deafen = they can't hear you</small>
+      <small>${t('users.voice_menu.mute_hint')}</small><br>
+      <small>${t('users.voice_menu.deafen_hint')}</small>
     </div>
   `;
   document.body.appendChild(menu);
@@ -658,7 +658,7 @@ _showVoiceUserMenu(anchorEl, userId, username) {
   const volLabel = menu.querySelector('.voice-user-vol-value');
   slider.addEventListener('input', () => {
     const vol = parseInt(slider.value);
-    slider.title = `Volume: ${vol}%`;
+    slider.title = t('users.voice_menu.volume_title', { vol });
     volLabel.textContent = `${vol}%`;
     this._setVoiceVolume(userId, vol);
     if (this.voice) this.voice.setVolume(userId, vol / 100);
@@ -679,20 +679,20 @@ _showVoiceUserMenu(anchorEl, userId, username) {
         volLabel.textContent = `${newVol}%`;
         this._setVoiceVolume(userId, newVol);
         if (this.voice) this.voice.setVolume(userId, newVol / 100);
-        btn.textContent = newVol === 0 ? '🔊 Unmute' : '🔇 Mute';
+        btn.textContent = newVol === 0 ? `🔊 ${t('users.voice_menu.unmute')}` : `🔇 ${t('users.voice_menu.mute')}`;
       } else if (btn.dataset.action === 'deafen-user') {
         // Deafen: stop sending YOUR audio to THEM (they can't hear you)
         if (this.voice) {
           if (this.voice.isUserDeafened(userId)) {
             this.voice.undeafenUser(userId);
-            btn.textContent = '🔇 Deafen';
+            btn.textContent = `🔇 ${t('users.voice_menu.deafen')}`;
             btn.classList.remove('active');
-            this._showToast(`${this._escapeHtml(username)} can hear you again`, 'info');
+            this._showToast(t('users.can_hear_again', { name: this._escapeHtml(username) }), 'info');
           } else {
             this.voice.deafenUser(userId);
-            btn.textContent = '🔊 Undeafen';
+            btn.textContent = `🔊 ${t('users.voice_menu.undeafen')}`;
             btn.classList.add('active');
-            this._showToast(`${this._escapeHtml(username)} can no longer hear you`, 'info');
+            this._showToast(t('users.cannot_hear', { name: this._escapeHtml(username) }), 'info');
           }
         }
       } else if (btn.dataset.action === 'voice-kick') {
@@ -762,13 +762,13 @@ _showNicknameDialog(userId, currentUsername) {
   dialog.style.zIndex = '100002';
   dialog.innerHTML = `
     <div class="modal" style="max-width:360px">
-      <h3 style="margin-top:0">Set Nickname</h3>
-      <p class="muted-text" style="margin:0 0 12px">Only you will see this nickname for <strong>${this._escapeHtml(currentUsername)}</strong>.</p>
+      <h3 style="margin-top:0">${t('users.set_nickname_title')}</h3>
+      <p class="muted-text" style="margin:0 0 12px">${t('users.nickname_hint', { name: `<strong>${this._escapeHtml(currentUsername)}</strong>` })}</p>
       <input type="text" id="nickname-input" class="modal-input" value="${this._escapeHtml(existing)}" placeholder="${this._escapeHtml(currentUsername)}" maxlength="32" style="width:100%;box-sizing:border-box">
       <div class="modal-actions" style="margin-top:12px">
-        ${existing ? '<button class="btn-sm" id="nickname-clear">Clear</button>' : ''}
-        <button class="btn-sm" id="nickname-cancel">Cancel</button>
-        <button class="btn-sm btn-accent" id="nickname-save">Save</button>
+        ${existing ? `<button class="btn-sm" id="nickname-clear">${t('users.nickname_clear_btn')}</button>` : ''}
+        <button class="btn-sm" id="nickname-cancel">${t('modals.common.cancel')}</button>
+        <button class="btn-sm btn-accent" id="nickname-save">${t('modals.common.save')}</button>
       </div>
     </div>
   `;
@@ -786,7 +786,7 @@ _showNicknameDialog(userId, currentUsername) {
     clearBtn.addEventListener('click', () => {
       this._setNickname(userId, null);
       this._refreshNicknameDisplays();
-      this._showToast('Nickname cleared', 'info');
+      this._showToast(t('users.nickname_cleared'), 'info');
       close();
     });
   }
@@ -796,9 +796,9 @@ _showNicknameDialog(userId, currentUsername) {
     this._setNickname(userId, val || null);
     this._refreshNicknameDisplays();
     if (val) {
-      this._showToast(`Nickname set to "${val}"`, 'success');
+      this._showToast(t('users.nickname_set', { name: val }), 'success');
     } else {
-      this._showToast('Nickname cleared', 'info');
+      this._showToast(t('users.nickname_cleared'), 'info');
     }
     close();
   });
@@ -835,7 +835,7 @@ _showTyping(username) {
   // Look up nickname by username from online users
   const onlineUser = this._lastOnlineUsers && this._lastOnlineUsers.find(u => u.username === username);
   const display = onlineUser ? this._getNickname(onlineUser.id, username) : username;
-  el.textContent = `${display} is typing...`;
+  el.textContent = t('users.typing', { name: display });
   clearTimeout(this.typingTimeout);
   this.typingTimeout = setTimeout(() => { el.textContent = ''; }, 3000);
 },

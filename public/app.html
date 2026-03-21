@@ -100,11 +100,11 @@
               </div>
               <label class="checkbox-row" style="margin:6px 0 2px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.8rem;opacity:0.8">
                 <input type="checkbox" id="new-channel-private" style="width:14px;height:14px">
-                <span data-i18n="app.sidebar.private_channel">🔒 Private</span> <span style="opacity:0.5;font-size:0.75rem" data-i18n="app.sidebar.private_hint">(invite-only)</span>
+                <span>🔒 <span data-i18n="app.sidebar.private_channel">Private</span></span> <span style="opacity:0.5;font-size:0.75rem" data-i18n="app.sidebar.private_hint">(invite-only)</span>
               </label>
               <label class="checkbox-row" style="margin:2px 0;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.8rem;opacity:0.8">
                 <input type="checkbox" id="new-channel-temporary" style="width:14px;height:14px">
-                <span data-i18n="app.sidebar.temporary_channel">⏱️ Temporary</span> <span style="opacity:0.5;font-size:0.75rem" data-i18n="app.sidebar.temporary_hint">(auto-delete)</span>
+                <span>⏱️ <span data-i18n="app.sidebar.temporary_channel">Temporary</span></span> <span style="opacity:0.5;font-size:0.75rem" data-i18n="app.sidebar.temporary_hint">(auto-delete)</span>
               </label>
               <div id="temp-channel-duration-row" style="display:none;margin:4px 0 2px;padding-left:22px">
                 <div class="input-row" style="gap:6px;align-items:center">
@@ -216,25 +216,25 @@
             <!-- Sacred intensity slider (religious themes) -->
             <div id="sacred-intensity-editor" class="rgb-theme-editor" style="display:none">
               <label class="rgb-slider-row">
-                <span class="rgb-slider-label" data-i18n="app.theme.sacred_intensity">Sacred Intensity</span>
+                <span class="rgb-slider-label">Sacred Intensity</span>
                 <input type="range" id="sacred-intensity-slider" min="20" max="250" value="100" class="slider-sm rgb-slider">
               </label>
             </div>
             <!-- Glitch frequency slider (cyberpunk) -->
             <div id="glitch-freq-editor" class="rgb-theme-editor" style="display:none">
               <label class="rgb-slider-row">
-                <span class="rgb-slider-label" data-i18n="app.theme.glitch_frequency">Glitch Frequency</span>
+                <span class="rgb-slider-label">Glitch Frequency</span>
                 <input type="range" id="glitch-freq-slider" min="5" max="100" value="50" class="slider-sm rgb-slider">
               </label>
             </div>
             <!-- CRT effect sliders (vignette darkness + scanline intensity) -->
             <div id="crt-editor" class="rgb-theme-editor" style="display:none">
               <label class="rgb-slider-row">
-                <span class="rgb-slider-label" data-i18n="app.theme.crt_vignette">CRT Vignette</span>
+                <span class="rgb-slider-label">CRT Vignette</span>
                 <input type="range" id="crt-vignette-slider" min="0" max="100" value="50" class="slider-sm rgb-slider">
               </label>
               <label class="rgb-slider-row">
-                <span class="rgb-slider-label" data-i18n="app.theme.crt_scanlines">CRT Scanlines</span>
+                <span class="rgb-slider-label">CRT Scanlines</span>
                 <input type="range" id="crt-scanline-slider" min="0" max="80" value="45" class="slider-sm rgb-slider">
               </label>
             </div>
@@ -284,8 +284,8 @@
             <div class="e2e-menu-wrapper" style="display:none" id="e2e-menu-wrapper">
               <button id="e2e-menu-btn" class="icon-btn small" data-i18n-title="header.encryption_options" title="Encryption options">🔐</button>
               <div class="e2e-dropdown" id="e2e-dropdown" style="display:none">
-                <button class="e2e-dropdown-item" id="e2e-verify-btn" data-i18n="header.verify_encryption">🔑 Verify Encryption</button>
-                <button class="e2e-dropdown-item e2e-danger" id="e2e-reset-btn" data-i18n="header.reset_encryption">🔄 Reset Encryption Keys</button>
+                <button class="e2e-dropdown-item" id="e2e-verify-btn">🔑 <span data-i18n="header.verify_encryption">Verify Encryption</span></button>
+                <button class="e2e-dropdown-item e2e-danger" id="e2e-reset-btn">🔄 <span data-i18n="header.reset_encryption">Reset Encryption Keys</span></button>
               </div>
             </div>
           </div>
@@ -327,7 +327,7 @@
             </button>
             <!-- Dynamic indicators (music, streams) inject here via JS -->
             <button id="voice-join-btn" class="btn-voice" style="display:none">
-              🎤 Join Voice
+              🎤 <span data-i18n="voice.join">Join Voice</span>
             </button>
             <div id="voice-active-indicator" class="voice-active-indicator" style="display:none">
               <span class="voice-indicator-icon">🎤</span>
@@ -351,23 +351,23 @@
           <!-- Webcam Grid -->
           <div id="webcam-container" class="webcam-container" style="display:none">
             <div class="webcam-header">
-              <span id="webcam-label" data-i18n="media.cameras">📷 Cameras</span>
+              <span id="webcam-label">📷 <span data-i18n="media.cameras">Cameras</span></span>
               <div class="webcam-header-controls">
-                <div class="webcam-layout-picker" id="webcam-layout-picker" title="Camera layout">
-                  <button class="stream-layout-btn" id="webcam-layout-btn" title="Change layout">⊞</button>
+                <div class="webcam-layout-picker" id="webcam-layout-picker" data-i18n-title="media.camera_layout" title="Camera layout">
+                  <button class="stream-layout-btn" id="webcam-layout-btn" data-i18n-title="media.change_layout" title="Change layout">⊞</button>
                   <div class="stream-layout-menu" id="webcam-layout-menu">
-                    <button class="stream-layout-opt active" data-layout="auto" title="Auto grid">⊞ Auto</button>
-                    <button class="stream-layout-opt" data-layout="vertical" title="Vertical stack">▬ Stack</button>
-                    <button class="stream-layout-opt" data-layout="side-by-side" title="Side by side">◫ Side</button>
-                    <button class="stream-layout-opt" data-layout="grid-2x2" title="2×2 Grid">⊟ 2×2</button>
+                    <button class="stream-layout-opt active" data-layout="auto" data-i18n-title="media.layout_auto_title" title="Auto grid">⊞ Auto</button>
+                    <button class="stream-layout-opt" data-layout="vertical" data-i18n-title="media.layout_stack_title" title="Vertical stack">▬ Stack</button>
+                    <button class="stream-layout-opt" data-layout="side-by-side" data-i18n-title="media.layout_side_title" title="Side by side">◫ Side</button>
+                    <button class="stream-layout-opt" data-layout="grid-2x2" data-i18n-title="media.layout_2x2_title" title="2×2 Grid">⊟ 2×2</button>
                   </div>
                 </div>
-                <label class="stream-size-label" title="Camera display size">
+                <label class="stream-size-label" data-i18n-title="media.camera_size" title="Camera display size">
                   📷
                   <input type="range" id="webcam-size-slider" class="stream-size-slider" min="15" max="70" value="25">
                 </label>
-                <button id="webcam-collapse-btn" class="icon-btn small" title="Minimize cameras">─</button>
-                <button id="webcam-close-btn" class="icon-btn small" title="Close cameras">✕</button>
+                <button id="webcam-collapse-btn" class="icon-btn small" data-i18n-title="media.minimize_cameras" title="Minimize cameras">─</button>
+                <button id="webcam-close-btn" class="icon-btn small" data-i18n-title="media.close_cameras" title="Close cameras">✕</button>
               </div>
             </div>
             <div id="webcam-grid" class="webcam-grid"></div>
@@ -375,23 +375,23 @@
           <!-- Screen Share Viewer (multi-stream) -->
           <div id="screen-share-container" class="screen-share-container" style="display:none">
             <div class="screen-share-header">
-              <span id="screen-share-label" data-i18n="media.streams">🖥️ Streams</span>
+              <span id="screen-share-label">🖥️ <span data-i18n="media.streams">Streams</span></span>
               <div class="screen-share-header-controls">
-                <div class="stream-layout-picker" id="stream-layout-picker" title="Stream layout">
-                  <button class="stream-layout-btn" id="stream-layout-btn" title="Change layout">⊞</button>
+                <div class="stream-layout-picker" id="stream-layout-picker" data-i18n-title="media.stream_layout" title="Stream layout">
+                  <button class="stream-layout-btn" id="stream-layout-btn" data-i18n-title="media.change_layout" title="Change layout">⊞</button>
                   <div class="stream-layout-menu" id="stream-layout-menu">
-                    <button class="stream-layout-opt active" data-layout="auto" title="Auto grid">⊞ Auto</button>
-                    <button class="stream-layout-opt" data-layout="vertical" title="Vertical stack">▬ Stack</button>
-                    <button class="stream-layout-opt" data-layout="side-by-side" title="Side by side">◫ Side</button>
-                    <button class="stream-layout-opt" data-layout="grid-2x2" title="2×2 Grid">⊟ 2×2</button>
+                    <button class="stream-layout-opt active" data-layout="auto" data-i18n-title="media.layout_auto_title" title="Auto grid">⊞ Auto</button>
+                    <button class="stream-layout-opt" data-layout="vertical" data-i18n-title="media.layout_stack_title" title="Vertical stack">▬ Stack</button>
+                    <button class="stream-layout-opt" data-layout="side-by-side" data-i18n-title="media.layout_side_title" title="Side by side">◫ Side</button>
+                    <button class="stream-layout-opt" data-layout="grid-2x2" data-i18n-title="media.layout_2x2_title" title="2×2 Grid">⊟ 2×2</button>
                   </div>
                 </div>
-                <label class="stream-size-label" title="Stream display size">
+                <label class="stream-size-label" data-i18n-title="media.stream_size" title="Stream display size">
                   🖥️
                   <input type="range" id="stream-size-slider" class="stream-size-slider" min="20" max="90" value="50">
                 </label>
-                <button id="screen-share-minimize" class="icon-btn small" title="Minimize streams">─</button>
-                <button id="screen-share-close" class="icon-btn small" title="Close streams">✕</button>
+                <button id="screen-share-minimize" class="icon-btn small" data-i18n-title="media.minimize_streams" title="Minimize streams">─</button>
+                <button id="screen-share-close" class="icon-btn small" data-i18n-title="media.close_streams" title="Close streams">✕</button>
               </div>
             </div>
             <div id="screen-share-grid" class="screen-share-grid"></div>
@@ -400,21 +400,21 @@
           <div id="music-panel" class="music-panel" style="display:none">
             <div class="music-panel-header">
               <div class="music-panel-header-left">
-                <button id="music-popout-btn" class="icon-btn small" title="Pop out player">⧉</button>
-                <span id="music-panel-label" data-i18n="media.listening_together">🎵 Listening Together</span>
+                <button id="music-popout-btn" class="icon-btn small" data-i18n-title="media.music_popout" title="Pop out player">⧉</button>
+                <span id="music-panel-label">🎵 <span data-i18n="media.listening_together">Listening Together</span></span>
               </div>
               <div class="music-panel-controls">
-                <button id="music-prev-btn" class="icon-btn small" title="Previous track" style="display:none">⏮</button>
-                <button id="music-play-pause-btn" class="icon-btn small" title="Play/Pause">⏸</button>
-                <button id="music-next-btn" class="icon-btn small" title="Next track" style="display:none">⏭</button>
-                <button id="music-shuffle-btn" class="icon-btn small" title="Shuffle" style="display:none">🔀</button>
+                <button id="music-prev-btn" class="icon-btn small" data-i18n-title="media.music_prev" title="Previous track" style="display:none">⏮</button>
+                <button id="music-play-pause-btn" class="icon-btn small" data-i18n-title="media.music_play_pause" title="Play/Pause">⏸</button>
+                <button id="music-next-btn" class="icon-btn small" data-i18n-title="media.music_next" title="Next track" style="display:none">⏭</button>
+                <button id="music-shuffle-btn" class="icon-btn small" data-i18n-title="media.music_shuffle" title="Shuffle" style="display:none">🔀</button>
                 <span id="music-time-current" class="music-time">0:00</span>
-                <input type="range" id="music-seek-slider" class="music-seek-slider" min="0" max="100" value="0" step="0.1" title="Seek">
+                <input type="range" id="music-seek-slider" class="music-seek-slider" min="0" max="100" value="0" step="0.1" data-i18n-title="media.music_seek" title="Seek">
                 <span id="music-time-duration" class="music-time">0:00</span>
-                <button id="music-mute-btn" class="icon-btn small" title="Mute music">🔊</button>
-                <input type="range" id="music-volume-slider" class="stream-vol-slider" min="0" max="100" value="80" title="Music volume">
-                <button id="music-close-btn" class="icon-btn small" title="Minimize">─</button>
-                <button id="music-stop-btn" class="icon-btn small" title="Close / stop music">✕</button>
+                <button id="music-mute-btn" class="icon-btn small" data-i18n-title="media.music_mute" title="Mute music">🔊</button>
+                <input type="range" id="music-volume-slider" class="stream-vol-slider" min="0" max="100" value="80" data-i18n-title="media.music_volume" title="Music volume">
+                <button id="music-close-btn" class="icon-btn small" data-i18n-title="media.minimize" title="Minimize">─</button>
+                <button id="music-stop-btn" class="icon-btn small" data-i18n-title="media.music_stop" title="Close / stop music">✕</button>
               </div>
             </div>
             <div id="music-embed-container" class="music-embed-container"></div>
@@ -428,7 +428,7 @@
           </div>
           <div id="pinned-panel" class="pinned-panel" style="display:none">
             <div class="pinned-panel-header">
-              <span id="pinned-count" data-i18n="header.pinned_count">📌 Pinned Messages</span>
+              <span id="pinned-count">📌 <span data-i18n="header.pinned_count">Pinned Messages</span></span>
               <button id="pinned-close" class="icon-btn small">&times;</button>
             </div>
             <div id="pinned-list" class="pinned-list"></div>
@@ -458,11 +458,11 @@
                 <span class="upload-icon-clippy">📎</span>
               </button>
               <span class="input-actions-divider"></span>
-              <button id="emoji-btn" class="btn-emoji" title="Emoji">😀</button>
+              <button id="emoji-btn" class="btn-emoji" data-i18n-title="app.input_bar.emoji_btn" title="Emoji">😀</button>
               <span class="input-actions-divider"></span>
-              <button id="gif-btn" class="btn-gif" title="Search GIFs">GIF</button>
+              <button id="gif-btn" class="btn-gif" data-i18n-title="app.input_bar.gif_btn" title="Search GIFs"><span data-i18n="app.input_bar.gif_label">GIF</span></button>
               <span class="input-actions-divider"></span>
-              <button id="poll-btn" class="btn-poll" title="Create Poll">📊</button>
+              <button id="poll-btn" class="btn-poll" data-i18n-title="app.input_bar.poll_btn" title="Create Poll">📊</button>
             </div>
             <div id="emoji-picker" class="emoji-picker" style="display:none"></div>
             <div id="gif-picker" class="gif-picker" style="display:none">
@@ -497,15 +497,15 @@
         <div class="right-sidebar-voice" id="right-sidebar-voice">
           <div class="panel">
             <div class="voice-panel-header">
-              <h5 class="panel-title" style="margin-bottom:0" data-i18n="right_sidebar.voice_title">🔊 Voice</h5>
+              <h5 class="panel-title" style="margin-bottom:0">🔊 <span data-i18n="right_sidebar.voice_title">Voice</span></h5>
               <!-- Close button moved inline with VOICE title to save vertical space on mobile -->
               <button id="mobile-right-close" class="mobile-panel-close mobile-panel-close-right" data-i18n-title="modals.common.close" data-i18n-aria-label="right_sidebar.close_panel" title="Close" aria-label="Close panel">&times;</button>
               <div class="voice-header-actions">
-                <button id="voice-mute-btn" class="voice-header-btn" title="Mute" style="display:none">🎙️</button>
-                <button id="voice-deafen-btn" class="voice-header-btn" title="Deafen" style="display:none">🔊</button>
+                <button id="voice-mute-btn" class="voice-header-btn" data-i18n-title="voice.mute" title="Mute" style="display:none">🎙️</button>
+                <button id="voice-deafen-btn" class="voice-header-btn" data-i18n-title="voice.deafen" title="Deafen" style="display:none">🔊</button>
               </div>
             </div>
-            <button id="voice-join-mobile" class="btn-voice mobile-voice-join" style="display:none">🎤 Join Voice</button>
+            <button id="voice-join-mobile" class="btn-voice mobile-voice-join" style="display:none">🎤 <span data-i18n="voice.join">Join Voice</span></button>
             <div id="voice-users" class="user-list">
               <p class="muted-text" data-i18n="right_sidebar.no_one_in_voice">No one in voice</p>
             </div>
@@ -514,7 +514,7 @@
         <!-- Scrollable users section -->
         <div class="right-sidebar-users" id="right-sidebar-users">
           <div class="panel">
-            <h5 class="panel-title" data-i18n="right_sidebar.online_title">👥 Online</h5>
+            <h5 class="panel-title">👥 <span data-i18n="right_sidebar.online_title">Online</span></h5>
             <div id="online-users" class="user-list">
               <p class="muted-text" data-i18n="right_sidebar.select_channel">Select a channel</p>
             </div>
@@ -522,7 +522,7 @@
         </div>
         <!-- Voice settings sub-panel (slides up above controls) -->
         <div id="voice-settings-panel" class="voice-settings-panel" style="display:none">
-          <div class="voice-settings-section-label" data-i18n="voice_settings.audio_devices">🎧 Audio Devices</div>
+          <div class="voice-settings-section-label">🎧 <span data-i18n="voice_settings.audio_devices">Audio Devices</span></div>
           <div class="voice-settings-row">
             <label class="voice-settings-label" data-i18n="voice_settings.input">Input</label>
             <select id="voice-input-device" class="voice-settings-select">
@@ -537,8 +537,8 @@
           </div>
           <div class="voice-settings-divider"></div>
           <div class="voice-settings-row">
-            <label class="voice-settings-label" data-i18n="voice_settings.noise_reduction">🤫 Noise Reduction</label>
-            <select id="voice-noise-mode" class="voice-settings-select" title="Off = no processing, Gate = silence below threshold, Suppress = AI noise removal (RNNoise)">
+            <label class="voice-settings-label">🤫 <span data-i18n="voice_settings.noise_reduction">Noise Reduction</span></label>
+            <select id="voice-noise-mode" class="voice-settings-select" data-i18n-title="voice_settings.noise_mode_hint" title="Off = no processing, Gate = silence below threshold, Suppress = AI noise removal (RNNoise)">
               <option value="off" data-i18n="voice_settings.off">Off</option>
               <option value="gate" data-i18n="voice_settings.noise_gate">Noise Gate</option>
               <option value="suppress" data-i18n="voice_settings.suppression_ai">Suppression (AI)</option>
@@ -546,17 +546,17 @@
           </div>
           <div class="voice-settings-row" id="noise-gate-row">
             <label class="voice-settings-label" style="font-size:0.72rem;opacity:0.8" data-i18n="voice_settings.gate_sensitivity">Gate Sensitivity</label>
-            <input type="range" id="voice-ns-slider" class="ns-slider" min="0" max="100" value="10" title="Noise gate: 0 = off, 100 = aggressive">
+            <input type="range" id="voice-ns-slider" class="ns-slider" min="0" max="100" value="10" data-i18n-title="voice_settings.gate_slider_hint" title="Noise gate: 0 = off, 100 = aggressive">
           </div>
           <div class="voice-settings-row mic-meter-row">
-            <label class="voice-settings-label" data-i18n="voice_settings.mic_level">🎙️ Mic Level</label>
+            <label class="voice-settings-label">🎙️ <span data-i18n="voice_settings.mic_level">Mic Level</span></label>
             <div class="mic-meter" id="mic-level-meter">
               <div class="mic-meter-fill" id="mic-meter-fill"></div>
-              <div class="mic-meter-threshold" id="mic-meter-threshold" title="Gate threshold"></div>
+              <div class="mic-meter-threshold" id="mic-meter-threshold" data-i18n-title="voice_settings.gate_threshold" title="Gate threshold"></div>
             </div>
           </div>
           <div class="voice-settings-divider"></div>
-          <div class="voice-settings-section-label" data-i18n="voice_settings.screen_share_quality">🖥️ Screen Share Quality</div>
+          <div class="voice-settings-section-label">🖥️ <span data-i18n="voice_settings.screen_share_quality">Screen Share Quality</span></div>
           <div class="voice-settings-row">
             <label class="voice-settings-label" data-i18n="voice_settings.resolution">Resolution</label>
             <select id="screen-res-select" class="voice-settings-select">
@@ -577,13 +577,13 @@
         </div>
         <!-- Voice controls bar (pinned above settings) -->
         <div id="voice-panel" class="voice-panel" style="display:none">
-          <button id="voice-cam-btn" class="voice-panel-btn" title="Camera">📷</button>
-          <button id="screen-share-btn" class="voice-panel-btn" title="Share Screen">🖥️</button>
-          <button id="voice-soundboard-btn" class="voice-panel-btn" title="Soundboard">🎵</button>
-          <button id="voice-listen-together-btn" class="voice-panel-btn" title="Listen Together">🎶</button>
+          <button id="voice-cam-btn" class="voice-panel-btn" data-i18n-title="voice.panel.camera" title="Camera">📷</button>
+          <button id="screen-share-btn" class="voice-panel-btn" data-i18n-title="voice.screen_share" title="Share Screen">🖥️</button>
+          <button id="voice-soundboard-btn" class="voice-panel-btn" data-i18n-title="voice.panel.soundboard" title="Soundboard">🎵</button>
+          <button id="voice-listen-together-btn" class="voice-panel-btn" data-i18n-title="voice.panel.listen_together" title="Listen Together">🎶</button>
           <span class="voice-panel-divider"></span>
-          <button id="voice-settings-toggle" class="voice-panel-btn" title="Voice Settings">⚙️</button>
-          <button id="voice-leave-sidebar-btn" class="voice-panel-btn voice-panel-leave" title="Leave Voice">✕</button>
+          <button id="voice-settings-toggle" class="voice-panel-btn" data-i18n-title="voice.panel.settings" title="Voice Settings">⚙️</button>
+          <button id="voice-leave-sidebar-btn" class="voice-panel-btn voice-panel-leave" data-i18n-title="voice.leave" title="Leave Voice">✕</button>
         </div>
         <!-- Settings button pinned at bottom -->
         <div class="panel sidebar-settings-panel">
@@ -794,7 +794,7 @@
       </div>
       <div class="modal-actions">
         <button class="btn-sm" id="code-settings-cancel-btn" data-i18n="modals.common.cancel">Cancel</button>
-        <button class="btn-sm btn-accent" id="code-rotate-now-btn" data-i18n="modals.code_settings.rotate_now_btn">🔄 Rotate Now</button>
+        <button class="btn-sm btn-accent" id="code-rotate-now-btn">🔄 <span data-i18n="modals.code_settings.rotate_now_btn">Rotate Now</span></button>
         <button class="btn-sm btn-accent" id="code-settings-save-btn" data-i18n="modals.common.save">Save</button>
       </div>
     </div>
@@ -912,44 +912,44 @@
   <div class="modal-overlay" id="settings-modal" style="display:none">
     <div class="modal modal-settings">
       <div class="settings-header">
-        <h3 data-i18n="settings.title">⚙️ Settings</h3>
+        <h3>⚙️ <span data-i18n="settings.title">Settings</span></h3>
         <button class="settings-close-btn" id="close-settings-btn">&times;</button>
       </div>
 
       <div class="settings-layout">
         <nav class="settings-nav" id="settings-nav">
           <div class="settings-nav-group" data-i18n="settings.nav.user_group">User</div>
-          <div class="settings-nav-item" data-target="section-language" data-i18n="settings.nav.language">🌐 Language</div>
-          <div class="settings-nav-item active" data-target="section-density" data-i18n="settings.nav.layout">📐 Layout</div>
-          <div class="settings-nav-item" data-target="section-sounds" data-i18n="settings.nav.sounds">🔔 Sounds</div>
-          <div class="settings-nav-item" data-target="section-push" data-i18n="settings.nav.push">📲 Push</div>
-          <div class="settings-nav-item" data-target="section-password" data-i18n="settings.nav.password">🔒 Password</div>
-          <div class="settings-nav-item" data-target="section-2fa" data-i18n="settings.nav.two_factor">🔐 Two-Factor</div>
-          <div class="settings-nav-item" data-target="section-recovery" data-i18n="settings.nav.recovery">🔑 Recovery</div>
-          <div class="settings-nav-item" data-target="section-delete-account" data-i18n="settings.nav.account">⚠️ Account</div>
-          <div class="settings-nav-item" data-target="section-plugins" data-i18n="settings.nav.plugins">🧩 Plugins & Themes</div>
-          <div class="settings-nav-item" data-target="section-desktop-shortcuts" id="desktop-shortcuts-nav" style="display:none" data-i18n="settings.nav.shortcuts">⌨️ Shortcuts</div>
-          <div class="settings-nav-item" data-target="section-desktop-app" id="desktop-app-nav" style="display:none" data-i18n="settings.nav.desktop_app">🖥️ Desktop App</div>
+          <div class="settings-nav-item" data-target="section-language">🗣️ <span data-i18n="settings.nav.language">Language</span></div>
+          <div class="settings-nav-item active" data-target="section-density">📐 <span data-i18n="settings.nav.layout">Layout</span></div>
+          <div class="settings-nav-item" data-target="section-sounds">🔔 <span data-i18n="settings.nav.sounds">Sounds</span></div>
+          <div class="settings-nav-item" data-target="section-push">📲 <span data-i18n="settings.nav.push">Push</span></div>
+          <div class="settings-nav-item" data-target="section-password">🔒 <span data-i18n="settings.nav.password">Password</span></div>
+          <div class="settings-nav-item" data-target="section-2fa">🔐 <span data-i18n="settings.nav.two_factor">Two-Factor</span></div>
+          <div class="settings-nav-item" data-target="section-recovery">🔑 <span data-i18n="settings.nav.recovery">Recovery</span></div>
+          <div class="settings-nav-item" data-target="section-delete-account">⚠️ <span data-i18n="settings.nav.account">Account</span></div>
+          <div class="settings-nav-item" data-target="section-plugins">🧩 <span data-i18n="settings.nav.plugins">Plugins & Themes</span></div>
+          <div class="settings-nav-item" data-target="section-desktop-shortcuts" id="desktop-shortcuts-nav" style="display:none">⌨️ <span data-i18n="settings.nav.shortcuts">Shortcuts</span></div>
+          <div class="settings-nav-item" data-target="section-desktop-app" id="desktop-app-nav" style="display:none">🖥️ <span data-i18n="settings.nav.desktop_app">Desktop App</span></div>
           <div class="settings-nav-group settings-nav-admin" style="display:none" data-i18n="settings.nav.admin_group">Admin</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-branding" style="display:none" data-i18n="settings.nav.branding">🏠 Branding</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-members" style="display:none" data-i18n="settings.nav.members">👥 Members</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-whitelist" style="display:none" data-i18n="settings.nav.whitelist">🛡️ Whitelist</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-invite" style="display:none" data-i18n="settings.nav.invite">🌐 Invite Code</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-cleanup" style="display:none" data-i18n="settings.nav.cleanup">🗑️ Cleanup</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-uploads" style="display:none" data-i18n="settings.nav.limits">📁 Limits</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-sounds-admin" style="display:none" data-i18n="settings.nav.admin_sounds">🔊 Sounds</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-emojis" style="display:none" data-i18n="settings.nav.emojis">😎 Emojis</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-roles" style="display:none" data-i18n="settings.nav.roles">👑 Roles</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-tunnel" style="display:none" data-i18n="settings.nav.tunnel">🧭 Tunnel</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-bots" style="display:none" data-i18n="settings.nav.bots">🤖 Bots</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-import" style="display:none" data-i18n="settings.nav.import">📦 Import</div>
-          <div class="settings-nav-item settings-nav-admin" data-target="section-modmode" style="display:none" data-i18n="settings.nav.mod_mode">🔧 Mod Mode</div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-branding" style="display:none">🏠 <span data-i18n="settings.nav.branding">Branding</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-members" style="display:none">👥 <span data-i18n="settings.nav.members">Members</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-whitelist" style="display:none">🛡️ <span data-i18n="settings.nav.whitelist">Whitelist</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-invite" style="display:none">🌐 <span data-i18n="settings.nav.invite">Invite Code</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-cleanup" style="display:none">🗑️ <span data-i18n="settings.nav.cleanup">Cleanup</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-uploads" style="display:none">📁 <span data-i18n="settings.nav.limits">Limits</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-sounds-admin" style="display:none">🔊 <span data-i18n="settings.nav.admin_sounds">Sounds</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-emojis" style="display:none">😎 <span data-i18n="settings.nav.emojis">Emojis</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-roles" style="display:none">👑 <span data-i18n="settings.nav.roles">Roles</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-tunnel" style="display:none">🧭 <span data-i18n="settings.nav.tunnel">Tunnel</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-bots" style="display:none">🤖 <span data-i18n="settings.nav.bots">Bots</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-import" style="display:none">📦 <span data-i18n="settings.nav.import">Import</span></div>
+          <div class="settings-nav-item settings-nav-admin" data-target="section-modmode" style="display:none">🔧 <span data-i18n="settings.nav.mod_mode">Mod Mode</span></div>
         </nav>
         <div class="settings-body">
 
       <!-- Desktop Shortcuts Section (only shown in Haven Desktop) -->
       <div class="settings-section" id="section-desktop-shortcuts" style="display:none">
-        <h5 class="settings-section-title" data-i18n="settings.desktop_shortcuts_section.title">⌨️ Desktop Shortcuts</h5>
+        <h5 class="settings-section-title">⌨️ <span data-i18n="settings.desktop_shortcuts_section.title">Desktop Shortcuts</span></h5>
         <p class="settings-desc">Global keyboard shortcuts — active even when Haven is in the background. Click a row to rebind, or &ldquo;Clear&rdquo; to disable.</p>
         <div class="shortcut-table" id="shortcut-table">
           <div class="shortcut-row" id="shortcut-row-mute">
@@ -984,7 +984,7 @@
 
       <!-- Desktop App Settings Section (only shown in Haven Desktop) -->
       <div class="settings-section" id="section-desktop-app" style="display:none">
-        <h5 class="settings-section-title" data-i18n="settings.desktop_app_section.title">🖥️ Desktop App</h5>
+        <h5 class="settings-section-title">🖥️ <span data-i18n="settings.desktop_app_section.title">Desktop App</span></h5>
         <p class="settings-desc">Settings specific to Haven Desktop.</p>
 
         <div class="desktop-pref-row">
@@ -1026,7 +1026,7 @@
 
       <!-- Language Section -->
       <div class="settings-section" id="section-language">
-        <h5 class="settings-section-title" data-i18n="settings.language_section.title">🌐 Language</h5>
+        <h5 class="settings-section-title">🗣️ <span data-i18n="settings.language_section.title">Language</span></h5>
         <label class="select-row">
           <span data-i18n="settings.language_section.label">Language</span>
           <select id="language-select" class="settings-select">
@@ -1038,17 +1038,17 @@
       </div>
 
       <div class="settings-section" id="section-density">
-        <h5 class="settings-section-title" data-i18n="settings.layout_density.title">📐 Layout Density</h5>
+        <h5 class="settings-section-title">📐 <span data-i18n="settings.layout_density.title">Layout Density</span></h5>
         <div class="density-picker" id="density-picker">
-          <button type="button" class="density-btn" data-density="compact" title="Compact — tighter spacing, smaller avatars">
+          <button type="button" class="density-btn" data-density="compact" data-i18n-title="settings.layout_density.compact_hint" title="Compact — tighter spacing, smaller avatars">
             <span class="density-icon">▪️</span>
             <span class="density-label" data-i18n="settings.layout_density.compact">Compact</span>
           </button>
-          <button type="button" class="density-btn active" data-density="cozy" title="Cozy — default balanced layout">
+          <button type="button" class="density-btn active" data-density="cozy" data-i18n-title="settings.layout_density.cozy_hint" title="Cozy — default balanced layout">
             <span class="density-icon">◾</span>
             <span class="density-label" data-i18n="settings.layout_density.cozy">Cozy</span>
           </button>
-          <button type="button" class="density-btn" data-density="spacious" title="Spacious — more breathing room">
+          <button type="button" class="density-btn" data-density="spacious" data-i18n-title="settings.layout_density.spacious_hint" title="Spacious — more breathing room">
             <span class="density-icon">⬛</span>
             <span class="density-label" data-i18n="settings.layout_density.spacious">Spacious</span>
           </button>
@@ -1057,21 +1057,21 @@
 
       <!-- Font Size -->
       <div class="settings-section" id="section-font-size" style="border-top: 1px solid var(--border-light); padding-top: 16px; margin-top: 8px;">
-        <h5 class="settings-section-title" data-i18n="settings.font_size.title">🔤 Font Size</h5>
+        <h5 class="settings-section-title">🔤 <span data-i18n="settings.font_size.title">Font Size</span></h5>
         <div class="font-size-picker" id="font-size-picker">
-          <button type="button" class="density-btn" data-fontsize="small" title="Small — 13px base">
+          <button type="button" class="density-btn" data-fontsize="small" data-i18n-title="settings.font_size.small_hint" title="Small — 13px base">
             <span class="density-icon" style="font-size:11px">A</span>
             <span class="density-label" data-i18n="settings.font_size.small">Small</span>
           </button>
-          <button type="button" class="density-btn active" data-fontsize="normal" title="Normal — 15px base (default)">
+          <button type="button" class="density-btn active" data-fontsize="normal" data-i18n-title="settings.font_size.normal_hint" title="Normal — 15px base (default)">
             <span class="density-icon" style="font-size:14px">A</span>
             <span class="density-label" data-i18n="settings.font_size.normal">Normal</span>
           </button>
-          <button type="button" class="density-btn" data-fontsize="large" title="Large — 17px base">
+          <button type="button" class="density-btn" data-fontsize="large" data-i18n-title="settings.font_size.large_hint" title="Large — 17px base">
             <span class="density-icon" style="font-size:17px">A</span>
             <span class="density-label" data-i18n="settings.font_size.large">Large</span>
           </button>
-          <button type="button" class="density-btn" data-fontsize="x-large" title="Extra Large — 20px base">
+          <button type="button" class="density-btn" data-fontsize="x-large" data-i18n-title="settings.font_size.xl_hint" title="Extra Large — 20px base">
             <span class="density-icon" style="font-size:20px">A</span>
             <span class="density-label" data-i18n="settings.font_size.xl">XL</span>
           </button>
@@ -1080,13 +1080,13 @@
 
       <!-- Image Display Mode -->
       <div class="settings-section" id="section-density" style="border-top: 1px solid var(--border-light); padding-top: 16px; margin-top: 8px;">
-        <h5 class="settings-section-title" data-i18n="settings.image_display.title">🖼️ Image Display</h5>
+        <h5 class="settings-section-title">🖼️ <span data-i18n="settings.image_display.title">Image Display</span></h5>
         <div class="density-picker" id="image-mode-picker">
-          <button type="button" class="density-btn active" data-image-mode="thumbnail" title="Thumbnail — small preview, click to enlarge">
+          <button type="button" class="density-btn active" data-image-mode="thumbnail" data-i18n-title="settings.image_display.thumbnail_hint" title="Thumbnail — small preview, click to enlarge">
             <span class="density-icon">🔍</span>
             <span class="density-label" data-i18n="settings.image_display.thumbnail">Thumbnail</span>
           </button>
-          <button type="button" class="density-btn" data-image-mode="full" title="Full — large inline images like Discord">
+          <button type="button" class="density-btn" data-image-mode="full" data-i18n-title="settings.image_display.full_hint" title="Full — large inline images like Discord">
             <span class="density-icon">🖼️</span>
             <span class="density-label" data-i18n="settings.image_display.full">Full</span>
           </button>
@@ -1095,7 +1095,7 @@
 
       <!-- Sounds Section -->
       <div class="settings-section" id="section-sounds">
-        <h5 class="settings-section-title" data-i18n="settings.sounds_section.title">🔔 Sounds</h5>
+        <h5 class="settings-section-title">🔔 <span data-i18n="settings.sounds_section.title">Sounds</span></h5>
         <div class="notif-settings">
           <label class="toggle-row">
             <span data-i18n="settings.sounds_section.notifications">Notifications</span>
@@ -1175,7 +1175,7 @@
             </select>
           </label>
           <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-            <button class="btn-sm btn-full btn-accent" id="open-sound-manager-user-btn" data-i18n="settings.sounds_section.sound_manager_btn">🎵 Sound Manager</button>
+            <button class="btn-sm btn-full btn-accent" id="open-sound-manager-user-btn">🎵 <span data-i18n="settings.sounds_section.sound_manager_btn">Sound Manager</span></button>
             <small class="settings-hint" style="display:block;margin-top:4px">Browse sounds, assign to events, set hotkeys</small>
           </div>
         </div>
@@ -1183,7 +1183,7 @@
 
       <!-- Push Notifications Section -->
       <div class="settings-section" id="section-push">
-        <h5 class="settings-section-title" data-i18n="settings.push_section.title">📲 Push Notifications</h5>
+        <h5 class="settings-section-title">📲 <span data-i18n="settings.push_section.title">Push Notifications</span></h5>
         <div class="notif-settings">
           <label class="toggle-row">
             <span data-i18n="settings.push_section.enable">Enable Push</span>
@@ -1196,7 +1196,7 @@
 
       <!-- Password Change Section -->
       <div class="settings-section" id="section-password">
-        <h5 class="settings-section-title" data-i18n="settings.password_section.title">🔒 Password</h5>
+        <h5 class="settings-section-title">🔒 <span data-i18n="settings.password_section.title">Password</span></h5>
         <div class="password-change-form">
           <div class="form-group compact">
             <input type="password" id="current-password" data-i18n-placeholder="settings.password_section.current_placeholder" placeholder="Current password" maxlength="128" autocomplete="current-password">
@@ -1214,7 +1214,7 @@
 
       <!-- Two-Factor Authentication Section -->
       <div class="settings-section" id="section-2fa">
-        <h5 class="settings-section-title" data-i18n="settings.two_factor_section.title">🔐 Two-Factor Authentication</h5>
+        <h5 class="settings-section-title">🔐 <span data-i18n="settings.two_factor_section.title">Two-Factor Authentication</span></h5>
 
         <!-- Status display -->
         <div id="totp-status-area">
@@ -1223,7 +1223,7 @@
 
         <!-- Enable flow (shown when TOTP is OFF) -->
         <div id="totp-enable-area" style="display:none">
-          <p class="settings-hint" style="margin-bottom:10px">Protect your account with a TOTP authenticator app (Google Authenticator, Authy, etc.).</p>
+          <p class="settings-hint" style="margin-bottom:10px" data-i18n="settings.two_factor_section.enable_hint">Protect your account with a TOTP authenticator app (Google Authenticator, Authy, etc.).</p>
           <button class="btn-sm btn-full" id="totp-enable-btn" data-i18n="settings.two_factor_section.enable_btn">Enable Two-Factor Auth</button>
         </div>
 
@@ -1236,7 +1236,7 @@
           <p class="settings-hint" style="margin-bottom:4px" data-i18n="settings.two_factor_section.manual_hint">Or enter this secret manually:</p>
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
             <code id="totp-secret-text" style="font-size:14px;letter-spacing:2px;user-select:all;flex:1;word-break:break-all"></code>
-            <button class="btn-sm" id="totp-copy-secret" title="Copy secret" style="white-space:nowrap">📋 Copy</button>
+            <button class="btn-sm" id="totp-copy-secret" data-i18n-title="settings.two_factor_section.copy_secret_title" title="Copy secret" style="white-space:nowrap">📋 <span data-i18n="settings.two_factor_section.copy_secret_btn">Copy</span></button>
           </div>
           <div class="form-group compact">
             <input type="text" id="totp-verify-code" data-i18n-placeholder="settings.two_factor_section.verify_placeholder" placeholder="Enter 6-digit code to confirm" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" style="text-align:center;font-size:18px;letter-spacing:6px">
@@ -1248,19 +1248,19 @@
 
         <!-- Backup codes display (shown after successful setup) -->
         <div id="totp-backup-area" style="display:none">
-          <h5 style="margin-bottom:6px" data-i18n="settings.two_factor_section.backup_title">🗝️ Backup Codes</h5>
+          <h5 style="margin-bottom:6px">🗝️ <span data-i18n="settings.two_factor_section.backup_title">Backup Codes</span></h5>
           <p class="settings-hint" style="margin-bottom:8px" data-i18n="settings.two_factor_section.backup_hint">Save these codes somewhere safe. Each can be used once if you lose access to your authenticator.</p>
           <div id="totp-backup-codes" style="font-family:monospace;font-size:15px;line-height:2;background:var(--bg-primary);padding:12px;border-radius:8px;text-align:center;user-select:all"></div>
-          <button class="btn-sm btn-full" id="totp-copy-backup-btn" data-i18n="settings.two_factor_section.copy_backup_btn" style="margin-top:8px">📋 Copy Backup Codes</button>
+          <button class="btn-sm btn-full" id="totp-copy-backup-btn" style="margin-top:8px">📋 <span data-i18n="settings.two_factor_section.copy_backup_btn">Copy Backup Codes</span></button>
           <button class="btn-sm btn-full" id="totp-backup-done-btn" data-i18n="settings.two_factor_section.done_btn" style="margin-top:6px">Done</button>
         </div>
 
         <!-- Manage area (shown when TOTP is ON) -->
         <div id="totp-manage-area" style="display:none">
-          <p class="settings-hint" style="color:var(--accent);margin-bottom:6px" data-i18n="settings.two_factor_section.enabled_text">✅ Two-factor authentication is enabled</p>
+          <p class="settings-hint" style="color:var(--accent);margin-bottom:6px">✅ <span data-i18n="settings.two_factor_section.enabled_text">Two-factor authentication is enabled</span></p>
           <p class="settings-hint" id="totp-backup-remaining" style="margin-bottom:12px"></p>
           <div class="form-group compact">
-            <input type="password" id="totp-disable-password" placeholder="Enter password to modify" maxlength="128" autocomplete="current-password">
+            <input type="password" id="totp-disable-password" data-i18n-placeholder="settings.two_factor_section.disable_password_placeholder" placeholder="Enter password to modify" maxlength="128" autocomplete="current-password">
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn-sm btn-danger-fill" id="totp-disable-btn" data-i18n="settings.two_factor_section.disable_btn" style="flex:1">Disable 2FA</button>
@@ -1272,10 +1272,10 @@
 
       <!-- Account Recovery Codes Section -->
       <div class="settings-section" id="section-recovery">
-        <h5 class="settings-section-title" data-i18n="settings.recovery_section.title">🔑 Account Recovery</h5>
-        <p class="settings-hint" style="margin-bottom:8px">Generate one-time recovery codes to regain access if you forget your password. Store them somewhere safe — they work like a last-resort key.</p>
+        <h5 class="settings-section-title">🔑 <span data-i18n="settings.recovery_section.title">Account Recovery</span></h5>
+        <p class="settings-hint" style="margin-bottom:8px" data-i18n="settings.recovery_section.desc">Generate one-time recovery codes to regain access if you forget your password. Store them somewhere safe — they work like a last-resort key.</p>
         <div class="settings-warning-box" id="recovery-e2e-warning" style="background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.4);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:0.82rem;color:var(--text-secondary)">
-          ⚠️ <strong>Important:</strong> Using a recovery code to reset your password will permanently and irreversibly destroy your end-to-end encryption keys. All encrypted direct message history will become unreadable. There is no way to undo this.
+          <span data-i18n-html="settings.recovery_section.e2e_warning">⚠️ <strong>Important:</strong> Using a recovery code to reset your password will permanently and irreversibly destroy your end-to-end encryption keys. All encrypted direct message history will become unreadable. There is no way to undo this.</span>
         </div>
         <!-- Status -->
         <p class="settings-hint" id="recovery-code-status" style="margin-bottom:10px"></p>
@@ -1289,26 +1289,26 @@
         </div>
         <!-- Codes display (shown after generation) -->
         <div id="recovery-codes-area" style="display:none">
-          <p class="settings-hint" style="margin-bottom:8px">Save these codes now — they will not be shown again. Each code can only be used once.</p>
+          <p class="settings-hint" style="margin-bottom:8px" data-i18n="settings.recovery_section.save_hint">Save these codes now — they will not be shown again. Each code can only be used once.</p>
           <div id="recovery-codes-list" style="font-family:monospace;font-size:15px;line-height:2;background:var(--bg-primary);padding:12px;border-radius:8px;text-align:center;user-select:all"></div>
-          <button class="btn-sm btn-full" id="recovery-copy-btn" data-i18n="settings.recovery_section.copy_codes_btn" style="margin-top:8px">📋 Copy Codes</button>
+          <button class="btn-sm btn-full" id="recovery-copy-btn" style="margin-top:8px">📋 <span data-i18n="settings.recovery_section.copy_codes_btn">Copy Codes</span></button>
           <button class="btn-sm btn-full" id="recovery-codes-done-btn" data-i18n="settings.recovery_section.done_btn" style="margin-top:6px">Done</button>
         </div>
       </div>
 
       <!-- Delete Account Section -->
       <div class="settings-section" id="section-delete-account">
-        <h5 class="settings-section-title" data-i18n="settings.delete_account_section.title">⚠️ Delete Account</h5>
+        <h5 class="settings-section-title">⚠️ <span data-i18n="settings.delete_account_section.title">Delete Account</span></h5>
         <p class="settings-hint" style="margin-bottom:8px;" data-i18n="settings.delete_account_section.desc">Permanently delete your account. This cannot be undone.</p>
         <button class="btn-sm btn-danger-fill" id="delete-account-btn" data-i18n="settings.delete_account_section.btn">Delete My Account</button>
       </div>
 
       <!-- Plugins & Themes Section -->
       <div class="settings-section" id="section-plugins">
-        <h5 class="settings-section-title" data-i18n="settings.plugins_section.title">🧩 Plugins & Themes</h5>
-        <p class="settings-hint">Drop <code>.plugin.js</code> files into the <code>plugins/</code> folder and <code>.theme.css</code> files into the <code>themes/</code> folder, then refresh.</p>
+        <h5 class="settings-section-title">🧩 <span data-i18n="settings.plugins_section.title">Plugins & Themes</span></h5>
+        <p class="settings-hint" data-i18n-html="settings.plugins_section.hint">Drop <code>.plugin.js</code> files into the <code>plugins/</code> folder and <code>.theme.css</code> files into the <code>themes/</code> folder, then refresh.</p>
         <div style="display:flex;gap:8px;margin-bottom:12px;">
-          <button class="btn-sm btn-accent" id="plugin-refresh-btn" data-i18n="settings.plugins_section.refresh_btn">🔄 Refresh</button>
+          <button class="btn-sm btn-accent" id="plugin-refresh-btn">🔄 <span data-i18n="settings.plugins_section.refresh_btn">Refresh</span></button>
         </div>
         <h6 style="margin:10px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)" data-i18n="settings.plugins_section.plugins_label">Plugins</h6>
         <div id="plugin-list" class="plugin-list"></div>
@@ -1318,11 +1318,11 @@
 
       <!-- Admin Section (hidden for non-admins) -->
       <div class="settings-section admin-settings-section" id="admin-mod-panel" style="display:none">
-        <h5 class="settings-section-title" data-i18n="settings.admin.title">🛡️ Admin</h5>
+        <h5 class="settings-section-title">🛡️ <span data-i18n="settings.admin.title">Admin</span></h5>
 
         <!-- Server Branding -->
         <div class="admin-settings" id="section-branding">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.branding_title">🏠 Server Branding</h5>
+          <h5 class="settings-section-subtitle">🏠 <span data-i18n="settings.admin.branding_title">Server Branding</span></h5>
           <label class="select-row">
             <span data-i18n="settings.admin.server_name">Server Name</span>
             <input type="text" id="server-name-input" maxlength="32" class="settings-text-input" style="max-width:160px" placeholder="HAVEN">
@@ -1383,9 +1383,9 @@
               <option value="none" data-i18n="settings.admin.members_hidden">Hidden</option>
             </select>
           </label>
-          <button class="btn-sm btn-full" id="view-bans-btn" data-i18n="settings.admin.view_bans_btn">📋 View Bans</button>
-          <button class="btn-sm btn-full" id="view-deleted-users-btn" data-i18n="settings.admin.view_deleted_btn" style="margin-top:6px">🗑️ View Deleted Users</button>
-          <button class="btn-sm btn-full" id="view-all-members-btn" data-i18n="settings.admin.view_all_members_btn" style="margin-top:6px">👥 View All Members</button>
+          <button class="btn-sm btn-full" id="view-bans-btn">📋 <span data-i18n="settings.admin.view_bans_btn">View Bans</span></button>
+          <button class="btn-sm btn-full" id="view-deleted-users-btn" style="margin-top:6px">🗑️ <span data-i18n="settings.admin.view_deleted_btn">View Deleted Users</span></button>
+          <button class="btn-sm btn-full" id="view-all-members-btn" style="margin-top:6px">👥 <span data-i18n="settings.admin.view_all_members_btn">View All Members</span></button>
           <label class="toggle-row" style="margin-top:8px">
             <span data-i18n="settings.admin.update_banner_label">Update banner (admins only)</span>
             <input type="checkbox" id="update-banner-admin-only">
@@ -1393,7 +1393,7 @@
           <small class="settings-hint" data-i18n="settings.admin.update_banner_hint">When enabled, the "update available" banner is only shown to admins</small>
         </div>
         <div class="admin-settings" id="section-whitelist" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.whitelist_title">🛡️ Whitelist</h5>
+          <h5 class="settings-section-subtitle">🛡️ <span data-i18n="settings.admin.whitelist_title">Whitelist</span></h5>
           <label class="toggle-row">
             <span data-i18n="settings.admin.whitelist_enabled">Enabled</span>
             <input type="checkbox" id="whitelist-enabled">
@@ -1410,7 +1410,7 @@
           </div>
         </div>
         <div class="admin-settings" id="section-invite" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.invite_title">🌐 Server Invite Code</h5>
+          <h5 class="settings-section-subtitle">🌐 <span data-i18n="settings.admin.invite_title">Server Invite Code</span></h5>
           <small class="settings-hint" data-i18n="settings.admin.invite_hint">A single code that adds people to every channel &amp; sub-channel on the server</small>
           <div style="margin-top:8px;">
             <div id="server-code-display" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
@@ -1424,7 +1424,7 @@
           </div>
         </div>
         <div class="admin-settings" id="section-cleanup" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.cleanup_title">🗑️ Auto-Cleanup</h5>
+          <h5 class="settings-section-subtitle">🗑️ <span data-i18n="settings.admin.cleanup_title">Auto-Cleanup</span></h5>
           <label class="toggle-row">
             <span data-i18n="settings.admin.cleanup_enabled">Enabled</span>
             <input type="checkbox" id="cleanup-enabled">
@@ -1439,10 +1439,10 @@
             <input type="number" id="cleanup-max-size" min="0" max="100000" value="0" class="settings-number-input">
           </label>
           <small class="settings-hint" data-i18n="settings.admin.cleanup_size_hint">Trim oldest messages when DB exceeds N MB (0 = off)</small>
-          <button class="btn-sm btn-full" id="run-cleanup-now-btn" data-i18n="settings.admin.cleanup_run_btn" style="margin-top:4px;">🧹 Run Cleanup Now</button>
+          <button class="btn-sm btn-full" id="run-cleanup-now-btn" style="margin-top:4px;">🧹 <span data-i18n="settings.admin.cleanup_run_btn">Run Cleanup Now</span></button>
         </div>
         <div class="admin-settings" id="section-uploads" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.uploads_title">📁 Uploads &amp; Limits</h5>
+          <h5 class="settings-section-subtitle">📁 <span data-i18n="settings.admin.uploads_title">Uploads &amp; Limits</span></h5>
           <label class="select-row">
             <span data-i18n="settings.admin.max_upload">Max Upload Size (MB)</span>
             <input type="number" id="max-upload-mb" min="1" max="2048" value="25" class="settings-number-input">
@@ -1465,33 +1465,33 @@
           <small class="settings-hint" data-i18n="settings.admin.max_poll_hint">Maximum answer choices per poll (2–25, default 10)</small>
         </div>
         <div class="admin-settings" id="section-sounds-admin" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.sounds_title">🔊 Custom Sounds</h5>
+          <h5 class="settings-section-subtitle">🔊 <span data-i18n="settings.admin.sounds_title">Custom Sounds</span></h5>
           <small class="settings-hint" data-i18n="settings.admin.sounds_hint">Upload audio files for custom notification sounds</small>
           <div style="margin-top:8px;">
-            <button class="btn-sm btn-full btn-accent" id="open-sound-manager-btn" data-i18n="settings.admin.manage_sounds_btn">⚙️ Manage Sounds</button>
+            <button class="btn-sm btn-full btn-accent" id="open-sound-manager-btn">⚙️ <span data-i18n="settings.admin.manage_sounds_btn">Manage Sounds</span></button>
           </div>
         </div>
         <div class="admin-settings" id="section-emojis" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.emojis_title">😎 Custom Emojis</h5>
+          <h5 class="settings-section-subtitle">😎 <span data-i18n="settings.admin.emojis_title">Custom Emojis</span></h5>
           <small class="settings-hint" data-i18n="settings.admin.emojis_hint">Upload images for custom server emojis</small>
           <div style="margin-top:8px;">
-            <button class="btn-sm btn-full btn-accent" id="open-emoji-manager-btn" data-i18n="settings.admin.manage_emojis_btn">⚙️ Manage Emojis</button>
+            <button class="btn-sm btn-full btn-accent" id="open-emoji-manager-btn">⚙️ <span data-i18n="settings.admin.manage_emojis_btn">Manage Emojis</span></button>
           </div>
         </div>
         <!-- Role Management (Admin only) -->
         <div class="admin-settings" id="section-roles" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.roles_title">👑 Role Management</h5>
+          <h5 class="settings-section-subtitle">👑 <span data-i18n="settings.admin.roles_title">Role Management</span></h5>
           <small class="settings-hint" data-i18n="settings.admin.roles_hint">Create and manage roles. Assign roles to users from the user list context menu.</small>
           <div style="margin-top:8px;display:flex;gap:6px">
-            <button class="btn-sm btn-full btn-accent" id="open-role-editor-btn" data-i18n="settings.admin.manage_roles_btn">⚙️ Manage Roles</button>
-            <button class="btn-sm" id="reset-roles-btn" data-i18n="settings.admin.reset_roles_btn" title="Reset all roles to deployment defaults">🔄 Reset to Default</button>
+            <button class="btn-sm btn-full btn-accent" id="open-role-editor-btn">⚙️ <span data-i18n="settings.admin.manage_roles_btn">Manage Roles</span></button>
+            <button class="btn-sm" id="reset-roles-btn" title="Reset all roles to deployment defaults">🔄 <span data-i18n="settings.admin.reset_roles_btn">Reset to Default</span></button>
           </div>
           <div id="roles-list-preview" style="margin-top:8px;">
           </div>
         </div>
         <!-- Tunnel settings (Admin only) -->
         <div class="admin-settings" id="section-tunnel" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.tunnel_title">🧭 Tunnel</h5>
+          <h5 class="settings-section-subtitle">🧭 <span data-i18n="settings.admin.tunnel_title">Tunnel</span></h5>
           <label class="select-row">
             <span data-i18n="settings.admin.tunnel_provider">Provider</span>
             <select id="tunnel-provider-select">
@@ -1506,10 +1506,10 @@
         </div>
         <!-- Webhooks / Bots (Admin only) -->
         <div class="admin-settings" id="section-bots" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.bots_title">🤖 Webhooks / Bots</h5>
+          <h5 class="settings-section-subtitle">🤖 <span data-i18n="settings.admin.bots_title">Webhooks / Bots</span></h5>
           <small class="settings-hint" data-i18n="settings.admin.bots_hint">Create and manage webhook bots that can post messages to channels.</small>
           <div style="margin-top:8px;">
-            <button class="btn-sm btn-full btn-accent" id="open-bot-editor-btn" data-i18n="settings.admin.manage_bots_btn">⚙️ Manage Bots</button>
+            <button class="btn-sm btn-full btn-accent" id="open-bot-editor-btn">⚙️ <span data-i18n="settings.admin.manage_bots_btn">Manage Bots</span></button>
           </div>
           <div id="webhooks-list" style="margin-top:8px;">
             <p class="muted-text" data-i18n="settings.admin.no_bots">No bots configured</p>
@@ -1517,22 +1517,22 @@
         </div>
         <!-- Discord Import (Admin only) -->
         <div class="admin-settings" id="section-import" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.import_title">📦 Discord Import</h5>
+          <h5 class="settings-section-subtitle">📦 <span data-i18n="settings.admin.import_title">Discord Import</span></h5>
           <small class="settings-hint" data-i18n="settings.admin.import_hint">Import channels and messages from a Discord export file</small>
           <div style="margin-top:8px;">
-            <button class="btn-sm btn-full btn-accent" id="open-import-btn" data-i18n="settings.admin.import_btn">📦 Import from Discord</button>
+            <button class="btn-sm btn-full btn-accent" id="open-import-btn">📦 <span data-i18n="settings.admin.import_btn">Import from Discord</span></button>
           </div>
         </div>
         <!-- Mod Mode (Admin only) -->
         <div class="admin-settings" id="section-modmode" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
-          <h5 class="settings-section-subtitle" data-i18n="settings.admin.modmode_title">🔧 Mod Mode</h5>
+          <h5 class="settings-section-subtitle">🔧 <span data-i18n="settings.admin.modmode_title">Mod Mode</span></h5>
           <small class="settings-hint" data-i18n="settings.admin.modmode_hint">Rearrange sidebar sections and snap server/sidebar/status panels</small>
-          <button class="btn-sm btn-full" id="mod-mode-settings-toggle" data-i18n="settings.admin.modmode_toggle_btn" style="margin-top:6px;">🔧 Toggle Mod Mode</button>
+          <button class="btn-sm btn-full" id="mod-mode-settings-toggle" style="margin-top:6px;">🔧 <span data-i18n="settings.admin.modmode_toggle_btn">Toggle Mod Mode</span></button>
           <button class="btn-sm btn-full" id="mod-mode-reset" data-i18n="settings.admin.modmode_reset_btn" style="margin-top:6px;">↺ Reset Layout</button>
         </div>
         <!-- Admin save bar — changes only apply when Save is clicked -->
         <div class="admin-save-bar">
-          <button class="btn-accent btn-admin-save" id="admin-save-btn" data-i18n="settings.admin.save_btn">💾 Save Settings</button>
+          <button class="btn-accent btn-admin-save" id="admin-save-btn">💾 <span data-i18n="settings.admin.save_btn">Save Settings</span></button>
           <small class="settings-hint" style="text-align:center;margin-top:4px" data-i18n="settings.admin.save_hint">Changes only apply when you click Save. Close (✕) to cancel.</small>
         </div>
       </div>
@@ -1544,13 +1544,13 @@
   <!-- Discord Import Modal -->
   <div class="modal-overlay" id="import-modal" style="display:none">
     <div class="modal" style="max-width:560px">
-      <h3 data-i18n="modals.discord_import.title">📦 Import from Discord</h3>
+      <h3>📦 <span data-i18n="modals.discord_import.title">Import from Discord</span></h3>
 
       <!-- Step 1: Upload or Connect -->
       <div id="import-step-upload">
         <div class="import-tabs">
-          <button class="import-tab active" data-tab="file" data-i18n="modals.discord_import.file_tab">📁 Upload File</button>
-          <button class="import-tab" data-tab="connect" data-i18n="modals.discord_import.connect_tab">🔗 Connect to Discord</button>
+          <button class="import-tab active" data-tab="file">📁 <span data-i18n="modals.discord_import.file_tab">Upload File</span></button>
+          <button class="import-tab" data-tab="connect">🔗 <span data-i18n="modals.discord_import.connect_tab">Connect to Discord</span></button>
         </div>
 
         <!-- Tab: Upload File -->
@@ -1633,7 +1633,7 @@
             </div>
             <div class="import-channel-list" id="import-connect-channel-list"></div>
             <div style="display:flex;gap:8px;margin-top:10px;justify-content:flex-end">
-              <button class="btn-sm btn-accent" id="import-fetch-btn" data-i18n="modals.discord_import.fetch_btn">📥 Fetch Messages</button>
+              <button class="btn-sm btn-accent" id="import-fetch-btn">📥 <span data-i18n="modals.discord_import.fetch_btn">Fetch Messages</span></button>
             </div>
             <p class="muted-text" id="import-fetch-status" style="margin-top:6px;display:none"></p>
           </div>
@@ -1654,7 +1654,7 @@
         <div class="import-channel-list" id="import-channel-list"></div>
         <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
           <button class="btn-sm" id="import-back-btn" data-i18n="modals.common.back">← Back</button>
-          <button class="btn-sm btn-accent" id="import-execute-btn" data-i18n="modals.discord_import.import_selected_btn">📦 Import Selected</button>
+          <button class="btn-sm btn-accent" id="import-execute-btn">📦 <span data-i18n="modals.discord_import.import_selected_btn">Import Selected</span></button>
         </div>
       </div>
 
@@ -1673,7 +1673,7 @@
   <!-- Role Management Modal -->
   <div class="modal-overlay" id="role-modal" style="display:none">
     <div class="modal modal-wide">
-      <h3 data-i18n="modals.role_management.title">👑 Role Management</h3>
+      <h3>👑 <span data-i18n="modals.role_management.title">Role Management</span></h3>
       <div class="role-editor-layout">
         <div class="role-sidebar">
           <div id="role-list-sidebar" class="role-list-sidebar"></div>
@@ -1693,7 +1693,7 @@
   <!-- Assign Role Modal -->
   <div class="modal-overlay" id="assign-role-modal" style="display:none">
     <div class="modal" style="max-width:440px">
-      <h3 data-i18n="modals.assign_role.title">👑 Assign Role</h3>
+      <h3>👑 <span data-i18n="modals.assign_role.title">Assign Role</span></h3>
       <p id="assign-role-user-label" class="muted-text"></p>
 
       <label class="assign-role-field-label" data-i18n="modals.assign_role.role_label">Role</label>
@@ -1704,7 +1704,7 @@
       <label class="assign-role-field-label" style="margin-top:10px" data-i18n="modals.assign_role.scope_label">Scope</label>
       <p class="assign-role-hint" data-i18n="modals.assign_role.scope_hint">Server-wide applies to all channels. Channel-specific only applies within that channel.</p>
       <select id="assign-role-scope" class="settings-select assign-role-select">
-        <option value="server" data-i18n="modals.assign_role.server_wide">🌐 Server-wide</option>
+        <option value="server" data-i18n="modals.assign_role.server_wide">Server-wide</option>
       </select>
 
       <div class="modal-actions">
@@ -1717,7 +1717,7 @@
   <!-- Centralized Role Assignment (3-pane) Modal -->
   <div class="modal-overlay" id="role-assign-center-modal" style="display:none">
     <div class="modal role-assign-center-box">
-      <h3 data-i18n="modals.role_assign_center.title">👑 Role Assignment</h3>
+      <h3>👑 <span data-i18n="modals.role_assign_center.title">Role Assignment</span></h3>
       <p class="muted-text role-assign-center-subtitle" data-i18n="modals.role_assign_center.subtitle">Select a user, then a channel, then configure their role.</p>
 
       <div class="rac-layout">
@@ -1752,7 +1752,7 @@
       </div>
 
       <div class="modal-actions rac-footer">
-        <button class="btn-sm" id="rac-manage-roles-btn" data-i18n="modals.role_assign_center.manage_roles_btn" style="display:none" title="Open role management">⚙️ Manage Roles</button>
+        <button class="btn-sm" id="rac-manage-roles-btn" style="display:none" data-i18n-title="modals.role_assign_center.manage_roles_title" title="Open role management">⚙️ <span data-i18n="modals.role_assign_center.manage_roles_btn">Manage Roles</span></button>
         <div class="rac-footer-right">
           <button class="btn-sm" id="rac-cancel-btn" data-i18n="modals.common.cancel">Cancel</button>
           <button class="btn-sm btn-accent" id="rac-save-btn" data-i18n="modals.role_assign_center.save_btn" disabled>Save Changes</button>
@@ -1764,7 +1764,7 @@
   <!-- Bot Management Modal -->
   <div class="modal-overlay" id="bot-modal" style="display:none">
     <div class="modal modal-wide">
-      <h3 data-i18n="modals.bot_mgmt.title">🤖 Bot Management</h3>
+      <h3>🤖 <span data-i18n="modals.bot_mgmt.title">Bot Management</span></h3>
       <div class="role-editor-layout">
         <div class="role-sidebar">
           <div id="bot-list-sidebar" class="role-list-sidebar"></div>
@@ -1783,12 +1783,12 @@
   <!-- Sound Management Modal (Full Popout) -->
   <div class="modal-overlay" id="sound-modal" style="display:none">
     <div class="modal" style="max-width:640px;min-height:420px">
-      <h3 data-i18n="modals.sound_manager.title">🔊 Sound Manager</h3>
+      <h3>🔊 <span data-i18n="modals.sound_manager.title">Sound Manager</span></h3>
       <!-- Tabs -->
       <div class="sound-modal-tabs">
-        <button class="sound-tab active" data-tab="soundboard" data-i18n="modals.sound_manager.soundboard_tab">🎵 Soundboard</button>
-        <button class="sound-tab" data-tab="assign" data-i18n="modals.sound_manager.assign_tab">🔔 Assign to Events</button>
-        <button class="sound-tab sound-tab-admin" data-tab="manage" data-i18n="modals.sound_manager.manage_tab" style="display:none">⚙️ Manage</button>
+        <button class="sound-tab active" data-tab="soundboard">🎵 <span data-i18n="modals.sound_manager.soundboard_tab">Soundboard</span></button>
+        <button class="sound-tab" data-tab="assign">🔔 <span data-i18n="modals.sound_manager.assign_tab">Assign to Events</span></button>
+        <button class="sound-tab sound-tab-admin" data-tab="manage" style="display:none">⚙️ <span data-i18n="modals.sound_manager.manage_tab">Manage</span></button>
       </div>
 
       <!-- TAB: Soundboard (all users) -->
@@ -1808,23 +1808,23 @@
         <small class="settings-hint" style="display:block;margin-bottom:10px">Choose which sound plays for each event. Custom sounds uploaded by the admin appear here too.</small>
         <div class="sound-assign-list">
           <label class="select-row">
-            <span data-i18n="modals.sound_manager.new_message">📨 New Message</span>
+            <span>📨 <span data-i18n="modals.sound_manager.new_message">New Message</span></span>
             <select id="assign-msg-sound" class="sound-assign-select"></select>
           </label>
           <label class="select-row">
-            <span data-i18n="modals.sound_manager.msg_sent">📤 Message Sent</span>
+            <span>📤 <span data-i18n="modals.sound_manager.msg_sent">Message Sent</span></span>
             <select id="assign-sent-sound" class="sound-assign-select"></select>
           </label>
           <label class="select-row">
-            <span data-i18n="modals.sound_manager.mention">📢 @Mention</span>
+            <span>📢 <span data-i18n="modals.sound_manager.mention">@Mention</span></span>
             <select id="assign-mention-sound" class="sound-assign-select"></select>
           </label>
           <label class="select-row">
-            <span data-i18n="modals.sound_manager.user_joined">👋 User Joined</span>
+            <span>👋 <span data-i18n="modals.sound_manager.user_joined">User Joined</span></span>
             <select id="assign-join-sound" class="sound-assign-select"></select>
           </label>
           <label class="select-row">
-            <span data-i18n="modals.sound_manager.user_left">🚪 User Left</span>
+            <span>🚪 <span data-i18n="modals.sound_manager.user_left">User Left</span></span>
             <select id="assign-leave-sound" class="sound-assign-select"></select>
           </label>
         </div>
@@ -1852,7 +1852,7 @@
   <!-- Emoji Management Modal -->
   <div class="modal-overlay" id="emoji-modal" style="display:none">
     <div class="modal" style="max-width:520px">
-      <h3 data-i18n="modals.emoji_mgmt.title">😎 Emoji Management</h3>
+      <h3>😎 <span data-i18n="modals.emoji_mgmt.title">Emoji Management</span></h3>
       <small class="settings-hint" style="display:block;margin-bottom:12px">Upload images for custom server emojis (max 256 KB, png/gif/webp). Name must be lowercase, no spaces.</small>
       <div class="whitelist-add-row">
         <input type="text" id="emoji-name-input" data-i18n-placeholder="modals.emoji_mgmt.name_placeholder" placeholder="emoji_name" maxlength="30" class="settings-text-input">
@@ -1862,7 +1862,7 @@
       <div id="emoji-crop-preview-row" style="display:none;align-items:center;gap:10px;margin-top:8px;padding:8px;background:var(--bg-tertiary);border-radius:var(--radius-sm)">
         <img id="emoji-crop-thumb" src="" alt="" style="width:32px;height:32px;border-radius:4px;object-fit:cover;border:1px solid var(--border)">
         <span class="settings-hint" style="flex:1" data-i18n="modals.emoji_mgmt.crop_applied">Crop applied — ready to upload</span>
-        <button class="btn-xs" id="emoji-recrop-btn" data-i18n="modals.emoji_mgmt.adjust_btn" title="Re-open cropper">✏️ Adjust</button>
+        <button class="btn-xs" id="emoji-recrop-btn" title="Re-open cropper">✏️ <span data-i18n="modals.emoji_mgmt.adjust_btn">Adjust</span></button>
       </div>
       <div id="custom-emojis-list" style="margin-top:12px;">
         <p class="muted-text" data-i18n="modals.emoji_mgmt.no_emojis">No custom emojis uploaded</p>
@@ -1876,7 +1876,7 @@
   <!-- Emoji Crop Modal -->
   <div class="modal-overlay" id="emoji-crop-modal" style="display:none">
     <div class="modal" style="max-width:320px;text-align:center">
-      <h3 style="margin-bottom:6px" data-i18n="modals.emoji_crop.title">✂️ Crop Emoji</h3>
+      <h3 style="margin-bottom:6px">✂️ <span data-i18n="modals.emoji_crop.title">Crop Emoji</span></h3>
       <small class="settings-hint" style="display:block;margin-bottom:10px" data-i18n="modals.emoji_crop.hint">Drag to reposition · Slider to zoom</small>
       <canvas id="emoji-crop-canvas" width="256" height="256" style="border-radius:var(--radius);cursor:grab;display:block;margin:0 auto 10px;border:2px solid var(--accent);max-width:100%;touch-action:none"></canvas>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;padding:0 4px">
@@ -1905,7 +1905,7 @@
 
   <div class="modal-overlay" id="deleted-users-modal" style="display:none">
     <div class="modal modal-wide">
-      <h3 data-i18n="modals.deleted_users.title">🗑️ Deleted Users</h3>
+      <h3>🗑️ <span data-i18n="modals.deleted_users.title">Deleted Users</span></h3>
       <div id="deleted-users-list" class="bans-list">
         <p class="muted-text" data-i18n="modals.common.loading">Loading...</p>
       </div>
@@ -1918,7 +1918,7 @@
   <!-- All Members Modal -->
   <div class="modal-overlay" id="all-members-modal" style="display:none">
     <div class="modal modal-wide" style="max-width:720px;max-height:85vh;display:flex;flex-direction:column">
-      <h3>👥 All Members <span id="all-members-count" class="muted-text" style="font-size:13px;font-weight:normal"></span></h3>
+      <h3>👥 <span data-i18n="all_members.title">All Members</span> <span id="all-members-count" class="muted-text" style="font-size:13px;font-weight:normal"></span></h3>
       <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input type="text" id="all-members-search" data-i18n-placeholder="modals.all_members.search_placeholder" placeholder="Search users..." maxlength="40" class="settings-text-input" style="flex:1;min-width:140px">
         <select id="all-members-filter" style="font-size:12px;padding:4px 8px;border-radius:var(--radius-sm);background:var(--bg-tertiary);color:var(--text-primary);border:1px solid var(--border)">
@@ -1941,7 +1941,7 @@
   <!-- Music Share Modal -->
   <div class="modal-overlay" id="music-modal" style="display:none">
     <div class="modal">
-      <h3 data-i18n="modals.listen_together.title">🎵 Listen Together</h3>
+      <h3>🎵 <span data-i18n="modals.listen_together.title">Listen Together</span></h3>
       <p class="modal-desc" data-i18n="modals.listen_together.desc">Paste a link from Spotify, YouTube, or SoundCloud to share with everyone in voice</p>
       <div class="form-group">
         <label data-i18n="modals.listen_together.link_label">Music Link</label>
@@ -1963,7 +1963,7 @@
   <!-- Manage Servers Modal -->
   <div class="modal-overlay" id="manage-servers-modal" style="display:none">
     <div class="modal" style="max-width:480px">
-      <h3 data-i18n="modals.manage_servers.title">⚙ Manage Servers</h3>
+      <h3>⚙ <span data-i18n="modals.manage_servers.title">Manage Servers</span></h3>
       <p class="modal-desc" data-i18n="modals.manage_servers.desc">Edit or remove your linked servers</p>
       <div id="manage-servers-list" class="manage-servers-list"></div>
       <div class="modal-actions" style="justify-content:space-between">
@@ -1975,86 +1975,86 @@
 
   <!-- Channel context menu (appears on "..." hover button) -->
   <div id="channel-ctx-menu" class="channel-ctx-menu" style="display:none">
-    <button class="channel-ctx-item" data-action="mute" data-i18n="context_menu.channel.mute">🔔 Mute Channel</button>
-    <button class="channel-ctx-item" data-action="join-voice" data-i18n="context_menu.channel.join_voice">🎙️ Join Voice</button>
-    <button class="channel-ctx-item" data-action="leave-voice" style="display:none" data-i18n="context_menu.channel.disconnect_voice">📴 Disconnect Voice</button>
+    <button class="channel-ctx-item" data-action="mute">🔔 <span data-i18n="context_menu.channel.mute">Mute Channel</span></button>
+    <button class="channel-ctx-item" data-action="join-voice">🎙️ <span data-i18n="voice.join">Join Voice</span></button>
+    <button class="channel-ctx-item" data-action="leave-voice" style="display:none">📴 <span data-i18n="context_menu.channel.disconnect_voice">Disconnect Voice</span></button>
     <hr class="channel-ctx-sep">
-    <button class="channel-ctx-item" data-action="leave-channel" data-i18n="context_menu.channel.leave">🚪 Leave Channel</button>
+    <button class="channel-ctx-item" data-action="leave-channel">🚪 <span data-i18n="context_menu.channel.leave">Leave Channel</span></button>
     <hr class="channel-ctx-sep">
-    <button class="channel-ctx-item mod-only" data-action="rename-channel" data-i18n="context_menu.channel.rename">✏️ Rename Channel</button>
-    <button class="channel-ctx-item mod-only" data-action="create-sub-channel" data-i18n="context_menu.channel.create_sub">📁 Create Sub-channel</button>
+    <button class="channel-ctx-item mod-only" data-action="rename-channel">✏️ <span data-i18n="context_menu.channel.rename">Rename Channel</span></button>
+    <button class="channel-ctx-item mod-only" data-action="create-sub-channel">📁 <span data-i18n="context_menu.channel.create_sub">Create Sub-channel</span></button>
     <hr class="channel-ctx-sep admin-only">
-    <button class="channel-ctx-item admin-only" data-action="organize" style="display:none" data-i18n="context_menu.channel.organize">📋 Organize</button>
-    <button class="channel-ctx-item admin-only" data-action="move-to-parent" style="display:none" data-i18n="context_menu.channel.move_to">📦 Move to…</button>
-    <button class="channel-ctx-item admin-only" data-action="promote-channel" style="display:none" data-i18n="context_menu.channel.promote">⬆️ Promote to Channel</button>
+    <button class="channel-ctx-item admin-only" data-action="organize" style="display:none">📋 <span data-i18n="context_menu.channel.organize">Organize</span></button>
+    <button class="channel-ctx-item admin-only" data-action="move-to-parent" style="display:none">📦 <span data-i18n="context_menu.channel.move_to">Move to…</span></button>
+    <button class="channel-ctx-item admin-only" data-action="promote-channel" style="display:none">⬆️ <span data-i18n="context_menu.channel.promote">Promote to Channel</span></button>
     <button class="channel-ctx-item admin-only" data-action="channel-functions">⚙️ <span data-i18n="context_menu.channel.functions">Channel Functions</span> <span class="cfn-arrow">▶</span></button>
     <div id="channel-functions-panel" class="channel-functions-panel" style="display:none">
-      <div class="cfn-row" data-fn="voice" title="Enable or disable voice chat in this channel">
-        <span class="cfn-label" data-i18n="channel_functions.voice">🎙️ Voice</span>
+      <div class="cfn-row" data-fn="voice" data-i18n-title="channel_functions.voice_hint" title="Enable or disable voice chat in this channel">
+        <span class="cfn-label">🎙️ <span data-i18n="channel_functions.voice">Voice</span></span>
         <span class="cfn-badge cfn-on" data-i18n="channel_functions.on">ON</span>
       </div>
-      <div class="cfn-row" data-fn="text" title="Enable or disable text chat in this channel">
-        <span class="cfn-label" data-i18n="channel_functions.text">💬 Text</span>
+      <div class="cfn-row" data-fn="text" data-i18n-title="channel_functions.text_hint" title="Enable or disable text chat in this channel">
+        <span class="cfn-label">💬 <span data-i18n="channel_functions.text">Text</span></span>
         <span class="cfn-badge cfn-on" data-i18n="channel_functions.on">ON</span>
       </div>
-      <div class="cfn-row" data-fn="streams" title="Allow screen sharing and camera (requires voice)">
-        <span class="cfn-label" data-i18n="channel_functions.streams">🖥️ Streams</span>
+      <div class="cfn-row" data-fn="streams" data-i18n-title="channel_functions.streams_hint" title="Allow screen sharing and camera (requires voice)">
+        <span class="cfn-label">🖥️ <span data-i18n="channel_functions.streams">Streams</span></span>
         <span class="cfn-badge cfn-on" data-i18n="channel_functions.on">ON</span>
       </div>
-      <div class="cfn-row" data-fn="music" title="Allow Listen Together / music playback (requires voice)">
-        <span class="cfn-label" data-i18n="channel_functions.music">🎵 Music</span>
+      <div class="cfn-row" data-fn="music" data-i18n-title="channel_functions.music_hint" title="Allow Listen Together / music playback (requires voice)">
+        <span class="cfn-label">🎵 <span data-i18n="channel_functions.music">Music</span></span>
         <span class="cfn-badge cfn-on" data-i18n="channel_functions.on">ON</span>
       </div>
-      <div class="cfn-row" data-fn="media" title="Allow image, video, and file uploads in this channel">
-        <span class="cfn-label" data-i18n="channel_functions.media">🖼️ Media</span>
+      <div class="cfn-row" data-fn="media" data-i18n-title="channel_functions.media_hint" title="Allow image, video, and file uploads in this channel">
+        <span class="cfn-label">🖼️ <span data-i18n="channel_functions.media">Media</span></span>
         <span class="cfn-badge cfn-on" data-i18n="channel_functions.on">ON</span>
       </div>
       <div class="cfn-divider"></div>
-      <div class="cfn-row" data-fn="slow-mode" title="Require a cooldown between messages (0 = off)">
-        <span class="cfn-label" data-i18n="channel_functions.slow_mode">🐢 Slow Mode</span>
+      <div class="cfn-row" data-fn="slow-mode" data-i18n-title="channel_functions.slow_mode_hint" title="Require a cooldown between messages (0 = off)">
+        <span class="cfn-label">🐢 <span data-i18n="channel_functions.slow_mode">Slow Mode</span></span>
         <span class="cfn-badge cfn-off" data-i18n="channel_functions.off">OFF</span>
       </div>
-      <div class="cfn-row" data-fn="cleanup-exempt" title="Protect this channel from automatic message cleanup">
-        <span class="cfn-label" data-i18n="channel_functions.cleanup_guard">🛡️ Cleanup Guard</span>
+      <div class="cfn-row" data-fn="cleanup-exempt" data-i18n-title="channel_functions.cleanup_guard_hint" title="Protect this channel from automatic message cleanup">
+        <span class="cfn-label">🛡️ <span data-i18n="channel_functions.cleanup_guard">Cleanup Guard</span></span>
         <span class="cfn-badge cfn-off" data-i18n="channel_functions.off">OFF</span>
       </div>
-      <div class="cfn-row" data-fn="user-limit" title="Limit simultaneous voice users (click to set; blank = unlimited)">
-        <span class="cfn-label" data-i18n="channel_functions.voice_limit">👥 Voice Limit</span>
+      <div class="cfn-row" data-fn="user-limit" data-i18n-title="channel_functions.voice_limit_hint" title="Limit simultaneous voice users (click to set; blank = unlimited)">
+        <span class="cfn-label">👥 <span data-i18n="channel_functions.voice_limit">Voice Limit</span></span>
         <span class="cfn-badge cfn-off">∞</span>
       </div>
-      <div class="cfn-row" data-fn="voice-bitrate" title="Cap voice audio bitrate in kbps (0 = auto / no cap)">
-        <span class="cfn-label" data-i18n="channel_functions.voice_bitrate">🎚️ Voice Bitrate</span>
+      <div class="cfn-row" data-fn="voice-bitrate" data-i18n-title="channel_functions.voice_bitrate_hint" title="Cap voice audio bitrate in kbps (0 = auto / no cap)">
+        <span class="cfn-label">🎚️ <span data-i18n="channel_functions.voice_bitrate">Voice Bitrate</span></span>
         <span class="cfn-badge cfn-off" data-i18n="channel_functions.voice_bitrate_auto">Auto</span>
       </div>
       <div class="cfn-divider"></div>
-      <div class="cfn-row" data-fn="self-destruct" title="Set a self-destruct timer — channel auto-deletes after the specified hours (0 = off)">
-        <span class="cfn-label" data-i18n="channel_functions.self_destruct">⏱️ Self Destruct</span>
+      <div class="cfn-row" data-fn="self-destruct" data-i18n-title="channel_functions.self_destruct_hint" title="Set a self-destruct timer — channel auto-deletes after the specified hours (0 = off)">
+        <span class="cfn-label">⏱️ <span data-i18n="channel_functions.self_destruct">Self Destruct</span></span>
         <span class="cfn-badge cfn-off" data-i18n="channel_functions.off">OFF</span>
       </div>
-      <div class="cfn-row" data-fn="announcement" title="Announcement channel — messages use a distinct notification sound and gold highlight">
-        <span class="cfn-label" data-i18n="channel_functions.announcement">📢 Announcement</span>
+      <div class="cfn-row" data-fn="announcement" data-i18n-title="channel_functions.announcement_hint" title="Announcement channel — messages use a distinct notification sound and gold highlight">
+        <span class="cfn-label">📢 <span data-i18n="channel_functions.announcement">Announcement</span></span>
         <span class="cfn-badge cfn-off" data-i18n="channel_functions.off">OFF</span>
       </div>
     </div>
-    <button class="channel-ctx-item admin-only" data-action="channel-roles" data-i18n="context_menu.channel.roles">👑 Roles</button>
-    <button class="channel-ctx-item admin-only" data-action="webhooks" data-i18n="context_menu.channel.webhooks">🤖 Webhooks</button>
+    <button class="channel-ctx-item admin-only" data-action="channel-roles">👑 <span data-i18n="context_menu.channel.roles">Roles</span></button>
+    <button class="channel-ctx-item admin-only" data-action="webhooks">🤖 <span data-i18n="context_menu.channel.webhooks">Webhooks</span></button>
     <hr class="channel-ctx-sep admin-only">
-    <button class="channel-ctx-item admin-only danger" data-action="delete" data-i18n="context_menu.channel.delete">🗑️ Delete Channel</button>
+    <button class="channel-ctx-item admin-only danger" data-action="delete">🗑️ <span data-i18n="context_menu.channel.delete">Delete Channel</span></button>
   </div>
 
   <!-- DM context menu -->
   <div id="dm-ctx-menu" class="channel-ctx-menu" style="display:none">
-    <button class="channel-ctx-item" data-action="dm-mute" data-i18n="context_menu.dm.mute">🔔 Mute DM</button>
+    <button class="channel-ctx-item" data-action="dm-mute">🔔 <span data-i18n="context_menu.dm.mute">Mute DM</span></button>
     <hr class="channel-ctx-sep">
-    <button class="channel-ctx-item danger" data-action="dm-delete" data-i18n="context_menu.dm.delete">🗑️ Delete DM</button>
+    <button class="channel-ctx-item danger" data-action="dm-delete">🗑️ <span data-i18n="context_menu.dm.delete">Delete DM</span></button>
   </div>
 
   <!-- Organize Sub-channels Modal -->
   <div class="modal-overlay" id="organize-modal" style="display:none">
     <div class="modal" style="max-width:500px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <button id="organize-back-btn" class="btn-sm" style="display:none;padding:3px 8px;font-size:0.8rem" title="Back to channel list">← Back</button>
-        <h3 id="organize-modal-title" style="margin:0">📋 Organize</h3>
+        <button id="organize-back-btn" class="btn-sm" style="display:none;padding:3px 8px;font-size:0.8rem" data-i18n-title="modals.organize.back_title" title="Back to channel list"><span data-i18n="modals.organize.back_btn">← Back</span></button>
+        <h3 id="organize-modal-title" style="margin:0">📋 <span data-i18n="modals.organize.title">Organize</span></h3>
       </div>
       <p class="modal-desc" id="organize-modal-parent-name"></p>
 
@@ -2081,13 +2081,13 @@
       <div id="organize-channel-list" class="organize-list"></div>
 
       <div class="organize-controls">
-        <button class="btn-sm" id="organize-move-up" data-i18n="modals.organize.move_up" title="Move selected channel up">⬆ Up</button>
-        <button class="btn-sm" id="organize-move-down" data-i18n="modals.organize.move_down" title="Move selected channel down">⬇ Down</button>
+        <button class="btn-sm" id="organize-move-up" data-i18n="modals.organize.move_up" data-i18n-title="modals.organize.move_up_title" title="Move selected channel up">⬆ Up</button>
+        <button class="btn-sm" id="organize-move-down" data-i18n="modals.organize.move_down" data-i18n-title="modals.organize.move_down_title" title="Move selected channel down">⬇ Down</button>
         <div class="organize-spacer"></div>
         <div class="organize-tag-group">
           <input type="text" id="organize-tag-input" class="organize-tag-input" maxlength="30" data-i18n-placeholder="modals.organize.tag_placeholder" placeholder="Tag name…">
-          <button class="btn-sm organize-tag-btn" id="organize-set-tag" data-i18n="modals.organize.tag_set_btn" title="Apply tag">🏷️ Set</button>
-          <button class="btn-sm organize-tag-btn danger" id="organize-remove-tag" data-i18n="modals.organize.tag_remove_btn" title="Remove tag">✕</button>
+          <button class="btn-sm organize-tag-btn" id="organize-set-tag" data-i18n-title="modals.organize.tag_set_title" title="Apply tag">🏷️ <span data-i18n="modals.organize.tag_set_btn">Set</span></button>
+          <button class="btn-sm organize-tag-btn danger" id="organize-remove-tag" data-i18n="modals.organize.tag_remove_btn" data-i18n-title="modals.organize.tag_remove_title" title="Remove tag">✕</button>
         </div>
       </div>
 
@@ -2100,7 +2100,7 @@
   <!-- Move Channel Picker Modal -->
   <div class="modal-overlay" id="reparent-modal" style="display:none">
     <div class="modal" style="max-width:380px">
-      <h3 id="reparent-modal-title" data-i18n="modals.move_channel.title">📦 Move Channel</h3>
+      <h3 id="reparent-modal-title">📦 <span data-i18n="modals.move_channel.title">Move Channel</span></h3>
       <p class="modal-desc" id="reparent-modal-desc"></p>
       <div id="reparent-channel-list" class="organize-list" style="max-height:300px;overflow-y:auto"></div>
       <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
@@ -2112,7 +2112,7 @@
   <!-- DM Organize Modal -->
   <div class="modal-overlay" id="dm-organize-modal" style="display:none">
     <div class="modal" style="max-width:460px">
-      <h3 data-i18n="modals.dm_organize.title">📋 Organize DMs</h3>
+      <h3>📋 <span data-i18n="modals.dm_organize.title">Organize DMs</span></h3>
       <p class="modal-desc" data-i18n="modals.dm_organize.desc">Tag your conversations into collapsible categories</p>
 
       <div class="organize-toolbar">
@@ -2127,13 +2127,13 @@
       <div id="dm-organize-list" class="organize-list"></div>
 
       <div class="organize-controls">
-        <button class="btn-sm" id="dm-organize-move-up" data-i18n="modals.organize.move_up" title="Move up">⬆ Up</button>
-        <button class="btn-sm" id="dm-organize-move-down" data-i18n="modals.organize.move_down" title="Move down">⬇ Down</button>
+        <button class="btn-sm" id="dm-organize-move-up" data-i18n="modals.organize.move_up" data-i18n-title="modals.organize.move_up_title" title="Move up">⬆ Up</button>
+        <button class="btn-sm" id="dm-organize-move-down" data-i18n="modals.organize.move_down" data-i18n-title="modals.organize.move_down_title" title="Move down">⬇ Down</button>
         <div class="organize-spacer"></div>
         <div class="organize-tag-group">
           <input type="text" id="dm-organize-tag-input" class="organize-tag-input" maxlength="30" data-i18n-placeholder="modals.dm_organize.category_placeholder" placeholder="Category…">
-          <button class="btn-sm organize-tag-btn" id="dm-organize-set-tag" data-i18n="modals.organize.tag_set_btn" title="Apply category">🏷️ Set</button>
-          <button class="btn-sm organize-tag-btn danger" id="dm-organize-remove-tag" data-i18n="modals.organize.tag_remove_btn" title="Remove category">✕</button>
+          <button class="btn-sm organize-tag-btn" id="dm-organize-set-tag" data-i18n-title="modals.dm_organize.category_set_title" title="Apply category">🏷️ <span data-i18n="modals.organize.tag_set_btn">Set</span></button>
+          <button class="btn-sm organize-tag-btn danger" id="dm-organize-remove-tag" data-i18n="modals.organize.tag_remove_btn" data-i18n-title="modals.dm_organize.category_remove_title" title="Remove category">✕</button>
         </div>
       </div>
 
@@ -2148,7 +2148,7 @@
   <!-- Poll Creation Modal -->
   <div class="modal-overlay" id="poll-modal" style="display:none">
     <div class="modal" style="max-width:440px">
-      <h3 data-i18n="modals.poll.title">📊 Create Poll</h3>
+      <h3>📊 <span data-i18n="modals.poll.title">Create Poll</span></h3>
       <div class="form-group">
         <label data-i18n="modals.poll.question_label">Question</label>
         <input type="text" id="poll-question-input" data-i18n-placeholder="modals.poll.question_placeholder" placeholder="What do you want to ask?" maxlength="300" autocomplete="off">
@@ -2175,7 +2175,7 @@
   <!-- Channel Roles Modal -->
   <div class="modal-overlay" id="channel-roles-modal" style="display:none">
     <div class="modal modal-wide">
-      <h3 data-i18n="modals.channel_roles.title">👑 Channel Roles</h3>
+      <h3>👑 <span data-i18n="modals.channel_roles.title">Channel Roles</span></h3>
       <p class="modal-desc" id="channel-roles-channel-name"></p>
 
       <div class="channel-roles-layout">
@@ -2221,7 +2221,7 @@
 
   <div class="modal-overlay" id="webhook-modal" style="display:none">
     <div class="modal" style="max-width:520px">
-      <h3 data-i18n="modals.webhook.title">🤖 Webhooks</h3>
+      <h3>🤖 <span data-i18n="modals.webhook.title">Webhooks</span></h3>
       <p class="modal-desc" id="webhook-modal-channel-name"></p>
 
       <!-- Create new webhook -->
@@ -2238,10 +2238,10 @@
 
       <!-- Token reveal (shown once after creation) -->
       <div id="webhook-token-reveal" style="display:none;margin-top:14px;padding:12px;border-radius:8px;background:rgba(0,0,0,0.25);border:1px solid var(--accent-color, #00e5ff)">
-        <p style="font-size:0.85rem;margin:0 0 8px;opacity:0.7" data-i18n="modals.webhook.token_warning">⚠️ Copy this URL now — you won't see the full token again!</p>
+        <p style="font-size:0.85rem;margin:0 0 8px;opacity:0.7">⚠️ <span data-i18n="modals.webhook.token_warning">Copy this URL now — you won't see the full token again!</span></p>
         <div style="display:flex;gap:6px">
           <input type="text" id="webhook-url-display" class="input" readonly style="flex:1;font-size:0.8rem;font-family:monospace">
-          <button class="btn-sm" id="webhook-copy-url-btn" data-i18n="modals.webhook.copy_btn">📋 Copy</button>
+          <button class="btn-sm" id="webhook-copy-url-btn">📋 <span data-i18n="modals.webhook.copy_btn">Copy</span></button>
         </div>
       </div>
 
@@ -2255,7 +2255,7 @@
   <div class="modal-overlay" id="sub-panel-modal" style="display:none">
     <div class="modal" style="max-width:520px;max-height:80vh;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <h3 style="margin:0;flex:1" data-i18n="modals.sub_panel.title">📡 Sub-channel Subscriptions</h3>
+        <h3 style="margin:0;flex:1">📡 <span data-i18n="modals.sub_panel.title">Sub-channel Subscriptions</span></h3>
         <button class="btn-sm" id="sub-panel-close-btn" data-i18n="modals.common.close" style="font-size:1rem;padding:4px 10px">&times;</button>
       </div>
       <p class="modal-desc" style="margin:0 0 12px;font-size:0.8rem;opacity:0.6" data-i18n="modals.sub_panel.desc">Subscribe to get notifications. Unsubscribed channels still appear but won't notify you.</p>
@@ -2284,7 +2284,7 @@
           <span style="font-size:0.75rem;opacity:0.6" data-i18n="modals.create_sub.hours">hours</span>
         </div>
       </div>
-      <p class="muted-text" style="font-size:0.75rem;margin:0 0 8px;opacity:0.6" data-i18n="modals.create_sub.admin_note">ℹ️ Admins always have access to all channels, including private ones.</p>
+      <p class="muted-text" style="font-size:0.75rem;margin:0 0 8px;opacity:0.6">ℹ️ <span data-i18n="modals.create_sub.admin_note">Admins always have access to all channels, including private ones.</span></p>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
         <button class="btn-sm" id="create-sub-cancel-btn" data-i18n="modals.common.cancel">Cancel</button>
         <button class="btn-sm btn-accent" id="create-sub-confirm-btn" data-i18n="modals.create_sub.create_btn">Create</button>
@@ -2300,7 +2300,7 @@
   <div class="modal-overlay" id="activities-modal" style="display:none">
     <div class="modal modal-activities">
       <div class="activities-header">
-        <h3 data-i18n="modals.activities.title">🎮 Activities</h3>
+        <h3>🎮 <span data-i18n="modals.activities.title">Activities</span></h3>
         <button class="settings-close-btn" id="close-activities-btn">&times;</button>
       </div>
       <div class="activities-grid" id="activities-grid">
@@ -2318,7 +2318,7 @@
           🔊 <input type="range" id="game-volume-slider" min="0" max="100" value="80" style="width:80px;accent-color:var(--accent);">
           <span id="game-volume-pct" style="min-width:28px;font-size:11px;">80%</span>
         </label>
-        <button class="btn-sm" id="game-iframe-popout" data-i18n="modals.game_overlay.popout_btn" title="Open in new window">↗️ Pop Out</button>
+        <button class="btn-sm" id="game-iframe-popout" title="Open in new window">↗️ <span data-i18n="modals.game_overlay.popout_btn">Pop Out</span></button>
         <button class="btn-sm btn-danger" id="game-iframe-close" data-i18n="modals.game_overlay.close_btn" title="Close game">&times; Close</button>
       </div>
     </div>
@@ -2341,7 +2341,7 @@
   <!-- E2E Password Prompt Modal -->
   <div id="e2e-password-modal" class="modal-overlay" style="display:none">
     <div class="modal e2e-password-modal">
-      <h3 data-i18n="modals.e2e_password.title">🔐 Password Required</h3>
+      <h3>🔐 <span data-i18n="modals.e2e_password.title">Password Required</span></h3>
       <p class="e2e-pw-desc" data-i18n="modals.e2e_password.desc">End-to-end encryption requires your password to unlock your keys. Enter your account password to continue.</p>
       <div class="e2e-pw-field">
         <input type="password" id="e2e-pw-input" data-i18n-placeholder="modals.e2e_password.placeholder" placeholder="Enter your password" autocomplete="current-password" spellcheck="false">
@@ -2369,7 +2369,7 @@
       </ul>
       <p class="android-beta-promo-note" data-i18n="modals.android_beta.note">Request access to the closed beta on Google Play:</p>
       <div class="android-beta-form">
-        <a id="android-beta-submit" href="https://amni-scient.com/amni-haven.html" target="_blank" rel="noopener" class="btn btn-accent android-beta-submit" data-i18n="modals.android_beta.request_btn" style="text-decoration:none;display:inline-block">🚀 Request Beta Access</a>
+        <a id="android-beta-submit" href="https://amni-scient.com/amni-haven.html" target="_blank" rel="noopener" class="btn btn-accent android-beta-submit" style="text-decoration:none;display:inline-block">🚀 <span data-i18n="modals.android_beta.request_btn">Request Beta Access</span></a>
       </div>
       <p class="android-beta-promo-credit">Built with ❤️ by <strong>Amnibro</strong> — thank you for your incredible work on the Haven Android app!</p>
       <div class="android-beta-promo-actions">
@@ -2394,7 +2394,7 @@
       </ul>
       <p class="desktop-promo-meta" id="desktop-promo-meta">Windows Installer • v1.0.0</p>
       <div class="desktop-promo-actions">
-        <a id="desktop-promo-install" class="btn btn-accent desktop-promo-install" href="https://ancsemi.github.io/Haven/#download" target="_blank" rel="noopener" data-i18n="modals.desktop_promo.install_btn">⬇ Install Haven</a>
+        <a id="desktop-promo-install" class="btn btn-accent desktop-promo-install" href="https://ancsemi.github.io/Haven/#download" target="_blank" rel="noopener">⬇ <span data-i18n="modals.desktop_promo.install_btn">Install Haven</span></a>
         <button id="desktop-promo-later" class="btn desktop-promo-later" data-i18n="modals.desktop_promo.later_btn">Maybe later</button>
       </div>
       <label class="desktop-promo-dismiss-label">
@@ -2413,12 +2413,12 @@
 
       <div class="donors-tiers" id="donors-tiers">
         <div class="donors-tier">
-          <h3 class="donors-tier-title donors-sponsor-title" data-i18n="modals.donors.sponsors_title">✨ Sponsors</h3>
+          <h3 class="donors-tier-title donors-sponsor-title">✨ <span data-i18n="modals.donors.sponsors_title">Sponsors</span></h3>
           <div class="donors-grid" id="sponsors-grid"></div>
         </div>
 
         <div class="donors-tier">
-          <h3 class="donors-tier-title donors-donor-title" data-i18n="modals.donors.donors_title">💛 Donors</h3>
+          <h3 class="donors-tier-title donors-donor-title">💛 <span data-i18n="modals.donors.donors_title">Donors</span></h3>
           <div class="donors-grid" id="donors-grid"></div>
         </div>
       </div>
@@ -2426,7 +2426,7 @@
       <p class="donors-note" data-i18n="modals.donors.note">New donors will be added each release. If you've donated and don't see your name, it'll be in the next update!</p>
 
       <a href="https://ko-fi.com/ancsemi" target="_blank" rel="noopener noreferrer" class="donors-kofi-btn">
-        <span data-i18n="modals.donors.kofi_btn">☕ Support Haven on Ko-fi</span>
+        <span>☕ <span data-i18n="modals.donors.kofi_btn">Support Haven on Ko-fi</span></span>
       </a>
     </div>
   </div>

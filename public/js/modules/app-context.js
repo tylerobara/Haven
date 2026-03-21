@@ -22,7 +22,7 @@ _showUserContextMenu(e, targetUserId) {
 
   // 1) View Profile
   const profileBtn = document.createElement('button');
-  profileBtn.innerHTML = '👤 View Profile';
+  profileBtn.innerHTML = `👤 ${t('context.view_profile')}`;
   profileBtn.addEventListener('click', () => {
     this._hideUserContextMenu();
     this._isHoverPopup = false;
@@ -33,11 +33,11 @@ _showUserContextMenu(e, targetUserId) {
 
   // 2) Direct Message
   const dmBtn = document.createElement('button');
-  dmBtn.innerHTML = '💬 Direct Message';
+  dmBtn.innerHTML = `💬 ${t('users.direct_message')}`;
   dmBtn.addEventListener('click', () => {
     this._hideUserContextMenu();
     this.socket.emit('start-dm', { targetUserId });
-    this._showToast(`Opening DM with ${this._escapeHtml(targetName)}…`, 'info');
+    this._showToast(t('users.opening_dm', { name: this._escapeHtml(targetName) }), 'info');
   });
   menu.appendChild(dmBtn);
 
@@ -53,7 +53,7 @@ _showUserContextMenu(e, targetUserId) {
     inviteItem.className = 'user-ctx-submenu-wrapper';
     const inviteBtn = document.createElement('button');
     inviteBtn.className = 'user-ctx-submenu-trigger';
-    inviteBtn.innerHTML = '📨 Invite to Channel <span class="user-ctx-arrow">▸</span>';
+    inviteBtn.innerHTML = `📨 ${t('context.invite_to_channel')} <span class="user-ctx-arrow">▸</span>`;
     inviteItem.appendChild(inviteBtn);
 
     const submenu = document.createElement('div');
@@ -89,7 +89,7 @@ _showUserContextMenu(e, targetUserId) {
 
   // 4) Set Nickname
   const nickBtn = document.createElement('button');
-  nickBtn.innerHTML = '🏷️ Set Nickname';
+  nickBtn.innerHTML = `🏷️ ${t('users.set_nickname')}`;
   nickBtn.addEventListener('click', () => {
     this._hideUserContextMenu();
     this._showNicknameDialog(targetUserId, targetName);
@@ -170,7 +170,7 @@ _renderOnlineOverlay() {
 
   const users = this._lastOnlineUsers || [];
   if (users.length === 0) {
-    list.innerHTML = '<p class="muted-text" style="padding:8px">No users</p>';
+    list.innerHTML = `<p class="muted-text" style="padding:8px">${t('context.no_users')}</p>`;
     return;
   }
 
@@ -179,11 +179,11 @@ _renderOnlineOverlay() {
 
   let html = '';
   if (online.length > 0) {
-    html += `<div class="online-overlay-group">Online — ${online.length}</div>`;
+    html += `<div class="online-overlay-group">${t('users.online_count', { count: online.length })}</div>`;
     html += online.map(u => this._renderOverlayUserItem(u)).join('');
   }
   if (offline.length > 0) {
-    html += `<div class="online-overlay-group offline">Offline — ${offline.length}</div>`;
+    html += `<div class="online-overlay-group offline">${t('users.offline_count', { count: offline.length })}</div>`;
     html += offline.map(u => this._renderOverlayUserItem(u)).join('');
   }
   list.innerHTML = html;
@@ -292,7 +292,7 @@ async _setupPushNotifications() {
     const navItem = document.querySelector('.settings-nav-item[data-target="section-push"]');
     if (navItem) navItem.style.display = 'none';
     if (toggle) toggle.disabled = true;
-    if (statusEl) statusEl.textContent = 'Using native desktop notifications';
+    if (statusEl) statusEl.textContent = t('context.push_native_desktop');
     return;
   }
 
@@ -311,7 +311,7 @@ async _setupPushNotifications() {
   // Secure context required (covers HTTPS, localhost, etc.)
   if (!window.isSecureContext) {
     if (toggle) toggle.disabled = true;
-    if (statusEl) statusEl.textContent = 'Requires HTTPS';
+    if (statusEl) statusEl.textContent = t('context.push_requires_https');
     this._pushErrorReason = 'Push notifications require a secure (HTTPS) connection. Check the Haven setup guide for SSL configuration.';
     if (!localStorage.getItem('haven_push_error_dismissed')) this._showPushError(this._pushErrorReason);
     return;
@@ -327,7 +327,7 @@ async _setupPushNotifications() {
     } else if (isIOS) {
       reason = 'Push notifications are not supported on this iOS browser version. Update to iOS 16.4 or later.';
     }
-    if (statusEl) statusEl.textContent = 'Not supported';
+    if (statusEl) statusEl.textContent = t('context.push_not_supported');
     this._pushErrorReason = reason;
     if (!localStorage.getItem('haven_push_error_dismissed')) this._showPushError(reason);
     return;
@@ -357,7 +357,7 @@ async _setupPushNotifications() {
         '3. Restart Brave and reload Haven\n\n' +
         'If that doesn\'t work, try Chrome or Edge instead.';
     }
-    if (statusEl) statusEl.textContent = isBrave ? 'Blocked by Brave' : 'Registration failed';
+    if (statusEl) statusEl.textContent = isBrave ? t('context.push_blocked_brave') : t('context.push_registration_failed');
     this._pushErrorReason = reason;
     if (!localStorage.getItem('haven_push_error_dismissed')) this._showPushError(reason);
     return;
@@ -382,7 +382,7 @@ async _setupPushNotifications() {
 
   this._pushSubscription = existingSub;
   if (toggle) toggle.checked = !!existingSub;
-  if (statusEl) statusEl.textContent = existingSub ? 'Enabled' : 'Disabled';
+  if (statusEl) statusEl.textContent = existingSub ? t('context.push_enabled') : t('context.push_disabled');
 
   // Re-register existing subscription with server on every load
   // (handles server DB resets, reconnects, and subscription refresh)
@@ -397,17 +397,17 @@ async _setupPushNotifications() {
   // If permission was previously denied, show early warning
   if (Notification.permission === 'denied') {
     if (toggle) toggle.disabled = true;
-    if (statusEl) statusEl.textContent = 'Blocked';
+    if (statusEl) statusEl.textContent = t('context.push_blocked');
     this._pushErrorReason = 'Notification permission was denied. Check your browser\'s site settings and allow notifications for this site, then reload.';
     return;
   }
 
   // Listen for server confirmation
   this.socket.on('push-subscribed', () => {
-    if (statusEl) statusEl.textContent = 'Enabled';
+    if (statusEl) statusEl.textContent = t('context.push_enabled');
   });
   this.socket.on('push-unsubscribed', () => {
-    if (statusEl) statusEl.textContent = 'Disabled';
+    if (statusEl) statusEl.textContent = t('context.push_disabled');
   });
 
   // Toggle handler
@@ -453,14 +453,14 @@ async _openActivitiesModal() {
     const banner = document.createElement('div');
     banner.className = 'flash-install-banner';
     banner.innerHTML = `
-      <span>🎮 Flash games not installed (~37 MB download)</span>
-      <button class="btn-sm btn-accent" id="install-flash-btn">Download Flash Games</button>
+      <span>🎮 ${t('context.flash_not_installed')}</span>
+      <button class="btn-sm btn-accent" id="install-flash-btn">${t('context.flash_download_btn')}</button>
     `;
     grid.appendChild(banner);
     banner.querySelector('#install-flash-btn').addEventListener('click', async (e) => {
       const btn = e.target;
       btn.disabled = true;
-      btn.textContent = 'Downloading…';
+      btn.textContent = t('context.flash_downloading');
       try {
         const res = await fetch('/api/install-flash-roms', {
           method: 'POST',
@@ -474,14 +474,14 @@ async _openActivitiesModal() {
         const installed = data.results.filter(r => r.status === 'installed').length;
         const already = data.results.filter(r => r.status === 'already-installed').length;
         const errors = data.results.filter(r => r.status === 'error');
-        this._showToast(`Flash games: ${installed} installed, ${already} already had, ${errors.length} failed`, installed > 0 ? 'success' : 'error');
+        this._showToast(t('context.flash_install_result', { installed, already, errors: errors.length }), installed > 0 ? 'success' : 'error');
         this._flashAllInstalled = errors.length === 0;
         // Refresh modal
         this._openActivitiesModal();
       } catch (err) {
         this._showToast(err.message, 'error');
         btn.disabled = false;
-        btn.textContent = 'Download Flash Games';
+        btn.textContent = t('context.flash_download_btn');
       }
     });
   }
@@ -498,7 +498,7 @@ async _openActivitiesModal() {
     card.innerHTML = `
       <div class="activity-card-icon">${this._escapeHtml(game.icon)}</div>
       <div class="activity-card-name">${this._escapeHtml(game.name)}</div>
-      <div class="activity-card-desc">${this._escapeHtml(game.description || '')}${!romInstalled ? '<br><em style=\"color:var(--text-muted)\">Not installed</em>' : ''}</div>
+      <div class="activity-card-desc">${this._escapeHtml(game.description || '')}${!romInstalled ? `<br><em style="color:var(--text-muted)">${t('context.flash_not_installed_label')}</em>` : ''}</div>
     `;
     if (romInstalled) {
       card.addEventListener('click', () => {
@@ -629,7 +629,7 @@ async _subscribePush() {
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
       if (toggle) toggle.checked = false;
-      if (statusEl) statusEl.textContent = 'Permission denied';
+      if (statusEl) statusEl.textContent = t('context.push_permission_denied');
       this._showPushError(
         'Notification permission was denied. Check your browser\'s site settings and allow notifications for this site, then try again.'
       );

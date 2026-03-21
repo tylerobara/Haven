@@ -351,7 +351,7 @@ _renderWebhooksList(webhooks) {
   const container = document.getElementById('webhooks-list');
   if (!container) return;
   if (!webhooks.length) {
-    container.innerHTML = '<p class="muted-text">No bots configured</p>';
+    container.innerHTML = `<p class="muted-text">${t('settings.admin.no_bots')}</p>`;
     return;
   }
   // Simple preview list for server settings — full management is in the bot modal
@@ -1320,7 +1320,7 @@ _setupStatusPicker() {
   const statusDot = document.createElement('span');
   statusDot.id = 'user-status-dot';
   statusDot.className = 'user-dot status-picker-dot';
-  statusDot.title = 'Set status';
+  statusDot.title = t('app.profile.set_status');
   statusDot.addEventListener('click', (e) => { e.stopPropagation(); this._toggleStatusPicker(); });
   const userNames = userBar.querySelector('.user-names');
   if (userNames && userNames.nextSibling) {
@@ -1335,12 +1335,12 @@ _setupStatusPicker() {
   picker.className = 'status-picker';
   picker.style.display = 'none';
   picker.innerHTML = `
-    <div class="status-option" data-status="online"><span class="user-dot"></span> Online</div>
-    <div class="status-option" data-status="away"><span class="user-dot away"></span> Away</div>
-    <div class="status-option" data-status="dnd"><span class="user-dot dnd"></span> Do Not Disturb</div>
-    <div class="status-option" data-status="invisible"><span class="user-dot invisible"></span> Invisible</div>
+    <div class="status-option" data-status="online"><span class="user-dot"></span> ${t('app.profile.online')}</div>
+    <div class="status-option" data-status="away"><span class="user-dot away"></span> ${t('app.profile.away')}</div>
+    <div class="status-option" data-status="dnd"><span class="user-dot dnd"></span> ${t('app.profile.dnd')}</div>
+    <div class="status-option" data-status="invisible"><span class="user-dot invisible"></span> ${t('app.profile.invisible')}</div>
     <div class="status-text-row">
-      <input type="text" id="status-text-input" placeholder="Custom status..." maxlength="128">
+      <input type="text" id="status-text-input" placeholder="${t('app.profile.custom_status_placeholder')}" maxlength="128">
     </div>
   `;
   userBar.appendChild(picker);
@@ -1354,7 +1354,7 @@ _setupStatusPicker() {
       if (!this.socket?.connected) {
         // Queue status change for when socket reconnects
         this._pendingStatus = { status, statusText };
-        this._showToast('Status will update when reconnected', 'info');
+        this._showToast(t('toasts.status_pending_reconnect'), 'info');
       } else {
         this.socket.emit('set-status', { status, statusText });
       }

@@ -784,14 +784,14 @@ async _showE2EVerification() {
     }
     overlay.innerHTML = `
       <div class="modal" style="max-width:420px;text-align:center">
-        <h3 style="margin-bottom:8px">🔐 Verify Encryption</h3>
+        <h3 style="margin-bottom:8px">🔐 ${t('header.verify_encryption')}</h3>
         <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">
-          Compare this safety number with <strong>${this._escapeHtml(partnerName)}</strong> using another channel (in person, phone call, text, etc.). If they match, your conversation is end-to-end encrypted and no one is intercepting.
+          ${t('modals.e2e_verify.desc', { name: this._escapeHtml(partnerName) })}
         </p>
         <div class="e2e-safety-number" style="font-family:monospace;font-size:18px;letter-spacing:2px;line-height:2;padding:16px;background:var(--bg-secondary);border-radius:var(--radius-md);border:1px solid var(--border);user-select:all;word-break:break-all">${code}</div>
         <div style="margin-top:16px;display:flex;gap:8px;justify-content:center">
-          <button class="btn-sm btn-accent" id="e2e-copy-code-btn">Copy Code</button>
-          <button class="btn-sm" id="e2e-close-verify-btn">Close</button>
+          <button class="btn-sm btn-accent" id="e2e-copy-code-btn">${t('modals.e2e_verify.copy_btn')}</button>
+          <button class="btn-sm" id="e2e-close-verify-btn">${t('modals.common.close')}</button>
         </div>
       </div>
     `;
@@ -838,24 +838,24 @@ _showE2EResetConfirmation() {
   }
   overlay.innerHTML = `
     <div class="modal e2e-reset-modal">
-      <h3>⚠️ Reset Encryption Keys</h3>
+      <h3>⚠️ ${t('header.reset_encryption')}</h3>
       <div class="e2e-reset-warning">
-        <strong>This action is irreversible.</strong> Resetting your encryption keys will:
+        ${t('modals.e2e_reset.warning_irreversible')}
         <ul>
-          <li>Generate a completely new key pair</li>
-          <li>Make <strong>ALL</strong> previous encrypted DM messages <strong>permanently unreadable</strong> — for both you and the person you were talking to</li>
-          <li>Require your DM partners to re-verify encryption with you</li>
+          <li>${t('modals.e2e_reset.li_new_keys')}</li>
+          <li>${t('modals.e2e_reset.li_unreadable')}</li>
+          <li>${t('modals.e2e_reset.li_reverify')}</li>
         </ul>
         <br>
-        <strong>This cannot be undone. There is no recovery. The messages are gone forever.</strong>
+        ${t('modals.e2e_reset.warning_permanent')}
       </div>
       <div class="e2e-confirm-type">
-        <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">Type <strong>RESET</strong> to confirm:</p>
-        <input type="text" id="e2e-reset-confirm-input" placeholder="RESET" autocomplete="off" spellcheck="false">
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">${t('modals.e2e_reset.type_confirm')}</p>
+        <input type="text" id="e2e-reset-confirm-input" placeholder="${t('modals.e2e_reset.confirm_placeholder')}" autocomplete="off" spellcheck="false">
       </div>
       <div class="e2e-reset-actions">
-        <button class="btn-danger" id="e2e-reset-confirm-btn">Reset My Keys</button>
-        <button class="btn-sm" id="e2e-reset-cancel-btn">Cancel</button>
+        <button class="btn-danger" id="e2e-reset-confirm-btn">${t('modals.e2e_reset.confirm_btn')}</button>
+        <button class="btn-sm" id="e2e-reset-cancel-btn">${t('modals.common.cancel')}</button>
       </div>
     </div>
   `;
