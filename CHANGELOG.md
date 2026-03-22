@@ -11,6 +11,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [2.8.1] — 2026-03-21
+
+### Added
+- **Mute/deafen state sync** — mute and deafen status now broadcasts to all clients in real time, so users in one channel can see the mic/deafen state of anyone in a different channel.
+- **Deafen implies mute** — deafening now auto-mutes your microphone. Undeafening restores your previous mute state (so manually muting first is remembered).
+- **Graceful shutdown** — the server now handles SIGTERM and SIGINT cleanly, closing Socket.IO and HTTP connections before exiting. Fixes forced-kill behavior in Docker and process managers.
+- **Opt-in: Hide Voice Panel** — new toggle in Settings → Sounds. Hides the right-sidebar voice users panel on desktop; voice users are still visible in the inline channel indicators.
+- **Opt-in: Sidebar Voice Controls** — new toggle in Settings → Sounds. Moves the mute/deafen buttons from the voice panel header to the bottom sidebar bar.
+
+### Fixed
+- **Mute/deafen state lost on reconnect** — mute and deafen state is now re-broadcast to the server after a socket reconnect or tab refocus.
+
+---
+
 ## [2.8.0] — 2026-03-18
 
 ### Added
