@@ -875,6 +875,7 @@
       "max_poll_hint": "Nombre maximum de choix par sondage (2–25, défaut 10)",
       "sounds_hint": "Envoyez des fichiers audio pour des sons de notification personnalisés",
       "emojis_hint": "Envoyez des images pour des emojis de serveur personnalisés",
+      "emojis_upload_hint": "Envoyez des images pour des emojis de serveur personnalisés (max 256 Ko, png/gif/webp). Le nom doit être en minuscules, sans espaces.",
       "roles_hint": "Créez et gérez les rôles. Assignez des rôles depuis le menu contextuel de la liste des membres.",
       "bots_hint": "Créez et gérez des bots webhook qui peuvent poster des messages dans les salons.",
       "import_hint": "Importez des salons et des messages depuis un export Discord",
@@ -1045,7 +1046,7 @@
       "step3_desc": "Voulez-vous que des amis extérieurs à votre WiFi se connectent ? Vérifions si votre serveur est accessible depuis internet.",
       "checking_port": "Vérification de l'accessibilité du port...",
       "check_connection_btn": "Vérifier ma connexion",
-      "lan_only_hint": "Réseau local uniquement ? Si vos amis sont sur le même WiFi, vous pouvez ignorer cette étape.",
+      "lan_only_hint": "<strong>Réseau local uniquement ?</strong> Si vos amis sont sur le même WiFi, vous pouvez ignorer cette étape.",
       "step4_title": "Vous êtes prêt !",
       "step4_desc": "Haven est opérationnel et prêt pour vos amis.",
       "check_configured": "Serveur configuré",
@@ -1056,7 +1057,7 @@
       "step_cert": "Cliquer sur « Avancé » → « Continuer » sur l'avertissement du certificat",
       "step_register": "Créer un nom d'utilisateur et un mot de passe",
       "step_code": "Saisir le code d'invitation que vous leur communiquez",
-      "tip": "💡 Astuce : Accédez toujours aux paramètres via l'icône ⚙️ dans la barre latérale. Cet assistant ne s'affichera plus.",
+      "tip": "<strong>Astuce :</strong> Accédez toujours aux paramètres via l'icône ⚙️ dans la barre latérale. Cet assistant ne s'affichera plus.",
       "back_btn": "← Retour",
       "skip_btn": "Ignorer la configuration",
       "next_btn": "Suivant →",
@@ -1234,7 +1235,7 @@
     },
     "push_error": {
       "title": "Notifications push indisponibles",
-      "recommendation": "Recommandé : Google Chrome, Microsoft Edge ou Opera sur ordinateur.\niOS nécessite Safari 16.4+ avec Haven ajouté à votre écran d'accueil.",
+      "recommendation": "<strong>Recommandé :</strong> Google Chrome, Microsoft Edge ou Opera sur ordinateur.<br>iOS nécessite Safari 16.4+ avec Haven ajouté à votre écran d'accueil.",
       "got_it": "J'ai compris"
     },
     "e2e_password": {
@@ -1270,7 +1271,8 @@
       "note": "Demandez l'accès à la bêta fermée sur Google Play :",
       "request_btn": "Demander l'accès bêta",
       "later_btn": "Peut-être plus tard",
-      "dont_show": "Ne plus afficher"
+      "dont_show": "Ne plus afficher",
+      "credit": "Créé avec ❤️ par <strong>Amnibro</strong> — merci pour ton travail incroyable sur l'application Haven Android !"
     },
     "desktop_promo": {
       "title": "Application bureau Haven",

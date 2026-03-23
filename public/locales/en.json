@@ -875,6 +875,7 @@
       "max_poll_hint": "Maximum answer choices per poll (2–25, default 10)",
       "sounds_hint": "Upload audio files for custom notification sounds",
       "emojis_hint": "Upload images for custom server emojis",
+      "emojis_upload_hint": "Upload images for custom server emojis (max 256 KB, png/gif/webp). Name must be lowercase, no spaces.",
       "roles_hint": "Create and manage roles. Assign roles to users from the user list context menu.",
       "bots_hint": "Create and manage webhook bots that can post messages to channels.",
       "import_hint": "Import channels and messages from a Discord export file",
@@ -1044,7 +1045,7 @@
       "step3_desc": "Want friends outside your WiFi to connect? Let's check if your server is reachable from the internet.",
       "checking_port": "Checking port reachability...",
       "check_connection_btn": "Check My Connection",
-      "lan_only_hint": "LAN only? If your friends are on the same WiFi, you can skip this — it will work automatically.",
+      "lan_only_hint": "<strong>LAN only?</strong> If your friends are on the same WiFi, you can skip this — it will work automatically.",
       "step4_title": "You're All Set!",
       "step4_desc": "Haven is running and ready for your friends.",
       "check_configured": "Server configured",
@@ -1055,7 +1056,7 @@
       "step_cert": "Click \"Advanced\" → \"Proceed\" on the certificate warning",
       "step_register": "Register a username and password",
       "step_code": "Enter the channel invite code you share with them",
-      "tip": "💡 Tip: You can always access settings with the ⚙️ gear icon in the sidebar. This wizard won't show again.",
+      "tip": "<strong>Tip:</strong> You can always access settings with the ⚙️ gear icon in the sidebar. This wizard won't show again.",
       "back_btn": "← Back",
       "skip_btn": "Skip Setup",
       "next_btn": "Next →",
@@ -1233,7 +1234,7 @@
     },
     "push_error": {
       "title": "Push Notifications Unavailable",
-      "recommendation": "Recommended: Google Chrome, Microsoft Edge, or Opera on desktop.\niOS requires Safari 16.4+ with Haven added to your Home Screen.",
+      "recommendation": "<strong>Recommended:</strong> Google Chrome, Microsoft Edge, or Opera on desktop.<br>iOS requires Safari 16.4+ with Haven added to your Home Screen.",
       "got_it": "Got It"
     },
     "e2e_password": {
@@ -1269,7 +1270,8 @@
       "note": "Request access to the closed beta on Google Play:",
       "request_btn": "Request Beta Access",
       "later_btn": "Maybe later",
-      "dont_show": "Don't show this again"
+      "dont_show": "Don't show this again",
+      "credit": "Built with ❤️ by <strong>Amnibro</strong> — thank you for your incredible work on the Haven Android app!"
     },
     "desktop_promo": {
       "title": "Haven Desktop App",

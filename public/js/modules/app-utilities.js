@@ -1348,7 +1348,7 @@ _startEditMessage(msgEl, msgId) {
 
   const btnRow = document.createElement('div');
   btnRow.className = 'edit-actions';
-  btnRow.innerHTML = '<button class="edit-save-btn">Save</button><button class="edit-cancel-btn">Cancel</button>';
+  btnRow.innerHTML = `<button class="edit-save-btn">${t('modals.common.save')}</button><button class="edit-cancel-btn">${t('modals.common.cancel')}</button>`;
   contentEl.appendChild(btnRow);
 
   textarea.focus();

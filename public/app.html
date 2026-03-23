@@ -671,85 +671,85 @@
 
         <!-- Step 1: Server basics -->
         <div class="wizard-step" id="wizard-step-1" style="display:block">
-          <h3>🏠 Your Server</h3>
-          <p>Everything is already running. Here's what was set up automatically:</p>
+          <h3>🏠 <span data-i18n="modals.wizard.step1_title">Your Server</span></h3>
+          <p data-i18n="modals.wizard.step1_desc">Everything is already running. Here's what was set up automatically:</p>
           <div class="wizard-checklist">
-            <div class="wizard-check">✅ SSL certificates generated (encrypted connections)</div>
-            <div class="wizard-check">✅ Database created</div>
-            <div class="wizard-check">✅ Security keys generated</div>
-            <div class="wizard-check">✅ Admin account created (that's you!)</div>
+            <div class="wizard-check">✅ <span data-i18n="modals.wizard.check_ssl">SSL certificates generated (encrypted connections)</span></div>
+            <div class="wizard-check">✅ <span data-i18n="modals.wizard.check_db">Database created</span></div>
+            <div class="wizard-check">✅ <span data-i18n="modals.wizard.check_keys">Security keys generated</span></div>
+            <div class="wizard-check">✅ <span data-i18n="modals.wizard.check_admin">Admin account created (that's you!)</span></div>
           </div>
           <div class="wizard-info-box">
-            <strong>Your server name:</strong>
-            <input type="text" id="wizard-server-name" class="wizard-input" value="Haven" placeholder="e.g. My Server, The Hideout">
-            <span class="wizard-hint">This is what your friends see in their server list.</span>
+            <strong data-i18n="modals.wizard.server_name_label">Your server name:</strong>
+            <input type="text" id="wizard-server-name" class="wizard-input" value="Haven" placeholder="e.g. My Server, The Hideout" data-i18n-placeholder="modals.wizard.server_name_placeholder">
+            <span class="wizard-hint" data-i18n="modals.wizard.server_name_hint">This is what your friends see in their server list.</span>
           </div>
         </div>
 
         <!-- Step 2: Create first channel -->
         <div class="wizard-step" id="wizard-step-2" style="display:none">
-          <h3>📢 Create Your First Channel</h3>
-          <p>Channels are where conversations happen. Create one to get started.</p>
+          <h3>📢 <span data-i18n="modals.wizard.step2_title">Create Your First Channel</span></h3>
+          <p data-i18n="modals.wizard.step2_desc">Channels are where conversations happen. Create one to get started.</p>
           <div class="wizard-info-box">
-            <strong>Channel name:</strong>
-            <input type="text" id="wizard-channel-name" class="wizard-input" value="General" placeholder="e.g. General, Gaming, Hangout">
-            <span class="wizard-hint">You can create more channels later from the sidebar.</span>
+            <strong data-i18n="modals.wizard.channel_name_label">Channel name:</strong>
+            <input type="text" id="wizard-channel-name" class="wizard-input" value="General" placeholder="e.g. General, Gaming, Hangout" data-i18n-placeholder="modals.wizard.channel_name_placeholder">
+            <span class="wizard-hint" data-i18n="modals.wizard.channel_name_hint">You can create more channels later from the sidebar.</span>
           </div>
           <div id="wizard-channel-result" style="display:none">
             <div class="wizard-check" id="wizard-channel-created">✅ Channel created!</div>
             <div class="wizard-code-display">
-              <span>Invite code:</span>
+              <span data-i18n="modals.wizard.invite_code">Invite code:</span>
               <code id="wizard-channel-code"></code>
-              <button id="wizard-copy-code" class="wizard-btn-small">Copy</button>
+              <button id="wizard-copy-code" class="wizard-btn-small" data-i18n="modals.wizard.copy_btn">Copy</button>
             </div>
-            <span class="wizard-hint">Share this code with friends so they can join this channel.</span>
+            <span class="wizard-hint" data-i18n="modals.wizard.share_hint">Share this code with friends so they can join this channel.</span>
           </div>
         </div>
 
         <!-- Step 3: Connectivity check -->
         <div class="wizard-step" id="wizard-step-3" style="display:none">
-          <h3>🌐 Internet Access</h3>
-          <p>Want friends outside your WiFi to connect? Let's check if your server is reachable from the internet.</p>
+          <h3>🌐 <span data-i18n="modals.wizard.step3_title">Internet Access</span></h3>
+          <p data-i18n="modals.wizard.step3_desc">Want friends outside your WiFi to connect? Let's check if your server is reachable from the internet.</p>
           <div id="wizard-port-checking" style="display:none">
             <div class="wizard-spinner"></div>
-            <span>Checking port reachability...</span>
+            <span data-i18n="modals.wizard.checking_port">Checking port reachability...</span>
           </div>
           <div id="wizard-port-result" style="display:none"></div>
-          <button id="wizard-check-port-btn" class="wizard-btn-secondary">🔍 Check My Connection</button>
+          <button id="wizard-check-port-btn" class="wizard-btn-secondary">🔍 <span data-i18n="modals.wizard.check_connection_btn">Check My Connection</span></button>
           <div class="wizard-info-box" style="margin-top:16px">
-            <span class="wizard-hint"><strong>LAN only?</strong> If your friends are on the same WiFi, you can skip this — it will work automatically.</span>
+            <span class="wizard-hint" data-i18n-html="modals.wizard.lan_only_hint"><strong>LAN only?</strong> If your friends are on the same WiFi, you can skip this — it will work automatically.</span>
           </div>
         </div>
 
         <!-- Step 4: You're ready -->
         <div class="wizard-step" id="wizard-step-4" style="display:none">
-          <h3>🎉 You're All Set!</h3>
-          <p>Haven is running and ready for your friends.</p>
+          <h3>🎉 <span data-i18n="modals.wizard.step4_title">You're All Set!</span></h3>
+          <p data-i18n="modals.wizard.step4_desc">Haven is running and ready for your friends.</p>
           <div class="wizard-checklist">
-            <div class="wizard-check">✅ Server configured</div>
+            <div class="wizard-check">✅ <span data-i18n="modals.wizard.check_configured">Server configured</span></div>
             <div class="wizard-check" id="wizard-summary-channel">✅ First channel created</div>
             <div class="wizard-check" id="wizard-summary-port">⏭️ Port check skipped</div>
           </div>
           <div class="wizard-info-box">
-            <strong>How friends join:</strong>
+            <strong data-i18n="modals.wizard.how_friends_join">How friends join:</strong>
             <ol class="wizard-steps-list">
               <li>They open <code id="wizard-final-url">https://YOUR_IP:3000</code> in their browser</li>
-              <li>Click "Advanced" → "Proceed" on the certificate warning</li>
-              <li>Register a username and password</li>
-              <li>Enter the channel invite code you share with them</li>
+              <li data-i18n="modals.wizard.step_cert">Click "Advanced" → "Proceed" on the certificate warning</li>
+              <li data-i18n="modals.wizard.step_register">Register a username and password</li>
+              <li data-i18n="modals.wizard.step_code">Enter the channel invite code you share with them</li>
             </ol>
           </div>
           <div class="wizard-info-box">
-            <span class="wizard-hint">💡 <strong>Tip:</strong> You can always access settings with the ⚙️ gear icon in the sidebar. This wizard won't show again.</span>
+            <span class="wizard-hint">💡 <span data-i18n-html="modals.wizard.tip"><strong>Tip:</strong> You can always access settings with the ⚙️ gear icon in the sidebar. This wizard won't show again.</span></span>
           </div>
         </div>
       </div>
 
       <div class="wizard-footer">
-        <button id="wizard-back-btn" class="wizard-btn-secondary" style="display:none">← Back</button>
+        <button id="wizard-back-btn" class="wizard-btn-secondary" style="display:none" data-i18n="modals.wizard.back_btn">← Back</button>
         <div style="flex:1"></div>
-        <button id="wizard-skip-btn" class="wizard-btn-text">Skip Setup</button>
-        <button id="wizard-next-btn" class="wizard-btn-primary">Next →</button>
+        <button id="wizard-skip-btn" class="wizard-btn-text" data-i18n="modals.wizard.skip_btn">Skip Setup</button>
+        <button id="wizard-next-btn" class="wizard-btn-primary" data-i18n="modals.wizard.next_btn">Next →</button>
       </div>
     </div>
   </div>
@@ -1845,7 +1845,7 @@
   <div class="modal-overlay" id="emoji-modal" style="display:none">
     <div class="modal" style="max-width:520px">
       <h3>😎 <span data-i18n="modals.emoji_mgmt.title">Emoji Management</span></h3>
-      <small class="settings-hint" style="display:block;margin-bottom:12px">Upload images for custom server emojis (max 256 KB, png/gif/webp). Name must be lowercase, no spaces.</small>
+      <small class="settings-hint" style="display:block;margin-bottom:12px" data-i18n="settings.admin.emojis_upload_hint">Upload images for custom server emojis (max 256 KB, png/gif/webp). Name must be lowercase, no spaces.</small>
       <div class="whitelist-add-row">
         <input type="text" id="emoji-name-input" data-i18n-placeholder="modals.emoji_mgmt.name_placeholder" placeholder="emoji_name" maxlength="30" class="settings-text-input">
         <input type="file" id="emoji-file-input" accept="image/png,image/gif,image/webp,image/jpeg" style="max-width:120px;font-size:11px">
@@ -2322,7 +2322,7 @@
       <div style="font-size:48px;margin-bottom:12px;">🔕</div>
       <h3 style="margin:0 0 12px;color:var(--text-primary)" data-i18n="modals.push_error.title">Push Notifications Unavailable</h3>
       <p id="push-error-reason" style="color:var(--text-secondary);font-size:14px;line-height:1.5;margin:0 0 16px;"></p>
-      <p style="color:var(--text-muted);font-size:12px;line-height:1.5;margin:0 0 20px;">
+      <p style="color:var(--text-muted);font-size:12px;line-height:1.5;margin:0 0 20px;" data-i18n-html="modals.push_error.recommendation">
         <strong>Recommended:</strong> Google Chrome, Microsoft Edge, or Opera on desktop.<br>
         iOS requires Safari 16.4+ with Haven added to your Home Screen.
       </p>
@@ -2351,24 +2351,24 @@
   <div class="modal-overlay" id="android-beta-modal" style="display:none">
     <div class="modal android-beta-promo">
       <div class="android-beta-promo-icon">📱</div>
-      <h3 class="android-beta-promo-title">Haven Android App <span class="android-beta-promo-badge">CLOSED BETA</span></h3>
+      <h3 class="android-beta-promo-title"><span data-i18n="modals.android_beta.title">Haven Android App</span> <span class="android-beta-promo-badge" data-i18n="modals.android_beta.badge">CLOSED BETA</span></h3>
       <p class="android-beta-promo-subtitle" data-i18n="modals.android_beta.subtitle">A native Android app for Haven, built from the ground up!</p>
       <ul class="android-beta-promo-features">
-        <li><span class="promo-check">✓</span> Native Android experience</li>
-        <li><span class="promo-check">✓</span> Push notifications</li>
-        <li><span class="promo-check">✓</span> Full chat &amp; voice support</li>
-        <li><span class="promo-check">✓</span> Built from the ground up for Haven</li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.android_beta.feature_native">Native Android experience</span></li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.android_beta.feature_push">Push notifications</span></li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.android_beta.feature_chat">Full chat &amp; voice support</span></li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.android_beta.feature_built">Built from the ground up for Haven</span></li>
       </ul>
       <p class="android-beta-promo-note" data-i18n="modals.android_beta.note">Request access to the closed beta on Google Play:</p>
       <div class="android-beta-form">
         <a id="android-beta-submit" href="https://amni-scient.com/amni-haven.html" target="_blank" rel="noopener" class="btn btn-accent android-beta-submit" style="text-decoration:none;display:inline-block">🚀 <span data-i18n="modals.android_beta.request_btn">Request Beta Access</span></a>
       </div>
-      <p class="android-beta-promo-credit">Built with ❤️ by <strong>Amnibro</strong> — thank you for your incredible work on the Haven Android app!</p>
+      <p class="android-beta-promo-credit" data-i18n-html="modals.android_beta.credit">Built with ❤️ by <strong>Amnibro</strong> — thank you for your incredible work on the Haven Android app!</p>
       <div class="android-beta-promo-actions">
         <button id="android-beta-later" class="btn android-beta-promo-later" data-i18n="modals.android_beta.later_btn">Maybe later</button>
       </div>
       <label class="android-beta-promo-dismiss-label">
-        <input type="checkbox" id="android-beta-dismiss-check"> Don't show this again
+        <input type="checkbox" id="android-beta-dismiss-check"> <span data-i18n="modals.android_beta.dont_show">Don't show this again</span>
       </label>
     </div>
   </div>
@@ -2376,13 +2376,13 @@
   <div class="modal-overlay" id="desktop-promo-modal" style="display:none">
     <div class="modal desktop-promo">
       <div class="desktop-promo-icon">🖥️</div>
-      <h3 class="desktop-promo-title">Haven Desktop App <span class="desktop-promo-badge">BETA</span></h3>
+      <h3 class="desktop-promo-title"><span data-i18n="modals.desktop_promo.title">Haven Desktop App</span> <span class="desktop-promo-badge" data-i18n="modals.desktop_promo.badge">BETA</span></h3>
       <p class="desktop-promo-subtitle" data-i18n="modals.desktop_promo.subtitle">Now available for your platform!</p>
       <ul class="desktop-promo-features">
-        <li><span class="promo-check">✓</span> Native system notifications</li>
-        <li><span class="promo-check">✓</span> Minimize to system tray</li>
-        <li><span class="promo-check">✓</span> Per-app audio routing</li>
-        <li><span class="promo-check">✓</span> Built-in server launcher</li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.desktop_promo.feature_notifs">Native system notifications</span></li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.desktop_promo.feature_tray">Minimize to system tray</span></li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.desktop_promo.feature_audio">Per-app audio routing</span></li>
+        <li><span class="promo-check">✓</span> <span data-i18n="modals.desktop_promo.feature_launcher">Built-in server launcher</span></li>
       </ul>
       <p class="desktop-promo-meta" id="desktop-promo-meta">Windows Installer • v1.0.0</p>
       <div class="desktop-promo-actions">
@@ -2390,7 +2390,7 @@
         <button id="desktop-promo-later" class="btn desktop-promo-later" data-i18n="modals.desktop_promo.later_btn">Maybe later</button>
       </div>
       <label class="desktop-promo-dismiss-label">
-        <input type="checkbox" id="desktop-promo-dismiss-check"> Don't show this again
+        <input type="checkbox" id="desktop-promo-dismiss-check"> <span data-i18n="modals.desktop_promo.dont_show">Don't show this again</span>
       </label>
     </div>
   </div>
