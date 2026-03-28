@@ -561,7 +561,7 @@ _updateSoundSelects(sounds) {
 
     if (builtins.length > 0) {
       const builtinGroup = document.createElement('optgroup');
-      builtinGroup.label = '🎙️ Built-in';
+      builtinGroup.label = `🎙️ ${t('modals.sound_manager.group_builtin')}`;
       builtinGroup.dataset.customGroup = '1';
       builtins.forEach(s => {
         const opt = document.createElement('option');
@@ -576,7 +576,7 @@ _updateSoundSelects(sounds) {
 
     if (customs.length > 0) {
       const customGroup = document.createElement('optgroup');
-      customGroup.label = '🎵 Custom';
+      customGroup.label = `🎵 ${t('modals.sound_manager.group_custom')}`;
       customGroup.dataset.customGroup = '1';
       customs.forEach(s => {
         const opt = document.createElement('option');
@@ -602,29 +602,29 @@ _renderSoundList(sounds) {
   const custom   = sounds.filter(s => !s.builtin);
 
   if (builtins.length === 0 && custom.length === 0) {
-    list.innerHTML = '<p class="muted-text">No custom sounds uploaded</p>';
+    list.innerHTML = `<p class="muted-text">${t('modals.sound_manager.no_custom_sounds')}</p>`;
     return;
   }
 
   const builtinHtml = builtins.length === 0 ? '' : `
-    <p class="muted-text" style="margin:4px 0 2px;font-size:0.78em;text-transform:uppercase;letter-spacing:.06em">Built-in</p>
+    <p class="muted-text" style="margin:4px 0 2px;font-size:0.78em;text-transform:uppercase;letter-spacing:.06em">${t('modals.sound_manager.group_builtin')}</p>
     ${builtins.map(s => `
       <div class="custom-sound-item" data-name="${this._escapeHtml(s.name)}">
         <span class="custom-sound-name">${this._escapeHtml(s.name)}</span>
-        <button class="btn-xs sound-preview-btn" data-url="${this._escapeHtml(s.url)}" title="Preview">▶</button>
-        <span class="muted-text" style="font-size:0.75em;margin-left:4px" title="Built-in sound — cannot be removed">🔒</span>
+        <button class="btn-xs sound-preview-btn" data-url="${this._escapeHtml(s.url)}" title="${t('modals.sound_manager.preview_btn')}">▶</button>
+        <span class="muted-text" style="font-size:0.75em;margin-left:4px" title="${t('modals.sound_manager.builtin_locked_title')}">🔒</span>
       </div>
     `).join('')}
   `;
 
   const customHtml = custom.length === 0 ? '' : `
-    <p class="muted-text" style="margin:8px 0 2px;font-size:0.78em;text-transform:uppercase;letter-spacing:.06em">Custom</p>
+    <p class="muted-text" style="margin:8px 0 2px;font-size:0.78em;text-transform:uppercase;letter-spacing:.06em">${t('modals.sound_manager.group_custom')}</p>
     ${custom.map(s => `
       <div class="custom-sound-item" data-name="${this._escapeHtml(s.name)}">
         <span class="custom-sound-name">${this._escapeHtml(s.name)}</span>
-        <button class="btn-xs sound-preview-btn" data-url="${this._escapeHtml(s.url)}" title="Preview">▶</button>
-        <button class="btn-xs sound-rename-btn" data-name="${this._escapeHtml(s.name)}" title="Rename">✏️</button>
-        <button class="btn-xs sound-delete-btn" data-name="${this._escapeHtml(s.name)}" title="Delete">🗑️</button>
+        <button class="btn-xs sound-preview-btn" data-url="${this._escapeHtml(s.url)}" title="${t('modals.sound_manager.preview_btn')}">▶</button>
+        <button class="btn-xs sound-rename-btn" data-name="${this._escapeHtml(s.name)}" title="${t('modals.sound_manager.rename_btn')}">✏️</button>
+        <button class="btn-xs sound-delete-btn" data-name="${this._escapeHtml(s.name)}" title="${t('modals.sound_manager.delete_btn')}">🗑️</button>
       </div>
     `).join('')}
   `;
@@ -1237,17 +1237,17 @@ _setupWebhookManagement() {
 
 _openBotModal() {
   document.getElementById('bot-modal').style.display = 'flex';
-  document.getElementById('bot-detail-panel').innerHTML = '<p class="muted-text" style="padding:20px;text-align:center">Select a bot to edit, or create a new one</p>';
+  document.getElementById('bot-detail-panel').innerHTML = `<p class="muted-text" style="padding:20px;text-align:center">${t('modals.bot_mgmt.select_or_create')}</p>`;
   // Request all webhooks for the sidebar
   this.socket.emit('get-webhooks');
 },
 
 async _createNewBot() {
-  const name = await this._showPromptModal('Create Bot', 'Enter bot name:');
+  const name = await this._showPromptModal(t('modals.bot_mgmt.create_title'), t('modals.bot_mgmt.create_name_prompt'));
   if (!name || !name.trim()) return;
   // Pick first non-DM channel as default
   const firstChannel = this.channels.find(c => !c.is_dm);
-  if (!firstChannel) return this._showToast('No channels available', 'error');
+  if (!firstChannel) return this._showToast(t('modals.bot_mgmt.no_channels'), 'error');
   this.socket.emit('create-webhook', { name: name.trim(), channel_id: firstChannel.id, avatar_url: null });
 },
 
@@ -1286,42 +1286,42 @@ _showBotDetail(botId) {
 
   panel.innerHTML = `
     <div class="role-detail-form">
-      <label class="settings-label">Avatar</label>
+      <label class="settings-label">${t('modals.bot_mgmt.avatar_label')}</label>
       <div class="bot-avatar-row" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <div class="bot-avatar-preview" style="width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid var(--border);background:var(--bg-tertiary);flex-shrink:0;display:flex;align-items:center;justify-content:center">
           ${wh.avatar_url ? `<img src="${this._escapeHtml(wh.avatar_url)}" style="width:100%;height:100%;object-fit:cover">` : '<span style="font-size:24px">🤖</span>'}
         </div>
         <div style="display:flex;flex-direction:column;gap:4px">
-          <button class="btn-xs btn-accent" id="bot-upload-avatar-btn">📷 Upload</button>
-          <button class="btn-xs" id="bot-remove-avatar-btn" ${wh.avatar_url ? '' : 'disabled'}>Remove</button>
+          <button class="btn-xs btn-accent" id="bot-upload-avatar-btn">📷 ${t('modals.bot_mgmt.upload_avatar_btn')}</button>
+          <button class="btn-xs" id="bot-remove-avatar-btn" ${wh.avatar_url ? '' : 'disabled'}>${t('modals.bot_mgmt.remove_avatar_btn')}</button>
         </div>
         <input type="file" id="bot-avatar-file-input" accept="image/png,image/jpeg,image/gif,image/webp" style="display:none">
       </div>
 
-      <label class="settings-label">Name</label>
+      <label class="settings-label">${t('modals.bot_mgmt.name_label')}</label>
       <input type="text" id="bot-detail-name" value="${this._escapeHtml(wh.name)}" maxlength="32" class="settings-text-input" style="width:100%;margin-bottom:8px">
 
-      <label class="settings-label">Channel</label>
+      <label class="settings-label">${t('modals.bot_mgmt.channel_label')}</label>
       <select id="bot-detail-channel" class="settings-select" style="width:100%;margin-bottom:8px">${channelOptions}</select>
 
-      <label class="settings-label">Status</label>
+      <label class="settings-label">${t('modals.bot_mgmt.status_label')}</label>
       <label class="toggle-row" style="margin-bottom:8px">
-        <span>${wh.is_active ? '🟢 Active' : '🔴 Disabled'}</span>
-        <button class="btn-xs" id="bot-detail-toggle">${wh.is_active ? 'Disable' : 'Enable'}</button>
+        <span>${wh.is_active ? `🟢 ${t('modals.bot_mgmt.status_active')}` : `🔴 ${t('modals.bot_mgmt.status_disabled')}`}</span>
+        <button class="btn-xs" id="bot-detail-toggle">${wh.is_active ? t('modals.bot_mgmt.disable_btn') : t('modals.bot_mgmt.enable_btn')}</button>
       </label>
 
-      <label class="settings-label">Webhook URL</label>
+      <label class="settings-label">${t('modals.bot_mgmt.webhook_url_label')}</label>
       <div style="display:flex;gap:4px;align-items:center;margin-bottom:8px">
         <code style="flex:1;font-size:11px;padding:6px 8px;background:var(--bg-input);border-radius:4px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${this._escapeHtml(webhookUrl)}</code>
-        <button class="btn-xs" id="bot-detail-copy-url" title="Copy URL">📋</button>
+        <button class="btn-xs" id="bot-detail-copy-url" title="${t('modals.bot_mgmt.copy_url_title')}">📋</button>
       </div>
 
-      <label class="settings-label">Token</label>
+      <label class="settings-label">${t('modals.bot_mgmt.token_label')}</label>
       <div style="font-size:11px;font-family:monospace;padding:4px 8px;background:var(--bg-input);border-radius:4px;color:var(--text-muted);margin-bottom:12px">${maskedToken}</div>
 
       <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn-sm btn-accent" id="bot-detail-save" style="flex:1">💾 Save Changes</button>
-        <button class="btn-sm btn-danger" id="bot-detail-delete">🗑️ Delete</button>
+        <button class="btn-sm btn-accent" id="bot-detail-save" style="flex:1">💾 ${t('modals.bot_mgmt.save_btn')}</button>
+        <button class="btn-sm btn-danger" id="bot-detail-delete">🗑️ ${t('modals.bot_mgmt.delete_btn')}</button>
       </div>
     </div>
   `;

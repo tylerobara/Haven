@@ -234,6 +234,7 @@
 
   "voice": {
     "join": "🎤 Join Voice",
+    "join_ctx": "Join Voice",
     "leave": "Leave Voice",
     "mute": "Mute",
     "unmute": "Unmute",
@@ -445,6 +446,8 @@
   },
 
   "media": {
+    "upload_file_title": "Upload File",
+    "send_title": "Send",
     "cameras": "Cameras",
     "streams": "Streams",
     "layout_auto": "Auto",
@@ -591,8 +594,10 @@
     "audio_devices": "Audio Devices",
     "input": "Input",
     "default_mic": "Default Microphone",
+    "mic_fallback": "Microphone {{n}}",
     "output": "Output",
     "default_speaker": "Default Speaker",
+    "speaker_fallback": "Speaker {{n}}",
     "noise_reduction": "Noise Reduction",
     "off": "Off",
     "noise_gate": "Noise Gate",
@@ -782,19 +787,26 @@
     },
     "desktop_shortcuts_section": {
       "title": "Desktop Shortcuts",
+      "desc": "Global keyboard shortcuts — active even when Haven is in the background. Click a row to rebind, or \u201cClear\u201d to disable.",
       "mute_unmute": "Mute / Unmute",
       "deafen_undeafen": "Deafen / Undeafen",
       "ptt": "Push-to-Talk",
+      "ptt_toggle": "(toggle)",
       "not_set": "Not set",
       "change_btn": "Change",
       "clear_btn": "Clear"
     },
     "desktop_app_section": {
       "title": "Desktop App",
+      "desc": "Settings specific to Haven Desktop.",
       "start_on_login": "Start on Login",
+      "start_on_login_hint": "Launch Haven Desktop automatically when you log in to your computer.",
       "start_hidden": "Start Hidden to Tray",
+      "start_hidden_hint": "When launching on login, start minimized to the system tray instead of showing the window.",
       "minimize_to_tray": "Minimize to Tray on Close",
-      "force_sdr": "Force SDR (sRGB) Color"
+      "minimize_to_tray_hint": "Closing the window hides Haven to the system tray instead of quitting.",
+      "force_sdr": "Force SDR (sRGB) Color",
+      "force_sdr_hint": "Fix washed-out or over-saturated colors on HDR monitors. Requires restart."
     },
     "admin": {
       "title": "Admin",
@@ -1011,7 +1023,8 @@
       "back": "← Back",
       "loading": "Loading...",
       "confirm": "Confirm",
-      "dismiss": "Dismiss"
+      "dismiss": "Dismiss",
+      "ok": "OK"
     },
 
     "recovery_notice": {
@@ -1134,7 +1147,15 @@
       "scrub_hint": "Removes the user's messages (archived/protected messages are preserved)",
       "scope_label": "Scope",
       "scope_channel": "This channel only",
-      "scope_server": "Server-wide"
+      "scope_server": "Server-wide",
+      "label_kick": "Kick",
+      "label_ban": "Ban",
+      "label_mute": "Mute",
+      "label_delete_user": "Delete User",
+      "desc_kick": "This user will be removed from the current channel.",
+      "desc_ban": "This user will be permanently banned until unbanned.",
+      "desc_mute": "This user won't be able to send messages for the specified duration.",
+      "desc_delete_user": "This will permanently delete this user's account and free their username."
     },
     "organize": {
       "title": "Organize",
@@ -1308,6 +1329,9 @@
     },
     "sound_manager": {
       "title": "Sound Manager",
+      "modal_hint": "Browse & play custom sounds. Set hotkeys to play them anytime.",
+      "assign_hint": "Choose which sound plays for each event. Custom sounds uploaded by the admin appear here too.",
+      "upload_hint": "Upload audio files for custom sounds (max 1 MB each, mp3/ogg/wav/webm)",
       "soundboard_tab": "Soundboard",
       "assign_tab": "Assign to Events",
       "manage_tab": "Manage",
@@ -1320,7 +1344,13 @@
       "user_left": "User Left",
       "name_placeholder": "Sound name...",
       "upload_btn": "Upload",
-      "no_custom_sounds": "No custom sounds uploaded"
+      "no_custom_sounds": "No custom sounds uploaded",
+      "group_builtin": "Built-in",
+      "group_custom": "Custom",
+      "preview_btn": "Preview",
+      "builtin_locked_title": "Built-in sound — cannot be removed",
+      "rename_btn": "Rename",
+      "delete_btn": "Delete"
     },
     "emoji_mgmt": {
       "title": "Emoji Management",
@@ -1377,10 +1407,38 @@
       "manage_roles_title": "Open role management",
       "save_btn": "Save Changes"
     },
+    "transfer_admin": {
+      "title": "Transfer Admin",
+      "warning": "This will make <strong>{{username}}</strong> the new server Admin and demote you to <strong>Former Admin</strong> (Lv.99).",
+      "note": "This action cannot be undone by you.",
+      "password_label": "Enter your password to confirm",
+      "password_placeholder": "Your password",
+      "confirm_btn": "Transfer Admin",
+      "error_required": "Password is required.",
+      "transferring": "Transferring…"
+    },
     "bot_mgmt": {
       "title": "Bot Management",
       "new_bot_btn": "+ New Bot",
-      "select_or_create": "Select a bot to edit, or create a new one"
+      "select_or_create": "Select a bot to edit, or create a new one",
+      "avatar_label": "Avatar",
+      "upload_avatar_btn": "Upload",
+      "remove_avatar_btn": "Remove",
+      "name_label": "Name",
+      "channel_label": "Channel",
+      "status_label": "Status",
+      "status_active": "Active",
+      "status_disabled": "Disabled",
+      "disable_btn": "Disable",
+      "enable_btn": "Enable",
+      "webhook_url_label": "Webhook URL",
+      "copy_url_title": "Copy URL",
+      "token_label": "Token",
+      "save_btn": "Save Changes",
+      "delete_btn": "Delete",
+      "create_title": "Create Bot",
+      "create_name_prompt": "Enter bot name:",
+      "no_channels": "No channels available"
     },
     "discord_import": {
       "title": "Import from Discord",
@@ -1503,5 +1561,51 @@
     "copy": "Copy",
     "copied": "Copied",
     "uploading": "Uploading..."
+  },
+
+  "reactions": {
+    "search_placeholder": "Search emojis..."
+  },
+
+  "emoji": {
+    "search_placeholder": "Search emoji\u2026",
+    "no_results": "No emoji found",
+    "all_emojis_title": "All emojis",
+    "customize_quick_title": "Customize Quick Reactions",
+    "customize_quick_hint": "Click a slot, then pick an emoji to replace it.",
+    "categories": {
+      "smileys": "Smileys",
+      "faces": "Faces",
+      "people": "People",
+      "animals": "Animals",
+      "monkeys": "Monkeys",
+      "food": "Food",
+      "activities": "Activities",
+      "travel": "Travel",
+      "objects": "Objects",
+      "symbols": "Symbols",
+      "custom": "Custom"
+    }
+  },
+
+  "gifs": {
+    "searching": "Searching...",
+    "no_results": "No GIFs found",
+    "search_failed": "Search failed",
+    "setup": {
+      "title": "Set Up GIF Search",
+      "powered_by": "GIF search is powered by <strong>GIPHY</strong> and needs a free API key.",
+      "step_1": "Go to <a href=\"https://developers.giphy.com/\" target=\"_blank\" rel=\"noopener\">developers.giphy.com</a>",
+      "step_2": "Create an account (or sign in)",
+      "step_3": "Click <b>Create an App</b> → choose <b>API</b>",
+      "step_4": "Name it anything (e.g. \"Haven Chat\")",
+      "step_5": "Copy the API key and paste it below",
+      "key_placeholder": "Paste your GIPHY API key…",
+      "save_btn": "Save",
+      "note": "No payment required — GIPHY's free tier is generous enough for a private server.",
+      "saved": "Saved! Loading GIFs…",
+      "unavailable_title": "GIF Search Not Available",
+      "unavailable_desc": "An admin needs to set up the GIPHY API key before GIF search can work."
+    }
   }
 }

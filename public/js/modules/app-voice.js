@@ -934,9 +934,9 @@ async _populateAudioDevices() {
   const savedOutput = localStorage.getItem('haven_output_device') || '';
 
   // Populate input
-  inputSelect.innerHTML = '<option value="">Default Microphone</option>';
+  inputSelect.innerHTML = `<option value="">${t('voice_settings.default_mic')}</option>`;
   for (const dev of inputs) {
-    const label = dev.label || `Microphone ${inputs.indexOf(dev) + 1}`;
+    const label = dev.label || t('voice_settings.mic_fallback', { n: inputs.indexOf(dev) + 1 });
     const opt = document.createElement('option');
     opt.value = dev.deviceId;
     opt.textContent = label;
@@ -945,9 +945,9 @@ async _populateAudioDevices() {
   }
 
   // Populate output
-  outputSelect.innerHTML = '<option value="">Default Speaker</option>';
+  outputSelect.innerHTML = `<option value="">${t('voice_settings.default_speaker')}</option>`;
   for (const dev of outputs) {
-    const label = dev.label || `Speaker ${outputs.indexOf(dev) + 1}`;
+    const label = dev.label || t('voice_settings.speaker_fallback', { n: outputs.indexOf(dev) + 1 });
     const opt = document.createElement('option');
     opt.value = dev.deviceId;
     opt.textContent = label;

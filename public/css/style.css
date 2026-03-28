@@ -2868,6 +2868,12 @@ html.rgb-cycling *::after {
   flex-shrink: 0;
 }
 
+.auth-lang-bar {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
 .auth-version {
   text-align: center;
   margin-top: 12px;

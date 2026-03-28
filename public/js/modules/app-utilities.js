@@ -442,7 +442,7 @@ _toggleEmojiPicker() {
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
   searchInput.className = 'emoji-search-input';
-  searchInput.placeholder = 'Search emoji\u2026';
+  searchInput.placeholder = t('emoji.search_placeholder');
   searchInput.maxLength = 30;
   searchRow.appendChild(searchInput);
   picker.appendChild(searchRow);
@@ -462,7 +462,7 @@ _toggleEmojiPicker() {
     const tab = document.createElement('button');
     tab.className = 'emoji-tab' + (cat === this._emojiActiveCategory ? ' active' : '');
     tab.textContent = catIcons[cat] || cat.charAt(0);
-    tab.title = cat;
+    tab.title = t(`emoji.categories.${cat.toLowerCase()}`) || cat;
     tab.addEventListener('click', () => {
       this._emojiActiveCategory = cat;
       searchInput.value = '';
@@ -505,7 +505,7 @@ _toggleEmojiPicker() {
       emojis = allCategories[self._emojiActiveCategory] || self.emojis;
     }
     if (filter && emojis.length === 0) {
-      grid.innerHTML = '<p class="muted-text" style="padding:12px;font-size:12px;width:100%;text-align:center">No emoji found</p>';
+      grid.innerHTML = `<p class="muted-text" style="padding:12px;font-size:12px;width:100%;text-align:center">${t('emoji.no_results')}</p>`;
       return;
     }
     emojis.forEach(emoji => {
@@ -624,7 +624,7 @@ _loadTrendingGifs() {
 
 _searchGifs(query) {
   const grid = document.getElementById('gif-grid');
-  grid.innerHTML = '<div class="gif-picker-empty">Searching...</div>';
+  grid.innerHTML = `<div class="gif-picker-empty">${t('gifs.searching')}</div>`;
   fetch(`/api/gif/search?q=${encodeURIComponent(query)}&limit=20`, {
     headers: { 'Authorization': `Bearer ${this.token}` }
   })
@@ -640,13 +640,13 @@ _searchGifs(query) {
       }
       const results = data.results || [];
       if (results.length === 0) {
-        grid.innerHTML = '<div class="gif-picker-empty">No GIFs found</div>';
+        grid.innerHTML = `<div class="gif-picker-empty">${t('gifs.no_results')}</div>`;
         return;
       }
       this._renderGifGrid(results);
     })
     .catch(() => {
-      grid.innerHTML = '<div class="gif-picker-empty">Search failed</div>';
+      grid.innerHTML = `<div class="gif-picker-empty">${t('gifs.search_failed')}</div>`;
     });
 },
 
@@ -655,20 +655,20 @@ _showGifSetupGuide(grid) {
   if (isAdmin) {
     grid.innerHTML = `
       <div class="gif-setup-guide">
-        <h3>🎞️ Set Up GIF Search</h3>
-        <p>GIF search is powered by <strong>GIPHY</strong> and needs a free API key.</p>
+        <h3>🎞️ ${t('gifs.setup.title')}</h3>
+        <p>${t('gifs.setup.powered_by')}</p>
         <ol>
-          <li>Go to <a href="https://developers.giphy.com/" target="_blank" rel="noopener">developers.giphy.com</a></li>
-          <li>Create an account (or sign in)</li>
-          <li>Click <b>Create an App</b> → choose <b>API</b></li>
-          <li>Name it anything (e.g. "Haven Chat")</li>
-          <li>Copy the API key and paste it below</li>
+          <li>${t('gifs.setup.step_1')}</li>
+          <li>${t('gifs.setup.step_2')}</li>
+          <li>${t('gifs.setup.step_3')}</li>
+          <li>${t('gifs.setup.step_4')}</li>
+          <li>${t('gifs.setup.step_5')}</li>
         </ol>
         <div class="gif-setup-input-row">
-          <input type="text" id="gif-giphy-key-input" placeholder="Paste your GIPHY API key…" spellcheck="false" autocomplete="off" />
-          <button id="gif-giphy-key-save">Save</button>
+          <input type="text" id="gif-giphy-key-input" placeholder="${t('gifs.setup.key_placeholder')}" spellcheck="false" autocomplete="off" />
+          <button id="gif-giphy-key-save">${t('gifs.setup.save_btn')}</button>
         </div>
-        <p class="gif-setup-note">💡 No payment required — GIPHY's free tier is generous enough for a private server.</p>
+        <p class="gif-setup-note">💡 ${t('gifs.setup.note')}</p>
       </div>`;
     const saveBtn = document.getElementById('gif-giphy-key-save');
     const input = document.getElementById('gif-giphy-key-input');
@@ -676,7 +676,7 @@ _showGifSetupGuide(grid) {
       const key = input.value.trim();
       if (!key) return;
       this.socket.emit('update-server-setting', { key: 'giphy_api_key', value: key });
-      grid.innerHTML = '<div class="gif-picker-empty">Saved! Loading GIFs…</div>';
+      grid.innerHTML = `<div class="gif-picker-empty">${t('gifs.setup.saved')}</div>`;
       setTimeout(() => this._loadTrendingGifs(), 500);
     });
     input.addEventListener('keydown', (e) => {
@@ -685,8 +685,8 @@ _showGifSetupGuide(grid) {
   } else {
     grid.innerHTML = `
       <div class="gif-setup-guide">
-        <h3>🎞️ GIF Search Not Available</h3>
-        <p>An admin needs to set up the GIPHY API key before GIF search can work.</p>
+        <h3>🎞️ ${t('gifs.setup.unavailable_title')}</h3>
+        <p>${t('gifs.setup.unavailable_desc')}</p>
       </div>`;
   }
 },
@@ -927,13 +927,13 @@ _showQuickEmojiEditor(picker, msgEl, msgId) {
 
   const title = document.createElement('div');
   title.className = 'reaction-full-category';
-  title.textContent = 'Customize Quick Reactions';
+  title.textContent = t('emoji.customize_quick_title');
   editor.appendChild(title);
 
   const hint = document.createElement('p');
   hint.className = 'muted-text';
   hint.style.cssText = 'font-size:11px;padding:0 8px 6px;margin:0';
-  hint.textContent = 'Click a slot, then pick an emoji to replace it.';
+  hint.textContent = t('emoji.customize_quick_hint');
   editor.appendChild(hint);
 
   // Current slots
@@ -978,7 +978,7 @@ _showQuickEmojiEditor(picker, msgEl, msgId) {
     for (const [category, emojis] of Object.entries(this.emojiCategories)) {
       const label = document.createElement('div');
       label.className = 'reaction-full-category';
-      label.textContent = category;
+      label.textContent = t(`emoji.categories.${category.toLowerCase()}`) || category;
       grid.appendChild(label);
 
       const row = document.createElement('div');
@@ -1003,7 +1003,7 @@ _showQuickEmojiEditor(picker, msgEl, msgId) {
     if (this.customEmojis && this.customEmojis.length > 0) {
       const label = document.createElement('div');
       label.className = 'reaction-full-category';
-      label.textContent = 'Custom';
+      label.textContent = t('emoji.categories.custom');
       grid.appendChild(label);
 
       const row = document.createElement('div');
@@ -1032,7 +1032,7 @@ _showQuickEmojiEditor(picker, msgEl, msgId) {
   const doneBtn = document.createElement('button');
   doneBtn.className = 'btn-sm btn-accent';
   doneBtn.style.cssText = 'margin:8px;width:calc(100% - 16px)';
-  doneBtn.textContent = 'Done';
+  doneBtn.textContent = t('modals.common.done');
   doneBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     editor.remove();
@@ -1102,7 +1102,7 @@ _showReactionPicker(msgEl, msgId) {
   const moreBtn = document.createElement('button');
   moreBtn.className = 'reaction-pick-btn reaction-more-btn';
   moreBtn.textContent = '⋯';
-  moreBtn.title = 'All emojis';
+  moreBtn.title = t('emoji.all_emojis_title');
   moreBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     this._showFullReactionPicker(msgEl, msgId, picker);
@@ -1118,7 +1118,7 @@ _showReactionPicker(msgEl, msgId) {
   const gearBtn = document.createElement('button');
   gearBtn.className = 'reaction-pick-btn reaction-gear-btn';
   gearBtn.textContent = '⚙️';
-  gearBtn.title = 'Customize quick reactions';
+  gearBtn.title = t('emoji.customize_quick_title');
   gearBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     this._showQuickEmojiEditor(picker, msgEl, msgId);
@@ -1170,7 +1170,7 @@ _showFullReactionPicker(msgEl, msgId, quickPicker) {
   searchRow.className = 'reaction-full-search';
   const searchInput = document.createElement('input');
   searchInput.type = 'text';
-  searchInput.placeholder = 'Search emojis...';
+  searchInput.placeholder = t('reactions.search_placeholder');
   searchInput.className = 'reaction-full-search-input';
   searchRow.appendChild(searchInput);
   panel.appendChild(searchRow);
@@ -1193,7 +1193,7 @@ _showFullReactionPicker(msgEl, msgId, quickPicker) {
 
       const label = document.createElement('div');
       label.className = 'reaction-full-category';
-      label.textContent = category;
+      label.textContent = t(`emoji.categories.${category.toLowerCase()}`) || category;
       grid.appendChild(label);
 
       const row = document.createElement('div');
@@ -1226,7 +1226,7 @@ _showFullReactionPicker(msgEl, msgId, quickPicker) {
       if (customMatching.length > 0) {
         const label = document.createElement('div');
         label.className = 'reaction-full-category';
-        label.textContent = 'Custom';
+        label.textContent = t('emoji.categories.custom');
         grid.appendChild(label);
 
         const row = document.createElement('div');
@@ -1419,15 +1419,20 @@ _showAdminActionModal(action, userId, username) {
   const scrubScopeRow = document.getElementById('admin-scrub-scope-row');
   const confirmBtn = document.getElementById('confirm-admin-action-btn');
 
-  const labels = { kick: 'Kick', ban: 'Ban', mute: 'Mute', 'delete-user': 'Delete User' };
+  const labels = {
+    kick: t('modals.admin_action.label_kick'),
+    ban: t('modals.admin_action.label_ban'),
+    mute: t('modals.admin_action.label_mute'),
+    'delete-user': t('modals.admin_action.label_delete_user')
+  };
   title.textContent = `${labels[action] || action} — ${username}`;
   desc.textContent = action === 'ban'
-    ? 'This user will be permanently banned until unbanned.'
+    ? t('modals.admin_action.desc_ban')
     : action === 'mute'
-      ? 'This user won\'t be able to send messages for the specified duration.'
+      ? t('modals.admin_action.desc_mute')
       : action === 'delete-user'
-        ? 'This will permanently delete this user\'s account and free their username.'
-        : 'This user will be removed from the current channel.';
+        ? t('modals.admin_action.desc_delete_user')
+        : t('modals.admin_action.desc_kick');
 
   durationGroup.style.display = action === 'mute' ? 'block' : 'none';
 
@@ -1443,7 +1448,7 @@ _showAdminActionModal(action, userId, username) {
     scrubCheckbox.onchange = null;
   }
 
-  confirmBtn.textContent = labels[action] || 'Confirm';
+  confirmBtn.textContent = labels[action] || t('modals.common.confirm');
 
   document.getElementById('admin-action-reason').value = '';
   document.getElementById('admin-action-duration').value = '10';
@@ -1461,26 +1466,26 @@ _confirmTransferAdmin(userId, username) {
   overlay.innerHTML = `
     <div class="modal transfer-admin-modal">
       <div class="modal-header">
-        <h4>🔑 Transfer Admin</h4>
+        <h4>🔑 ${t('modals.transfer_admin.title')}</h4>
         <button class="modal-close-btn transfer-admin-close">&times;</button>
       </div>
       <div class="modal-body">
         <div class="transfer-admin-warning">
           <div class="transfer-admin-warning-icon">⚠️</div>
           <div class="transfer-admin-warning-text">
-            This will make <strong>${this._escapeHtml(username)}</strong> the new server Admin and demote you to <strong>Former Admin</strong> (Lv.99).
+            ${t('modals.transfer_admin.warning', { username: this._escapeHtml(username) })}
           </div>
         </div>
-        <p class="transfer-admin-note">This action cannot be undone by you.</p>
+        <p class="transfer-admin-note">${t('modals.transfer_admin.note')}</p>
         <div class="form-group">
-          <label class="form-label">Enter your password to confirm</label>
-          <input type="password" id="transfer-admin-pw" class="form-input" placeholder="Your password" autocomplete="current-password">
+          <label class="form-label">${t('modals.transfer_admin.password_label')}</label>
+          <input type="password" id="transfer-admin-pw" class="form-input" placeholder="${t('modals.transfer_admin.password_placeholder')}" autocomplete="current-password">
         </div>
         <p id="transfer-admin-error" class="transfer-admin-error"></p>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary transfer-admin-cancel">Cancel</button>
-        <button class="btn-danger-fill transfer-admin-confirm">Transfer Admin</button>
+        <button class="btn-secondary transfer-admin-cancel">${t('modals.common.cancel')}</button>
+        <button class="btn-danger-fill transfer-admin-confirm">${t('modals.transfer_admin.confirm_btn')}</button>
       </div>
     </div>
   `;
@@ -1501,19 +1506,19 @@ _confirmTransferAdmin(userId, username) {
   confirmBtn.addEventListener('click', () => {
     const password = pwInput.value.trim();
     if (!password) {
-      errorEl.textContent = 'Password is required.';
+      errorEl.textContent = t('modals.transfer_admin.error_required');
       errorEl.style.display = '';
       pwInput.focus();
       return;
     }
     confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Transferring…';
+    confirmBtn.textContent = t('modals.transfer_admin.transferring');
     this.socket.emit('transfer-admin', { userId, password }, (res) => {
       if (res && res.error) {
         errorEl.textContent = res.error;
         errorEl.style.display = '';
         confirmBtn.disabled = false;
-        confirmBtn.textContent = 'Transfer Admin';
+        confirmBtn.textContent = t('modals.transfer_admin.confirm_btn');
         pwInput.value = '';
         pwInput.focus();
       } else if (res && res.success) {
@@ -1537,8 +1542,8 @@ _showPromptModal(title, message, defaultValue = '') {
         ${message ? `<p class="muted-text" style="margin:0 0 12px;white-space:pre-line">${this._escapeHtml(message)}</p>` : ''}
         <input type="text" class="modal-input" id="prompt-modal-input" value="${this._escapeHtml(defaultValue)}" style="width:100%;box-sizing:border-box">
         <div class="modal-actions" style="margin-top:12px">
-          <button class="btn-sm" id="prompt-modal-cancel">Cancel</button>
-          <button class="btn-sm btn-accent" id="prompt-modal-ok">OK</button>
+          <button class="btn-sm" id="prompt-modal-cancel">${t('modals.common.cancel')}</button>
+          <button class="btn-sm btn-accent" id="prompt-modal-ok">${t('modals.common.ok')}</button>
         </div>
       </div>
     `;

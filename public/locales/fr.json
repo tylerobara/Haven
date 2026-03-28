@@ -234,6 +234,7 @@
 
   "voice": {
     "join": "🎤 Rejoindre le vocal",
+    "join_ctx": "Rejoindre le vocal",
     "leave": "Quitter le vocal",
     "mute": "Couper le micro",
     "unmute": "Réactiver le micro",
@@ -445,6 +446,8 @@
   },
 
   "media": {
+    "upload_file_title": "Téléverser un fichier",
+    "send_title": "Envoyer",
     "cameras": "Caméras",
     "streams": "streams",
     "layout_auto": "Auto",
@@ -591,15 +594,17 @@
     "audio_devices": "Périphériques audio",
     "input": "Entrée",
     "default_mic": "Microphone par défaut",
+    "mic_fallback": "Microphone {{n}}",
     "output": "Sortie",
     "default_speaker": "Haut-parleur par défaut",
+    "speaker_fallback": "Haut-parleur {{n}}",
     "noise_reduction": "Réduction du bruit",
     "off": "Désactivé",
-    "noise_gate": "Porte de bruit",
+    "noise_gate": "Porte anti-bruit",
     "suppression_ai": "Suppression (IA)",
     "gate_sensitivity": "Sensibilité de la porte",
     "gate_threshold": "Seuil de la porte",
-    "gate_slider_hint": "Porte de bruit : 0 = désactivé, 100 = agressif",
+    "gate_slider_hint": "Porte anti-bruit : 0 = désactivé, 100 = agressif",
     "noise_mode_hint": "Désactivé = aucun traitement, Porte = silence sous le seuil, Suppression = suppression IA du bruit (RNNoise)",
     "mic_level": "Niveau micro",
     "screen_share_quality": "Qualité du partage d'écran",
@@ -782,19 +787,26 @@
     },
     "desktop_shortcuts_section": {
       "title": "Raccourcis bureau",
+      "desc": "Raccourcis clavier globaux — actifs même quand Haven est en arrière-plan. Cliquez sur une ligne pour rebind, ou \u00abEffacer\u00bb pour désactiver.",
       "mute_unmute": "Couper / Réactiver le micro",
       "deafen_undeafen": "Sourdine / Désactiver la sourdine",
-      "ptt": "Push-to-Talk",
+      "ptt": "Appuyer pour parler",
+      "ptt_toggle": "(bascule)",
       "not_set": "Non défini",
       "change_btn": "Modifier",
       "clear_btn": "Effacer"
     },
     "desktop_app_section": {
       "title": "Application bureau",
+      "desc": "Paramètres spécifiques à Haven Desktop.",
       "start_on_login": "Démarrer à la connexion",
+      "start_on_login_hint": "Lance Haven Desktop automatiquement lorsque vous vous connectez à votre ordinateur.",
       "start_hidden": "Démarrer réduit dans la barre système",
+      "start_hidden_hint": "Au démarrage automatique, l'application se lance réduite dans la barre système.",
       "minimize_to_tray": "Réduire dans la barre système à la fermeture",
-      "force_sdr": "Forcer la couleur SDR (sRGB)"
+      "minimize_to_tray_hint": "Fermer la fenêtre réduit Haven dans la barre système au lieu de quitter.",
+      "force_sdr": "Forcer la couleur SDR (sRGB)",
+      "force_sdr_hint": "Corrige les couleurs délavées ou sur-saturées sur les moniteurs HDR. Nécessite un redémarrage."
     },
     "admin": {
       "title": "Admin",
@@ -1011,7 +1023,8 @@
       "back": "← Retour",
       "loading": "Chargement...",
       "confirm": "Confirmer",
-      "dismiss": "Ignorer"
+      "dismiss": "Ignorer",
+      "ok": "OK"
     },
 
     "recovery_notice": {
@@ -1135,7 +1148,15 @@
       "scrub_hint": "Supprime les messages de l'utilisateur (les messages archivés/protégés sont conservés)",
       "scope_label": "Portée",
       "scope_channel": "Ce salon uniquement",
-      "scope_server": "Serveur entier"
+      "scope_server": "Serveur entier",
+      "label_kick": "Expulser",
+      "label_ban": "Bannir",
+      "label_mute": "Rendre muet",
+      "label_delete_user": "Supprimer l'utilisateur",
+      "desc_kick": "Cet utilisateur sera retiré du canal actuel.",
+      "desc_ban": "Cet utilisateur sera banni définitivement jusqu'à ce qu'il soit débanni.",
+      "desc_mute": "Cet utilisateur ne pourra pas envoyer de messages pendant la durée spécifiée.",
+      "desc_delete_user": "Cette action supprimera définitivement le compte de cet utilisateur et libérera son nom d'utilisateur."
     },
     "organize": {
       "title": "Organiser",
@@ -1309,6 +1330,9 @@
     },
     "sound_manager": {
       "title": "Gestionnaire de sons",
+      "modal_hint": "Parcourez et jouez des sons personnalisés. Définissez des raccourcis pour les jouer à tout moment.",
+      "assign_hint": "Choisissez quel son est joué pour chaque événement. Les sons personnalisés téléversés par l'admin apparaissent ici aussi.",
+      "upload_hint": "Téléversez des fichiers audio pour des sons personnalisés (max 1 Mo chacun, mp3/ogg/wav/webm)",
       "soundboard_tab": "Soundboard",
       "assign_tab": "Assigner aux événements",
       "manage_tab": "Gérer",
@@ -1321,7 +1345,13 @@
       "user_left": "Utilisateur parti",
       "name_placeholder": "Nom du son...",
       "upload_btn": "Téléverser",
-      "no_custom_sounds": "Aucun son personnalisé téléversé"
+      "no_custom_sounds": "Aucun son personnalisé téléversé",
+      "group_builtin": "Intégré",
+      "group_custom": "Personnalisé",
+      "preview_btn": "Aperçu",
+      "builtin_locked_title": "Son intégré — ne peut pas être supprimé",
+      "rename_btn": "Renommer",
+      "delete_btn": "Supprimer"
     },
     "emoji_mgmt": {
       "title": "Gestion des emojis",
@@ -1378,10 +1408,38 @@
       "manage_roles_title": "Ouvrir la gestion des rôles",
       "save_btn": "Enregistrer les modifications"
     },
+    "transfer_admin": {
+      "title": "Transférer l'administration",
+      "warning": "Cela fera de <strong>{{username}}</strong> le nouvel Admin du serveur et vous rétrogradera en <strong>Ancien Admin</strong> (Nv.99).",
+      "note": "Cette action ne peut pas être annulée par vous.",
+      "password_label": "Entrez votre mot de passe pour confirmer",
+      "password_placeholder": "Votre mot de passe",
+      "confirm_btn": "Transférer l'administration",
+      "error_required": "Le mot de passe est requis.",
+      "transferring": "Transfert en cours…"
+    },
     "bot_mgmt": {
       "title": "Gestion des bots",
       "new_bot_btn": "+ Nouveau bot",
-      "select_or_create": "Sélectionnez un bot à modifier ou créez-en un nouveau"
+      "select_or_create": "Sélectionnez un bot à modifier ou créez-en un nouveau",
+      "avatar_label": "Avatar",
+      "upload_avatar_btn": "Téléverser",
+      "remove_avatar_btn": "Supprimer",
+      "name_label": "Nom",
+      "channel_label": "Canal",
+      "status_label": "Statut",
+      "status_active": "Actif",
+      "status_disabled": "Désactivé",
+      "disable_btn": "Désactiver",
+      "enable_btn": "Activer",
+      "webhook_url_label": "URL du Webhook",
+      "copy_url_title": "Copier l'URL",
+      "token_label": "Token",
+      "save_btn": "Enregistrer",
+      "delete_btn": "Supprimer",
+      "create_title": "Créer un bot",
+      "create_name_prompt": "Nom du bot :",
+      "no_channels": "Aucun canal disponible"
     },
     "discord_import": {
       "title": "Importer depuis Discord",
@@ -1498,6 +1556,52 @@
     "open_tab": "Ouvrir dans un nouvel onglet",
     "edit": "Modifier le serveur",
     "remove": "Supprimer"
+  },
+
+  "gifs": {
+    "searching": "Recherche en cours...",
+    "no_results": "Aucun GIF trouvé",
+    "search_failed": "Échec de la recherche",
+    "setup": {
+      "title": "Configurer la recherche GIF",
+      "powered_by": "La recherche GIF est alimentée par <strong>GIPHY</strong> et nécessite une clé API gratuite.",
+      "step_1": "Rendez-vous sur <a href=\"https://developers.giphy.com/\" target=\"_blank\" rel=\"noopener\">developers.giphy.com</a>",
+      "step_2": "Créez un compte (ou connectez-vous)",
+      "step_3": "Cliquez sur <b>Create an App</b> → choisissez <b>API</b>",
+      "step_4": "Nommez-le comme vous voulez (ex. : \"Haven Chat\")",
+      "step_5": "Copiez la clé API et collez-la ci-dessous",
+      "key_placeholder": "Collez votre clé API GIPHY…",
+      "save_btn": "Enregistrer",
+      "note": "Aucun paiement requis — le forfait gratuit de GIPHY est largement suffisant pour un serveur privé.",
+      "saved": "Enregistré ! Chargement des GIFs…",
+      "unavailable_title": "Recherche GIF non disponible",
+      "unavailable_desc": "Un admin doit configurer la clé API GIPHY pour que la recherche GIF fonctionne."
+    }
+  },
+
+  "reactions": {
+    "search_placeholder": "Rechercher des emojis..."
+  },
+
+  "emoji": {
+    "search_placeholder": "Rechercher un emoji\u2026",
+    "no_results": "Aucun emoji trouvé",
+    "all_emojis_title": "Tous les emojis",
+    "customize_quick_title": "Personnaliser les réactions rapides",
+    "customize_quick_hint": "Cliquez sur un emplacement, puis choisissez un emoji pour le remplacer.",
+    "categories": {
+      "smileys": "Smileys",
+      "faces": "Visages",
+      "people": "Personnes",
+      "animals": "Animaux",
+      "monkeys": "Singes",
+      "food": "Nourriture",
+      "activities": "Activités",
+      "travel": "Voyages",
+      "objects": "Objets",
+      "symbols": "Symboles",
+      "custom": "Personnalisé"
+    }
   },
 
   "common": {

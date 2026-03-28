@@ -26,6 +26,13 @@
   // ── Theme switching ───────────────────────────────────
   initThemeSwitcher('auth-theme-bar');
 
+  // ── Language switcher ─────────────────────────────────
+  const langSelect = document.getElementById('auth-lang-select');
+  if (langSelect) {
+    langSelect.value = window.i18n.locale;
+    langSelect.addEventListener('change', e => window.i18n.setLocale(e.target.value));
+  }
+
   // ── Fetch and display server version ──────────────────
   fetch('/api/version').then(r => r.json()).then(d => {
     const el = document.getElementById('auth-version');
