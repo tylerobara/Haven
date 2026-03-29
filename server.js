@@ -1,6 +1,16 @@
 // ── Resolve data directory BEFORE loading .env ────────────
 const { DATA_DIR, DB_PATH, ENV_PATH, CERTS_DIR, UPLOADS_DIR } = require('./src/paths');
 
+// ── Node.js version guard ─────────────────────────────────
+const nodeMajor = parseInt(process.versions.node.split('.')[0], 10);
+if (nodeMajor < 18 || nodeMajor >= 24) {
+  console.error(`\n  Haven requires Node.js 18-22. You have v${process.versions.node}.`);
+  console.error('  better-sqlite3 does not ship prebuilt binaries for Node 24+,');
+  console.error('  so npm install will fail without C++ build tools.');
+  console.error('  Install Node 22 LTS: https://nodejs.org/\n');
+  process.exit(1);
+}
+
 // Bootstrap .env into the data directory if it doesn't exist yet
 const fs = require('fs');
 const path = require('path');
@@ -536,6 +546,15 @@ app.get('/api/donors', (req, res) => {
   try {
     const donorsPath = path.join(__dirname, 'donors.json');
     const data = JSON.parse(fs.readFileSync(donorsPath, 'utf-8'));
+    // Check for magnitude-sorted order file (gitignored, optional)
+    const orderPath = path.join(__dirname, 'donor-order.json');
+    if (fs.existsSync(orderPath)) {
+      try {
+        const ordered = JSON.parse(fs.readFileSync(orderPath, 'utf-8'));
+        data.featuredSponsors = ordered.sponsors || [];
+        data.featuredDonors = ordered.donors || [];
+      } catch {}
+    }
     res.json(data);
   } catch {
     res.json({ sponsors: [], donors: [] });
@@ -1466,11 +1485,23 @@ app.get('/api/link-preview', previewLimiter, async (req, res) => {
       const titleTag = chunk.match(/<title[^>]*>([^<]+)<\/title>/i);
 
       const ogImages = getAllMetaContent('og:image');
+
+      // Extract og:video for inline video embeds (MP4, WebM)
+      const ogVideo = getMetaContent('og:video') || getMetaContent('og:video:url') || getMetaContent('og:video:secure_url');
+      const ogVideoType = getMetaContent('og:video:type') || '';
+      // Only embed direct video files (not Flash, iframes, etc.)
+      const isEmbeddableVideo = ogVideo && (
+        /^video\/(mp4|webm|ogg)$/i.test(ogVideoType) ||
+        /\.(mp4|webm|ogg)(\?[^#]*)?$/i.test(ogVideo)
+      );
+
       data = {
         title: getMetaContent('og:title') || getMetaContent('twitter:title') || (titleTag ? titleTag[1].trim() : null),
         description: getMetaContent('og:description') || getMetaContent('twitter:description') || getMetaContent('description'),
         image: ogImages[0] || getMetaContent('twitter:image'),
         images: ogImages.length >= 2 ? ogImages : undefined,
+        video: isEmbeddableVideo ? ogVideo : undefined,
+        videoType: isEmbeddableVideo ? (ogVideoType || 'video/mp4') : undefined,
         siteName: getMetaContent('og:site_name') || parsed.hostname,
         url: getMetaContent('og:url') || url
       };
@@ -2286,6 +2317,34 @@ function runAutoCleanup() {
           db.prepare("SELECT avatar_url FROM webhooks WHERE avatar_url IS NOT NULL AND avatar_url != ''").all()
             .forEach(r => protectedFiles.add(path.basename(r.avatar_url)));
         } catch { /* table may not exist */ }
+
+        // Protect files referenced by messages in cleanup-exempt (protected) channels
+        try {
+          const exemptMessages = db.prepare(
+            "SELECT content FROM messages WHERE channel_id IN (SELECT id FROM channels WHERE cleanup_exempt = 1)"
+          ).all();
+          const uploadRe = /\/uploads\/([\w\-.]+)/g;
+          for (const row of exemptMessages) {
+            let m;
+            while ((m = uploadRe.exec(row.content || '')) !== null) {
+              protectedFiles.add(m[1]);
+            }
+          }
+        } catch { /* skip if query fails */ }
+
+        // Also protect files referenced by archived messages
+        try {
+          const archivedMessages = db.prepare(
+            "SELECT content FROM messages WHERE is_archived = 1"
+          ).all();
+          const uploadRe = /\/uploads\/([\w\-.]+)/g;
+          for (const row of archivedMessages) {
+            let m;
+            while ((m = uploadRe.exec(row.content || '')) !== null) {
+              protectedFiles.add(m[1]);
+            }
+          }
+        } catch { /* skip if query fails */ }
 
         const cutoff = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
         const files = require('fs').readdirSync(uploadsDir);

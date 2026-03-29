@@ -2130,6 +2130,15 @@
         <span class="cfn-label">📢 <span data-i18n="channel_functions.announcement">Announcement</span></span>
         <span class="cfn-badge cfn-off" data-i18n="channel_functions.off">OFF</span>
       </div>
+      <div class="cfn-divider cfn-afk-divider" style="display:none"></div>
+      <div class="cfn-row cfn-afk-row" data-fn="afk-sub" style="display:none" title="Designate a sub-channel as the AFK voice room — idle users are moved here">
+        <span class="cfn-label">💤 AFK Sub</span>
+        <span class="cfn-badge cfn-off">OFF</span>
+      </div>
+      <div class="cfn-row cfn-afk-row" data-fn="afk-timeout" style="display:none" title="Minutes of voice inactivity before moving to AFK sub (0 = disabled)">
+        <span class="cfn-label">⏱️ AFK Timeout</span>
+        <span class="cfn-badge cfn-off">OFF</span>
+      </div>
     </div>
     <button class="channel-ctx-item admin-only" data-action="channel-roles">👑 <span data-i18n="context_menu.channel.roles">Roles</span></button>
     <button class="channel-ctx-item admin-only" data-action="webhooks">🤖 <span data-i18n="context_menu.channel.webhooks">Webhooks</span></button>
@@ -2506,6 +2515,11 @@
       <div class="donors-heart-icon">❤️</div>
       <h2 class="donors-title" data-i18n="modals.donors.title">Thank You</h2>
       <p class="donors-subtitle" data-i18n="modals.donors.subtitle">Haven is built with love and kept alive by the generosity of people like you. Every donation — big or small — means the world.</p>
+
+      <div class="donors-sort-toggle" id="donors-sort-toggle" style="display:none">
+        <button class="donors-sort-btn active" data-sort="chronological">Early Believers</button>
+        <button class="donors-sort-btn" data-sort="featured">Biggest Thanks!</button>
+      </div>
 
       <div class="donors-tiers" id="donors-tiers">
         <div class="donors-tier">

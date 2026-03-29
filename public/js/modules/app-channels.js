@@ -39,16 +39,27 @@ async switchChannel(code) {
   // Update voice button state — persist controls if in voice anywhere
   if (this.voice && this.voice.inVoice) {
     this._updateVoiceButtons(true);
+    // If viewing a different channel from the one we're in voice in, show "Join Voice" instead of "Voice Active"
+    if (this.voice.currentChannel !== code) {
+      const _canVoice = this.user?.isAdmin || this._hasPerm('use_voice');
+      const indic = document.getElementById('voice-active-indicator');
+      if (indic) indic.style.display = 'none';
+      const _scJoinBtn = document.getElementById('voice-join-btn');
+      if (_scJoinBtn) _scJoinBtn.style.display = (channel && channel.voice_enabled === 0) || !_canVoice ? 'none' : 'inline-flex';
+      const mobileJoin = document.getElementById('voice-join-mobile');
+      if (mobileJoin) mobileJoin.style.display = (channel && channel.voice_enabled === 0) || !_canVoice ? 'none' : '';
+    }
   } else {
-    // Show just the join button (not the indicator), but hide it for text-only channels
+    // Show just the join button (not the indicator), but hide it for text-only channels or users without voice permission
     const _scJoinBtn = document.getElementById('voice-join-btn');
-    if (_scJoinBtn) _scJoinBtn.style.display = channel && channel.voice_enabled === 0 ? 'none' : 'inline-flex';
+    const _canVoice = this.user?.isAdmin || this._hasPerm('use_voice');
+    if (_scJoinBtn) _scJoinBtn.style.display = (channel && channel.voice_enabled === 0) || !_canVoice ? 'none' : 'inline-flex';
     const indic = document.getElementById('voice-active-indicator');
     if (indic) indic.style.display = 'none';
     const vp = document.getElementById('voice-panel');
     if (vp) vp.style.display = 'none';
     const mobileJoin = document.getElementById('voice-join-mobile');
-    if (mobileJoin) mobileJoin.style.display = channel && channel.voice_enabled === 0 ? 'none' : '';
+    if (mobileJoin) mobileJoin.style.display = (channel && channel.voice_enabled === 0) || !_canVoice ? 'none' : '';
   }
   document.getElementById('search-toggle-btn').style.display = '';
   document.getElementById('pinned-toggle-btn').style.display = '';
@@ -275,7 +286,8 @@ _openChannelCtxMenu(code, btnEl) {
   const inVoice = this.voice && this.voice.inVoice;
   const inThisChannel = inVoice && this.voice.currentChannel === code;
   const isVoiceOff = ch && ch.voice_enabled === 0;
-  if (joinVoiceBtn) joinVoiceBtn.style.display = (inThisChannel || isVoiceOff) ? 'none' : '';
+  const _noVP = !this.user?.isAdmin && !this._hasPerm('use_voice');
+  if (joinVoiceBtn) joinVoiceBtn.style.display = (inThisChannel || isVoiceOff || _noVP) ? 'none' : '';
   if (leaveVoiceBtn) leaveVoiceBtn.style.display = inVoice ? '' : 'none';
   // Position near the button
   const rect = btnEl.getBoundingClientRect();
@@ -348,6 +360,23 @@ _updateChannelFunctionsPanel(ch) {
     this._setCfnBadge('self-destruct', true, `${hoursLeft}h`);
   } else {
     this._setCfnBadge('self-destruct', false, 'OFF');
+  }
+  // AFK sub-channel (only for parent channels)
+  const isParent = !ch.parent_channel_id && !ch.is_dm;
+  const hasSubs = isParent && (this.channels || []).some(c => c.parent_channel_id === ch.id);
+  document.querySelectorAll('.cfn-afk-row, .cfn-afk-divider').forEach(el => {
+    el.style.display = (isParent && hasSubs) ? '' : 'none';
+  });
+  if (isParent && hasSubs) {
+    const afkSubCode = ch.afk_sub_code || '';
+    const afkTimeout = ch.afk_timeout_minutes || 0;
+    if (afkSubCode) {
+      const sub = (this.channels || []).find(c => c.code === afkSubCode);
+      this._setCfnBadge('afk-sub', true, sub ? sub.name : afkSubCode.slice(0, 6));
+    } else {
+      this._setCfnBadge('afk-sub', false, 'OFF');
+    }
+    this._setCfnBadge('afk-timeout', afkTimeout > 0, afkTimeout > 0 ? `${afkTimeout}m` : 'OFF');
   }
 },
 
@@ -645,9 +674,9 @@ _openOrganizeModal(parentCode, serverLevel) {
     this._organizeList = [...parents].sort((a, b) => (a.position || 0) - (b.position || 0));
     this._organizeSelected = null;
     this._organizeSelectedTag = null;
-    this._organizeTagSorts = JSON.parse(localStorage.getItem('haven_tag_sorts___server__') || '{}');
-    this._organizeCatOrder = JSON.parse(localStorage.getItem('haven_cat_order___server__') || '[]');
-    this._organizeCatSort = localStorage.getItem('haven_cat_sort___server__') || 'az';
+    this._organizeTagSorts = JSON.parse(localStorage.getItem('haven_tag_sorts___server__') || this.serverSettings?.channel_tag_sorts || '{}');
+    this._organizeCatOrder = JSON.parse(localStorage.getItem('haven_cat_order___server__') || this.serverSettings?.channel_cat_order || '[]');
+    this._organizeCatSort = localStorage.getItem('haven_cat_sort___server__') || this.serverSettings?.channel_cat_sort || 'az';
 
     document.getElementById('organize-modal-title').textContent = `📋 ${t('channels.organize_channels')}`;
     document.getElementById('organize-modal-parent-name').textContent = t('channels.organize_desc');
@@ -863,6 +892,10 @@ _renderOrganizeList() {
       this._organizeTagSorts[tagKey] = sel.value;
       // Persist per-tag sorts so sidebar respects them
       localStorage.setItem(`haven_tag_sorts_${this._organizeParentCode}`, JSON.stringify(this._organizeTagSorts));
+      // Server-level: sync to server so all users see category-specific sorts
+      if (this._organizeServerLevel && (this.user?.isAdmin || this._hasPerm('manage_server'))) {
+        this.socket.emit('update-server-setting', { key: 'channel_tag_sorts', value: JSON.stringify(this._organizeTagSorts) });
+      }
       this._renderOrganizeList();
     });
   });
@@ -981,6 +1014,11 @@ _moveCategoryInOrder(direction) {
   // Persist
   localStorage.setItem(`haven_cat_order_${this._organizeParentCode}`, JSON.stringify(allKeys));
   localStorage.setItem(`haven_cat_sort_${this._organizeParentCode}`, 'manual');
+  // Server-level: sync category order to server so all users see it
+  if (this._organizeServerLevel && (this.user?.isAdmin || this._hasPerm('manage_server'))) {
+    this.socket.emit('update-server-setting', { key: 'channel_cat_order', value: JSON.stringify(allKeys) });
+    this.socket.emit('update-server-setting', { key: 'channel_cat_sort', value: 'manual' });
+  }
 
   this._renderOrganizeList();
   if (this._organizeServerLevel) this._renderChannels();
@@ -1238,7 +1276,9 @@ _renderChannels() {
   // Sort parent channels — respect server-level sort mode & per-tag overrides
   const localSortOverride = localStorage.getItem('haven_server_sort_mode');
   const serverSortMode = localSortOverride || this.serverSettings?.channel_sort_mode || 'manual';
-  const serverTagOverrides = JSON.parse(localStorage.getItem('haven_tag_sorts___server__') || '{}');
+  // Per-tag overrides: prefer localStorage (admin's local state) then fall back to server settings
+  const localTagOverrides = localStorage.getItem('haven_tag_sorts___server__');
+  const serverTagOverrides = JSON.parse(localTagOverrides || this.serverSettings?.channel_tag_sorts || '{}');
   const parentHasTags = parentChannels.some(c => c.category);
 
   const serverSortByMode = (a, b, mode) => {
@@ -1250,8 +1290,11 @@ _renderChannels() {
   };
 
   // Load stored category order for server-level categories
-  const serverCatOrder = JSON.parse(localStorage.getItem('haven_cat_order___server__') || '[]');
-  const serverCatSort = localStorage.getItem('haven_cat_sort___server__') || 'az';
+  // Prefer localStorage (admin's local state) then fall back to server settings
+  const localCatOrder = localStorage.getItem('haven_cat_order___server__');
+  const serverCatOrder = JSON.parse(localCatOrder || this.serverSettings?.channel_cat_order || '[]');
+  const localCatSort = localStorage.getItem('haven_cat_sort___server__');
+  const serverCatSort = localCatSort || this.serverSettings?.channel_cat_sort || 'az';
 
   if (parentHasTags) {
     const tagGroup = (a, b) => {
@@ -1366,6 +1409,7 @@ _renderChannels() {
     el.addEventListener('dblclick', () => {
       const _dblCh = this.channels.find(c => c.code === ch.code);
       if (_dblCh && _dblCh.voice_enabled === 0) return;
+      if (!this.user?.isAdmin && !this._hasPerm('use_voice')) return;
       this.switchChannel(ch.code);
       setTimeout(() => this._joinVoice(), 300);
     });
@@ -1454,38 +1498,114 @@ _renderChannels() {
   });
 
   for (const cat of sortedCats) {
+    const catKey = cat || '';
+    const catCollapsed = cat ? localStorage.getItem(`haven_cat_collapsed_${cat}`) === 'true' : false;
+
     if (cat) {
       const catLabel = document.createElement('h5');
       catLabel.className = 'section-label category-label';
-      catLabel.style.cssText = 'padding:10px 12px 4px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;opacity:0.5;user-select:none';
-      catLabel.textContent = cat;
+      catLabel.style.cssText = 'padding:10px 12px 4px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;opacity:0.5;user-select:none;cursor:pointer;display:flex;align-items:center;gap:4px';
+      catLabel.dataset.category = cat;
+      const arrow = document.createElement('span');
+      arrow.className = 'cat-collapse-arrow' + (catCollapsed ? ' collapsed' : '');
+      arrow.textContent = '▾';
+      catLabel.appendChild(arrow);
+      const catText = document.createElement('span');
+      catText.textContent = cat;
+      catLabel.appendChild(catText);
       list.appendChild(catLabel);
+
+      catLabel.addEventListener('click', () => {
+        const nowCollapsed = arrow.classList.toggle('collapsed');
+        localStorage.setItem(`haven_cat_collapsed_${cat}`, nowCollapsed);
+        list.querySelectorAll(`[data-cat-group="${CSS.escape(cat)}"]`).forEach(el => {
+          el.style.display = nowCollapsed ? 'none' : '';
+        });
+        // Toggle sub-channel items within this category too
+        list.querySelectorAll(`[data-cat-sub-group="${CSS.escape(cat)}"]`).forEach(el => {
+          el.style.display = nowCollapsed ? 'none' : '';
+        });
+        // Update unread badge on category label
+        const badge = catLabel.querySelector('.cat-unread-badge');
+        if (nowCollapsed) {
+          const allChans = categories.get(cat) || [];
+          let total = 0;
+          allChans.forEach(c => {
+            total += this.unreadCounts[c.code] || 0;
+            (subChannelMap[c.id] || []).forEach(s => { total += this.unreadCounts[s.code] || 0; });
+          });
+          if (total > 0) {
+            if (badge) { badge.textContent = total > 99 ? '99+' : total; badge.style.display = ''; }
+            else {
+              const b = document.createElement('span');
+              b.className = 'channel-badge channel-badge-bubble cat-unread-badge';
+              b.style.marginLeft = 'auto';
+              b.textContent = total > 99 ? '99+' : total;
+              catLabel.appendChild(b);
+            }
+          } else if (badge) badge.style.display = 'none';
+        } else {
+          if (badge) badge.style.display = 'none';
+        }
+      });
     }
 
     categories.get(cat).forEach(ch => {
-      list.appendChild(renderChannelItem(ch, false));
+      const chEl = renderChannelItem(ch, false);
+      if (cat) {
+        chEl.dataset.catGroup = cat;
+        if (catCollapsed) chEl.style.display = 'none';
+      }
+      list.appendChild(chEl);
       const subs = subChannelMap[ch.id] || [];
-      const isCollapsed = localStorage.getItem(`haven_subs_collapsed_${ch.code}`) === 'true';
+      const isSubCollapsed = localStorage.getItem(`haven_subs_collapsed_${ch.code}`) === 'true';
       const subHasTags = subs.some(s => s.category);
       let lastSubTag = undefined;
       subs.forEach(sub => {
         if (subHasTags && sub.category !== lastSubTag) {
+          const tagName = sub.category || 'Untagged';
+          const tagKey = `haven_subtag_collapsed_${ch.code}_${tagName}`;
+          const isTagCollapsed = localStorage.getItem(tagKey) === 'true';
           const tagLabel = document.createElement('div');
           tagLabel.className = 'sub-channel-item sub-tag-label';
           tagLabel.dataset.parentId = ch.id;
-          tagLabel.style.cssText = 'padding:4px 12px 2px 28px;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;opacity:0.35;user-select:none;font-weight:600';
-          tagLabel.textContent = sub.category || t('channels.untagged');
-          if (isCollapsed) tagLabel.style.display = 'none';
+          tagLabel.dataset.parentCode = ch.code;
+          tagLabel.dataset.tagName = tagName;
+          if (cat) tagLabel.dataset.catSubGroup = cat;
+          tagLabel.style.cssText = 'padding:4px 12px 2px 28px;font-size:0.65rem;text-transform:uppercase;letter-spacing:0.05em;opacity:0.35;user-select:none;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px';
+          const tagArrow = document.createElement('span');
+          tagArrow.className = 'cat-collapse-arrow' + (isTagCollapsed ? ' collapsed' : '');
+          tagArrow.textContent = '▾';
+          tagLabel.appendChild(tagArrow);
+          const tagText = document.createElement('span');
+          tagText.textContent = tagName;
+          tagLabel.appendChild(tagText);
+          tagLabel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const nowCollapsed = tagArrow.classList.toggle('collapsed');
+            localStorage.setItem(tagKey, nowCollapsed);
+            list.querySelectorAll(`.sub-channel-item[data-parent-code="${ch.code}"][data-sub-tag="${CSS.escape(tagName)}"]`).forEach(el => {
+              el.style.display = nowCollapsed ? 'none' : '';
+            });
+          });
+          if (isSubCollapsed || catCollapsed) tagLabel.style.display = 'none';
           list.appendChild(tagLabel);
           lastSubTag = sub.category;
         }
         const subEl = renderChannelItem(sub, true);
-        if (isCollapsed) subEl.style.display = 'none';
+        if (cat) subEl.dataset.catSubGroup = cat;
+        if (subHasTags) {
+          subEl.dataset.parentCode = ch.code;
+          subEl.dataset.subTag = sub.category || 'Untagged';
+          const subTagKey = `haven_subtag_collapsed_${ch.code}_${subEl.dataset.subTag}`;
+          if (localStorage.getItem(subTagKey) === 'true') subEl.style.display = 'none';
+        }
+        if (isSubCollapsed || catCollapsed) subEl.style.display = 'none';
         list.appendChild(subEl);
       });
 
       // If collapsed and sub-channels have unreads, bubble a badge onto the parent
-      if (isCollapsed && subs.length) {
+      if (isSubCollapsed && subs.length) {
         const subTotal = subs.reduce((sum, s) => {
           const cnt = (s.code in this.unreadCounts) ? this.unreadCounts[s.code] : (s.unreadCount || 0);
           return sum + cnt;
@@ -1501,6 +1621,26 @@ _renderChannels() {
         }
       }
     });
+
+    // Show unread badge on collapsed category at render time
+    if (cat && catCollapsed) {
+      const allChans = categories.get(cat) || [];
+      let total = 0;
+      allChans.forEach(c => {
+        total += this.unreadCounts[c.code] || 0;
+        (subChannelMap[c.id] || []).forEach(s => { total += this.unreadCounts[s.code] || 0; });
+      });
+      if (total > 0) {
+        const catEl = list.querySelector(`[data-category="${CSS.escape(cat)}"]`);
+        if (catEl) {
+          const b = document.createElement('span');
+          b.className = 'channel-badge channel-badge-bubble cat-unread-badge';
+          b.style.marginLeft = 'auto';
+          b.textContent = total > 99 ? '99+' : total;
+          catEl.appendChild(b);
+        }
+      }
+    }
   }
 
   // ── DM section (separate pane) ──
