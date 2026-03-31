@@ -1702,8 +1702,8 @@ class VoiceManager {
             wasTalking = true;
             if (this.onTalkingChange) this.onTalkingChange('self', true);
           }
-          // Notify server of voice activity for AFK tracking (throttled to once per 30s)
-          if (this.socket && this.inVoice && (!this._lastVoiceSpeakPing || Date.now() - this._lastVoiceSpeakPing > 30000)) {
+          // Notify server of voice activity for AFK tracking (throttled to once per 15s)
+          if (this.socket && this.inVoice && (!this._lastVoiceSpeakPing || Date.now() - this._lastVoiceSpeakPing > 15000)) {
             this._lastVoiceSpeakPing = Date.now();
             this.socket.emit('voice-activity');
           }

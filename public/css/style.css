@@ -10370,6 +10370,8 @@ ul.chat-list { list-style-type: disc; }
   max-height: 300px;
   border-radius: 4px;
   margin-top: 4px;
+  background: #0a0a0a;
+  object-fit: contain;
 }
 
 .file-video-wrap {

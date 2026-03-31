@@ -1146,6 +1146,9 @@ _setupUI() {
     document.querySelectorAll(`.channel-voice-user[data-user-id="${resolvedId}"], .voice-user-item[data-user-id="${resolvedId}"]`).forEach(el => {
       el.classList.toggle('talking', isTalking);
     });
+    // Speaking counts as activity — reset idle timer so presence stays online
+    // and the server gets a voice-activity ping for AFK tracking
+    if (userId === 'self' && isTalking) this._resetIdle?.();
   };
 
   // ── File video fullscreen: redirect to wrapper for proper controls ──

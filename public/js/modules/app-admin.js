@@ -1492,14 +1492,16 @@ _setupIdleDetection() {
       idleEmitPending = true;
       setTimeout(() => { idleEmitPending = false; goOnline(); }, 300);
     }
-    // Notify server of activity for AFK voice tracking (throttled to once per 30s)
-    if (this.voice?.inVoice && (!this._lastVoiceActivityPing || Date.now() - this._lastVoiceActivityPing > 30000)) {
+    // Notify server of activity for AFK voice tracking (throttled to once per 15s)
+    if (this.voice?.inVoice && (!this._lastVoiceActivityPing || Date.now() - this._lastVoiceActivityPing > 15000)) {
       this._lastVoiceActivityPing = Date.now();
       this.socket.emit('voice-activity');
     }
     clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(goIdle, document.hidden ? HIDDEN_TIMEOUT : IDLE_TIMEOUT);
   };
+  // Expose so voice speech detection can reset idle & presence
+  this._resetIdle = resetIdle;
 
   // Only fire on intentional input — NOT mousemove (micro-jitters keep resetting)
   ['keydown', 'click', 'scroll', 'touchstart', 'mousedown'].forEach(evt => {

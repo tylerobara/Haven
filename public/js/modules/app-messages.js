@@ -1,3 +1,6 @@
+// Cache generated video thumbnails so each URL is only captured once
+const _thumbCache = new Map();
+
 export default {
 
 // ── Messages ──────────────────────────────────────────
@@ -695,6 +698,9 @@ _setupVideos(containerEl) {
     if (video.dataset.havenSetup) return;
     video.dataset.havenSetup = '1';
 
+    // ── Generate thumbnail poster from first frame ──
+    this._generateVideoThumbnail(video);
+
     // PiP: wire up MediaSession so the PiP window shows a seek bar
     const updatePos = () => {
       try {
@@ -742,6 +748,71 @@ _setupVideos(containerEl) {
       video.removeEventListener('playing', updatePos);
     });
   });
+},
+
+/** Generate a poster thumbnail for a video element by capturing its first visible frame */
+_generateVideoThumbnail(video) {
+  const src = video.src || video.querySelector('source')?.src;
+  if (!src) return;
+
+  // If we already generated a thumbnail for this URL, reuse it
+  if (_thumbCache.has(src)) {
+    video.poster = _thumbCache.get(src);
+    return;
+  }
+
+  // Use a hidden helper video so the main element stays preload="none"
+  const helper = document.createElement('video');
+  helper.crossOrigin = 'anonymous';
+  helper.muted = true;
+  helper.preload = 'metadata';
+  helper.src = src;
+
+  const cleanup = () => {
+    helper.removeAttribute('src');
+    helper.load();
+  };
+
+  helper.addEventListener('loadedmetadata', () => {
+    // Seek to 0.5s or 10% of duration (whichever is smaller) to skip black intro frames
+    const seekTo = Math.min(0.5, helper.duration * 0.1 || 0.1);
+    helper.currentTime = seekTo;
+  }, { once: true });
+
+  helper.addEventListener('seeked', () => {
+    try {
+      const w = helper.videoWidth;
+      const h = helper.videoHeight;
+      if (!w || !h) { cleanup(); return; }
+
+      // Cap thumbnail at 480p to save memory
+      const MAX = 480;
+      let tw = w, th = h;
+      if (h > MAX) { tw = Math.round(w * (MAX / h)); th = MAX; }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = tw;
+      canvas.height = th;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(helper, 0, 0, tw, th);
+
+      canvas.toBlob(blob => {
+        if (blob) {
+          const url = URL.createObjectURL(blob);
+          _thumbCache.set(src, url);
+          video.poster = url;
+        }
+        cleanup();
+      }, 'image/jpeg', 0.7);
+    } catch {
+      cleanup();
+    }
+  }, { once: true });
+
+  helper.addEventListener('error', cleanup, { once: true });
+
+  // Safety timeout — don't hang forever if the video can't be loaded
+  setTimeout(() => { if (!_thumbCache.has(src)) cleanup(); }, 8000);
 },
 
 // ── Link Previews ─────────────────────────────────────
