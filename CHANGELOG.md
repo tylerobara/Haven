@@ -11,6 +11,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [2.9.2] — 2026-04-05
+
+### Fixed
+- **Per-app audio CSP fix** — Haven's Content Security Policy was missing `blob:` in `script-src`, which caused the Desktop app's AudioWorklet processor to be blocked by the browser on every session. The per-app audio pipeline was silently falling through to the deprecated ScriptProcessor fallback (and still producing no audio for many users). AudioWorklet now loads correctly. (#165)
+
+---
+
 ## [2.9.1] — 2026-04-04
 
 ### Fixed
