@@ -532,6 +532,15 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_webhooks_channel ON webhooks(channel_id);
   `);
 
+  // ── Migration: webhook callback URL + secret for two-way bot integration ──
+  const webhookCallbackCols = [
+    { name: 'callback_url',    sql: "ALTER TABLE webhooks ADD COLUMN callback_url TEXT DEFAULT NULL" },
+    { name: 'callback_secret', sql: "ALTER TABLE webhooks ADD COLUMN callback_secret TEXT DEFAULT NULL" },
+  ];
+  for (const col of webhookCallbackCols) {
+    try { db.prepare(`SELECT ${col.name} FROM webhooks LIMIT 0`).get(); } catch { db.exec(col.sql); }
+  }
+
   // ── Migration: mobile FCM push tokens ───────────────────
   db.exec(`
     CREATE TABLE IF NOT EXISTS fcm_tokens (

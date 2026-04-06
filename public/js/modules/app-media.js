@@ -1362,6 +1362,12 @@ _showBotDetail(botId) {
       <label class="settings-label">${t('modals.bot_mgmt.token_label')}</label>
       <div style="font-size:11px;font-family:monospace;padding:4px 8px;background:var(--bg-input);border-radius:4px;color:var(--text-muted);margin-bottom:12px">${maskedToken}</div>
 
+      <label class="settings-label">📡 Callback URL <span style="font-size:10px;color:var(--text-muted)">(optional — Haven will POST messages to this URL)</span></label>
+      <input type="url" id="bot-detail-callback-url" value="${this._escapeHtml(wh.callback_url || '')}" placeholder="https://mybot.example.com/haven-events" class="settings-text-input" style="width:100%;margin-bottom:8px">
+
+      <label class="settings-label">🔑 Callback Secret <span style="font-size:10px;color:var(--text-muted)">(optional — used to sign payloads via X-Haven-Signature)</span></label>
+      <input type="text" id="bot-detail-callback-secret" value="${this._escapeHtml(wh.callback_secret || '')}" placeholder="my-secret-key" class="settings-text-input" style="width:100%;margin-bottom:12px">
+
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn-sm btn-accent" id="bot-detail-save" style="flex:1">💾 ${t('modals.bot_mgmt.save_btn')}</button>
         <button class="btn-sm btn-danger" id="bot-detail-delete">🗑️ ${t('modals.bot_mgmt.delete_btn')}</button>
@@ -1384,8 +1390,10 @@ _showBotDetail(botId) {
   panel.querySelector('#bot-detail-save').addEventListener('click', () => {
     const name = panel.querySelector('#bot-detail-name').value.trim();
     const channelId = parseInt(panel.querySelector('#bot-detail-channel').value);
+    const callbackUrl = panel.querySelector('#bot-detail-callback-url').value.trim();
+    const callbackSecret = panel.querySelector('#bot-detail-callback-secret').value.trim();
     if (!name) return this._showToast('Name is required', 'error');
-    this.socket.emit('update-webhook', { id: botId, name, channel_id: channelId });
+    this.socket.emit('update-webhook', { id: botId, name, channel_id: channelId, callback_url: callbackUrl, callback_secret: callbackSecret });
   });
   panel.querySelector('#bot-detail-toggle').addEventListener('click', () => {
     this.socket.emit('toggle-webhook', { id: botId });

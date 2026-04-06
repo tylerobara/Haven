@@ -51,6 +51,16 @@ Amni-Haven is a self-hosted Discord alternative. Run it on your machine. Invite 
 
 ---
 
+## 🌐 Try Haven — No Download Required
+
+> **Want to see what Haven looks like before hosting your own?** Jump into the community server and explore — chat, voice, themes, the works.
+
+🔗 **[Join the Community Server →](https://haven.moviethingy.xyz/)**
+
+Channel code: `da0b9be7`
+
+---
+
 ## NEW in v2.0.0 — Import Your Discord History
 
 > **Leaving Discord?** Amni-Haven can import your entire server's message history — directly from the app. No external tools, no command-line exports, no hassle.

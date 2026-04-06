@@ -982,6 +982,58 @@ function setupSocketHandlers(io, db) {
     }
   }
 
+  // ── Fire webhook callbacks for bots in a channel ──────
+  function fireWebhookCallbacks(channelId, channelCode, message) {
+    try {
+      const bots = db.prepare(
+        'SELECT id, callback_url, callback_secret FROM webhooks WHERE channel_id = ? AND is_active = 1 AND callback_url IS NOT NULL'
+      ).all(channelId);
+      if (!bots.length) return;
+
+      const payload = JSON.stringify({
+        event: 'message',
+        channelId: channelCode,
+        message: {
+          id: message.id,
+          content: message.content,
+          author: {
+            id: message.user_id,
+            username: message.username
+          },
+          reply_to: message.reply_to || null,
+          is_webhook: message.is_webhook || false,
+          timestamp: message.created_at
+        }
+      });
+
+      for (const bot of bots) {
+        // Skip if the message was sent BY this bot's own webhook (prevent loops)
+        if (message.is_webhook) continue;
+
+        const url = bot.callback_url;
+        // Basic URL validation — must be http(s)
+        if (!/^https?:\/\//i.test(url)) continue;
+
+        const headers = { 'Content-Type': 'application/json', 'User-Agent': 'Haven-Webhook/1.0' };
+        if (bot.callback_secret) {
+          const signature = crypto.createHmac('sha256', bot.callback_secret).update(payload).digest('hex');
+          headers['X-Haven-Signature'] = signature;
+        }
+
+        fetch(url, {
+          method: 'POST',
+          headers,
+          body: payload,
+          signal: AbortSignal.timeout(10000)
+        }).catch(err => {
+          console.error(`Webhook callback failed for bot ${bot.id} → ${url}: ${err.message}`);
+        });
+      }
+    } catch (err) {
+      console.error('Webhook callback error:', err.message);
+    }
+  }
+
   // ── Time-based channel code rotation (check every 30s) ───
   setInterval(() => {
     try {
@@ -1953,6 +2005,9 @@ function setupSocketHandlers(io, db) {
           // Send push notifications to offline channel members
           sendPushNotifications(channel.id, code, channel.name, socket.user.id, socket.user.displayName, slashResult.content);
 
+          // Fire webhook callbacks for bots in this channel
+          fireWebhookCallbacks(channel.id, code, message);
+
           // Auto-update sender's read position for slash command messages too
           try {
             db.prepare(`
@@ -2003,6 +2058,9 @@ function setupSocketHandlers(io, db) {
 
         // Send push notifications to offline channel members
         sendPushNotifications(channel.id, code, channel.name, socket.user.id, socket.user.displayName, safeContent);
+
+        // Fire webhook callbacks for bots in this channel
+        fireWebhookCallbacks(channel.id, code, message);
 
         // Auto-update sender's read position so own messages never count as unread
         try {
@@ -2942,6 +3000,7 @@ function setupSocketHandlers(io, db) {
 
         io.to(`channel:${code}`).emit('new-message', { channelCode: code, message });
         sendPushNotifications(channel.id, code, channel.name, socket.user.id, socket.user.displayName, content);
+        fireWebhookCallbacks(channel.id, code, message);
 
         try {
           db.prepare(`
@@ -4527,6 +4586,7 @@ function setupSocketHandlers(io, db) {
       // Return the full list
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -4540,6 +4600,7 @@ function setupSocketHandlers(io, db) {
       if (!socket.user.isAdmin) return;
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -4559,6 +4620,7 @@ function setupSocketHandlers(io, db) {
 
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -4579,6 +4641,7 @@ function setupSocketHandlers(io, db) {
 
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -4616,10 +4679,22 @@ function setupSocketHandlers(io, db) {
         const av = typeof data.avatar_url === 'string' ? data.avatar_url.trim().slice(0, 512) : null;
         db.prepare('UPDATE webhooks SET avatar_url = ? WHERE id = ?').run(av || null, webhookId);
       }
+      // Update callback URL if provided
+      if (data.callback_url !== undefined) {
+        let cbUrl = typeof data.callback_url === 'string' ? data.callback_url.trim().slice(0, 1024) : null;
+        if (cbUrl && !/^https?:\/\//i.test(cbUrl)) cbUrl = null; // must be http(s)
+        db.prepare('UPDATE webhooks SET callback_url = ? WHERE id = ?').run(cbUrl || null, webhookId);
+      }
+      // Update callback secret if provided
+      if (data.callback_secret !== undefined) {
+        const secret = typeof data.callback_secret === 'string' ? data.callback_secret.trim().slice(0, 256) : null;
+        db.prepare('UPDATE webhooks SET callback_secret = ? WHERE id = ?').run(secret || null, webhookId);
+      }
 
       // Return updated list
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -7258,7 +7333,7 @@ function setupSocketHandlers(io, db) {
       if (!channel) return;
 
       const webhooks = db.prepare(
-        'SELECT id, channel_id, name, token, avatar_url, is_active, created_at FROM webhooks WHERE channel_id = ? ORDER BY created_at DESC'
+        'SELECT id, channel_id, name, token, avatar_url, is_active, created_at, callback_url, callback_secret FROM webhooks WHERE channel_id = ? ORDER BY created_at DESC'
       ).all(channel.id);
 
       socket.emit('webhooks-list', { channelCode, webhooks });

@@ -354,6 +354,36 @@
       .desktop-banner-inner { padding: 40px 16px; }
     }
 
+    /* ============================================
+       COMMUNITY SERVER BANNER
+       ============================================ */
+    .community-banner {
+      background: linear-gradient(135deg, #43b581 0%, #7c5cfc 50%, #82aaff 100%);
+      padding: 2px;
+      position: relative;
+    }
+    .community-banner-inner {
+      background: var(--bg-deep);
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .community-banner h2 {
+      color: #fff;
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+      margin-bottom: 12px;
+    }
+    .community-banner .community-accent { color: var(--green); }
+    .community-banner p {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 600px;
+      margin: 0 auto 24px;
+      line-height: 1.7;
+    }
+    @media (max-width: 768px) {
+      .community-banner-inner { padding: 32px 16px; }
+    }
+
     .hero-screenshot {
       position: relative; z-index: 2; max-width: 1000px; margin: 0 auto;
       border-radius: var(--radius-lg); overflow: hidden;
@@ -802,6 +832,7 @@
         <li><a href="#download">Download</a></li>
         <li><a href="#desktop">Desktop App</a></li>
         <li><a href="#android">Android App</a></li>
+        <li><a href="#community">Try Haven</a></li>
         <li><a href="#support">Support</a></li>
         <li><a href="https://github.com/ancsemi/Haven" target="_blank" class="nav-cta">GitHub</a></li>
       </ul>
@@ -823,6 +854,9 @@
         <div class="hero-actions">
           <a href="#download" class="btn btn-primary">
             <span class="icon">⬇</span> Download Haven
+          </a>
+          <a href="https://haven.moviethingy.xyz/" target="_blank" class="btn btn-secondary" style="border-color: var(--green); color: var(--green);">
+            <span class="icon">▶</span> Try it Live
           </a>
           <a href="https://github.com/ancsemi/Haven" target="_blank" class="btn btn-secondary">
             <span class="icon">&#9965;</span> View Source
@@ -847,6 +881,27 @@
              alt="Haven screen sharing and streaming" loading="lazy">
         <img src="https://github.com/user-attachments/assets/a6da197e-66df-4df6-a2a8-c215bf02ac10"
              alt="Haven theme gallery showcase" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== COMMUNITY SERVER BANNER ===== -->
+  <section class="community-banner fade-in" id="community">
+    <div class="community-banner-inner">
+      <div class="container">
+        <h2>🌐 Try Haven &mdash; <span class="community-accent">No Download Required</span></h2>
+        <p>
+          Want to see what Haven feels like before hosting your own? Jump into the community server
+          and explore &mdash; chat, voice, themes, the works.
+        </p>
+        <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <a href="https://haven.moviethingy.xyz/" target="_blank" class="btn btn-primary" style="padding: 12px 28px; font-size: 1rem; background: var(--green); box-shadow: 0 4px 24px var(--green-glow);">
+            <span class="icon">▶</span> Join Community Server
+          </a>
+        </div>
+        <p style="margin-top: 14px; font-size: 0.85rem; color: var(--text-dim);">
+          Channel code: <code style="background: rgba(67, 181, 129, 0.15); padding: 2px 8px; border-radius: 4px; color: var(--green); font-size: 0.85rem;">da0b9be7</code>
+        </p>
       </div>
     </div>
   </section>
