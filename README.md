@@ -59,7 +59,7 @@ Amni-Haven is a self-hosted Discord alternative. Run it on your machine. Invite 
 
 After signing up, enter this channel code to join: **`da0b9be7`**
 
-*Volunteer-hosted community server (thanks MutantRabbit!) — not an official server.*
+*Volunteer-hosted community server — thanks MutantRabbit!*
 
 ---
 
