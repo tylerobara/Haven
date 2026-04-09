@@ -1,7 +1,11 @@
 const { verifyToken, generateChannelCode, generateToken } = require('./auth');
 const crypto = require('crypto');
+const path   = require('path');
+const fs     = require('fs');
 const bcrypt = require('bcryptjs');
 const webpush = require('web-push');
+const { sendFcm, isFcmEnabled } = require('./fcm');
+const { DATA_DIR, UPLOADS_DIR, DELETED_ATTACHMENTS_DIR } = require('./paths');
 const HAVEN_VERSION = require('../package.json').version;
 
 // ── Normalize SQLite timestamps to UTC ISO 8601 ────────
@@ -20,6 +24,38 @@ function isString(v, min = 0, max = Infinity) {
 function isInt(v) {
   return Number.isInteger(v);
 }
+
+// ── Server-side HTML sanitization (strip dangerous tags/attrs) ──
+// Belt-and-suspenders: client escapes HTML, but server strips anything that
+// could be rendered as executable HTML in case of client-side bugs.
+function sanitizeText(str) {
+  if (typeof str !== 'string') return '';
+  // Strip dangerous HTML tags/attributes as defense-in-depth.
+  // Do NOT entity-encode here — the client handles its own escaping when
+  // rendering via _escapeHtml(). Entity-encoding on the server would cause
+  // double-encoding (e.g. ' → &#39; stored → &amp;#39; after client escape).
+  return str
+    .replace(/<script[\s>][\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe[\s>][\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object[\s>][\s\S]*?<\/object>/gi, '')
+    .replace(/<embed[\s>][\s\S]*?(?:\/>|>)/gi, '')
+    .replace(/<style[\s>][\s\S]*?<\/style>/gi, '')
+    .replace(/<meta[\s>][\s\S]*?(?:\/>|>)/gi, '')
+    .replace(/<form[\s>][\s\S]*?<\/form>/gi, '')
+    .replace(/<link[\s>][\s\S]*?(?:\/>|>)/gi, '')
+    .replace(/\bon\w+\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/javascript\s*:/gi, '');
+}
+
+// ── Validate /uploads/ path (prevent path traversal) ──
+function isValidUploadPath(value) {
+  if (!value || typeof value !== 'string') return false;
+  // Must start with /uploads/ and contain only safe filename characters (no ../ or special chars)
+  return /^\/uploads\/[\w\-.]+$/.test(value);
+}
+
+// ── Transfer-admin mutex (prevent race condition on async bcrypt) ──
+let transferAdminInProgress = false;
 
 // ── Spotify → YouTube resolution ──────────────────────────
 // Spotify embeds only give 30-second previews to non-premium users
@@ -45,7 +81,11 @@ async function resolveSpotifyToYouTube(spotifyUrl) {
     for (const q of queries) {
       const results = await searchYouTube(q, 1);
       if (results.length > 0) {
-        return `https://www.youtube.com/watch?v=${results[0].videoId}`;
+        return {
+          url: `https://www.youtube.com/watch?v=${results[0].videoId}`,
+          title,
+          duration: results[0].duration || ''
+        };
       }
     }
     return null;
@@ -154,6 +194,159 @@ async function searchYouTube(query, count = 5, offset = 0) {
     return [];
   }
 }
+function getYouTubeClientContext() {
+  return {
+    client: { clientName: 'WEB', clientVersion: '2.20241120.01.00', hl: 'en', gl: 'US' } //Matching client version already present, but this is quite old.
+  };
+}
+
+function parseYouTubePlaylistPage(data) {
+  const listRenderer = data?.contents?.twoColumnBrowseResultsRenderer?.tabs?.[0]
+    ?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]
+    ?.itemSectionRenderer?.contents?.[0]?.playlistVideoListRenderer;
+  const items = Array.isArray(listRenderer?.contents) ? listRenderer.contents : [];
+  const continuation = listRenderer?.continuations?.[0]?.nextContinuationData?.continuation || null;
+  return { items, continuation };
+}
+
+function getContinuationItemsFromAppendAction(data) {
+  const appendAction = data?.onResponseReceivedActions?.find(action => action?.appendContinuationItemsAction)
+    ?.appendContinuationItemsAction;
+  if (Array.isArray(appendAction?.continuationItems)) return appendAction.continuationItems;
+
+  const appendEndpoint = data?.onResponseReceivedEndpoints?.find(endpoint => endpoint?.appendContinuationItemsAction)
+    ?.appendContinuationItemsAction;
+  if (Array.isArray(appendEndpoint?.continuationItems)) return appendEndpoint.continuationItems;
+
+  return [];
+}
+
+function getContinuationTokenFromItems(items) {
+  if (!Array.isArray(items)) return null;
+  const continuationItem = items.find(item => item?.continuationItemRenderer);
+  return continuationItem?.continuationItemRenderer?.continuationEndpoint?.continuationCommand?.token || null;
+}
+
+function getContinuationItemsFromPlaylistContents(data) {
+  return data?.continuationContents?.playlistVideoListContinuation?.contents || [];
+}
+
+function getContinuationTokenFromPlaylistContents(data) {
+  return data?.continuationContents?.playlistVideoListContinuation?.continuations?.[0]
+    ?.nextContinuationData?.continuation || null;
+}
+
+function parseYouTubePlaylistContinuation(data) {
+  // InnerTube playlist continuations are not stable. Depending on client/experiment bucket, YouTube may return appended rows under response "actions", "endpoints",
+  //or direct "continuationContents", so we check for all of them.
+  const appendItems = getContinuationItemsFromAppendAction(data);
+  if (appendItems.length > 0) {
+    return {
+      items: appendItems,
+      continuation: getContinuationTokenFromItems(appendItems)
+    };
+  }
+
+  const playlistItems = getContinuationItemsFromPlaylistContents(data);
+  return {
+    items: playlistItems,
+    continuation: getContinuationTokenFromPlaylistContents(data)
+  };
+}
+
+function appendYouTubePlaylistTracks(tracks, items, maxTracks) {
+  if (!Array.isArray(items)) return;
+  for (const item of items) {
+    const v = item?.playlistVideoRenderer;
+    if (!v?.videoId) continue;
+    tracks.push({ videoId: v.videoId, title: v.title?.runs?.[0]?.text || '' });
+    if (tracks.length >= maxTracks) break;
+  }
+}
+
+// Pull a max of 200 tracks from a playlist provided by a user. Potentially should
+// have maxTracks be a server configurable setting instead of hardcoded.
+async function fetchYouTubePlaylist(playlistId, maxTracks = 200) {
+  try {
+    const resp = await fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': YT_UA },
+      body: JSON.stringify({
+        browseId: 'VL' + playlistId,
+        context: getYouTubeClientContext()
+      })
+    });
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const tracks = [];
+    const firstPage = parseYouTubePlaylistPage(data);
+    appendYouTubePlaylistTracks(tracks, firstPage.items, maxTracks);
+    let continuation = firstPage.continuation;
+
+    while (continuation && tracks.length < maxTracks) {
+      const pageResp = await fetch('https://www.youtube.com/youtubei/v1/browse?prettyPrint=false', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': YT_UA },
+        body: JSON.stringify({
+          continuation,
+          context: getYouTubeClientContext()
+        })
+      });
+      if (!pageResp.ok) break;
+      const pageData = await pageResp.json();
+      const nextPage = parseYouTubePlaylistContinuation(pageData);
+      appendYouTubePlaylistTracks(tracks, nextPage.items, maxTracks);
+      if (!nextPage.continuation || nextPage.continuation === continuation) break;
+      continuation = nextPage.continuation;
+    }
+    return tracks;
+  } catch { return []; }
+}
+
+function extractYouTubeVideoId(url) {
+  if (typeof url !== 'string') return null;
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/);
+  return match ? match[1] : null;
+}
+//Grab metadata for queue and up next system
+async function resolveMusicMetadata(url) {
+  if (!url || typeof url !== 'string') return { title: '', duration: '' };
+  try {
+    const ytId = extractYouTubeVideoId(url);
+    if (ytId) {
+      const res = await fetch(
+        `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${ytId}`)}&format=json`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return { title: data.title || '', duration: '' };
+      }
+    }
+    if (url.includes('soundcloud.com/') || url.includes('spotify.com/')) {
+      const res = await fetch(
+        `https://noembed.com/embed?url=${encodeURIComponent(url)}`,
+        { signal: AbortSignal.timeout(5000) }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        return { title: data.title || '', duration: '' };
+      }
+    }
+  } catch {}
+  return { title: '', duration: '' };
+}
+
+// All recognized role permissions. Any permission sent by a client that is not here is silently rejected.
+const VALID_ROLE_PERMS = [
+  'edit_own_messages', 'delete_own_messages', 'delete_message', 'delete_lower_messages',
+  'pin_message', 'archive_messages', 'kick_user', 'mute_user', 'ban_user',
+  'rename_channel', 'rename_sub_channel', 'set_channel_topic', 'manage_sub_channels',
+  'create_channel', 'create_temp_channel', 'upload_files', 'use_voice', 'use_tts', 'manage_webhooks', 'mention_everyone', 'view_history',
+  'view_all_members', 'view_channel_members', 'manage_emojis', 'manage_soundboard', 'manage_music_queue',
+  'promote_user', 'transfer_admin', 'manage_roles', 'manage_server', 'delete_channel'
+];
+
 function setupSocketHandlers(io, db) {
   const ADMIN_USERNAME = (process.env.ADMIN_USERNAME || 'admin').toLowerCase();
 
@@ -178,9 +371,9 @@ function setupSocketHandlers(io, db) {
     const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
     if (user && user.is_admin) return 100;
 
-    // Check server-scoped roles first (highest level wins)
+    // Check server-scoped roles first (highest level wins, using custom_level if set)
     const serverRole = db.prepare(`
-      SELECT MAX(r.level) as maxLevel FROM roles r
+      SELECT MAX(COALESCE(ur.custom_level, r.level)) as maxLevel FROM roles r
       JOIN user_roles ur ON r.id = ur.role_id
       WHERE ur.user_id = ? AND r.scope = 'server' AND ur.channel_id IS NULL
     `).get(userId);
@@ -192,7 +385,7 @@ function setupSocketHandlers(io, db) {
       if (chain.length > 0) {
         const placeholders = chain.map(() => '?').join(',');
         const channelRole = db.prepare(`
-          SELECT MAX(r.level) as maxLevel FROM roles r
+          SELECT MAX(COALESCE(ur.custom_level, r.level)) as maxLevel FROM roles r
           JOIN user_roles ur ON r.id = ur.role_id
           WHERE ur.user_id = ? AND ur.channel_id IN (${placeholders})
         `).get(userId, ...chain);
@@ -215,6 +408,18 @@ function setupSocketHandlers(io, db) {
     // Admin has all permissions
     const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
     if (user && user.is_admin) return true;
+
+    // Check per-user permission overrides first (explicit deny takes priority)
+    try {
+      const override = db.prepare(`
+        SELECT allowed FROM user_role_perms WHERE user_id = ? AND permission = ?
+        ORDER BY allowed ASC LIMIT 1
+      `).get(userId, permission);
+      if (override) {
+        if (override.allowed === 0) return false;
+        if (override.allowed === 1) return true;
+      }
+    } catch { /* table may not exist yet */ }
 
     // Check level-based permission thresholds
     const thresholds = getPermissionThresholds();
@@ -262,6 +467,21 @@ function setupSocketHandlers(io, db) {
     `).all(userId);
     const perms = rows.map(r => r.permission);
 
+    // Apply per-user permission overrides (from user_role_perms)
+    try {
+      const overrides = db.prepare(`
+        SELECT permission, allowed FROM user_role_perms WHERE user_id = ?
+      `).all(userId);
+      for (const ov of overrides) {
+        if (ov.allowed === 1 && !perms.includes(ov.permission)) {
+          perms.push(ov.permission);
+        } else if (ov.allowed === 0) {
+          const idx = perms.indexOf(ov.permission);
+          if (idx !== -1) perms.splice(idx, 1);
+        }
+      }
+    } catch { /* user_role_perms table may not exist yet */ }
+
     // Add permissions from level thresholds
     const thresholds = getPermissionThresholds();
     const level = getUserEffectiveLevel(userId);
@@ -286,11 +506,12 @@ function setupSocketHandlers(io, db) {
     const user = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(userId);
     if (user && user.is_admin) return { name: 'Admin', level: 100, color: '#e74c3c' };
 
+    // Server-scoped roles (also catches channel-scope roles assigned without a channel_id)
     let role = db.prepare(`
-      SELECT r.name, r.level, r.color FROM roles r
+      SELECT r.name, COALESCE(ur.custom_level, r.level) as level, r.color FROM roles r
       JOIN user_roles ur ON r.id = ur.role_id
-      WHERE ur.user_id = ? AND r.scope = 'server' AND ur.channel_id IS NULL
-      ORDER BY r.level DESC LIMIT 1
+      WHERE ur.user_id = ? AND ur.channel_id IS NULL
+      ORDER BY COALESCE(ur.custom_level, r.level) DESC LIMIT 1
     `).get(userId);
 
     if (channelId) {
@@ -298,10 +519,10 @@ function setupSocketHandlers(io, db) {
       if (chain.length > 0) {
         const placeholders = chain.map(() => '?').join(',');
         const chRole = db.prepare(`
-          SELECT r.name, r.level, r.color FROM roles r
+          SELECT r.name, COALESCE(ur.custom_level, r.level) as level, r.color FROM roles r
           JOIN user_roles ur ON r.id = ur.role_id
           WHERE ur.user_id = ? AND ur.channel_id IN (${placeholders})
-          ORDER BY r.level DESC LIMIT 1
+          ORDER BY COALESCE(ur.custom_level, r.level) DESC LIMIT 1
         `).get(userId, ...chain);
         if (chRole && (!role || chRole.level > role.level)) role = chRole;
       }
@@ -351,7 +572,7 @@ function setupSocketHandlers(io, db) {
 
     // Refresh display_name, avatar AND is_admin from DB (JWT may be stale)
     try {
-      const uRow = db.prepare('SELECT display_name, is_admin, username, avatar, avatar_shape FROM users WHERE id = ?').get(user.id);
+      const uRow = db.prepare('SELECT display_name, is_admin, username, avatar, avatar_shape, password_version FROM users WHERE id = ?').get(user.id);
 
       // Identity cross-check: reject if the DB user_id now belongs to a different account
       // (happens when the database is reset/recreated and IDs get reassigned)
@@ -359,16 +580,25 @@ function setupSocketHandlers(io, db) {
         return next(new Error('Session expired'));
       }
 
+      // Password version check — reject tokens issued before a password change
+      const dbPwv = uRow.password_version || 1;
+      const tokenPwv = user.pwv || 1;
+      if (tokenPwv < dbPwv) {
+        return next(new Error('Session expired'));
+      }
+
       socket.user.displayName = (uRow && uRow.display_name) ? uRow.display_name : user.username;
       socket.user.avatar = (uRow && uRow.avatar) ? uRow.avatar : null;
       socket.user.avatar_shape = (uRow && uRow.avatar_shape) ? uRow.avatar_shape : 'circle';
       if (uRow) {
-        // Sync admin status from .env (handles ADMIN_USERNAME changes)
-        const shouldBeAdmin = uRow.username.toLowerCase() === ADMIN_USERNAME ? 1 : 0;
-        if (uRow.is_admin !== shouldBeAdmin) {
-          db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(shouldBeAdmin, user.id);
+        // Bootstrap admin from ADMIN_USERNAME env only when NO admin exists
+        // (first run or recovery). Prevents overriding explicit admin transfers.
+        const anyAdmin = db.prepare('SELECT id FROM users WHERE is_admin = 1 LIMIT 1').get();
+        if (!anyAdmin && uRow.username.toLowerCase() === ADMIN_USERNAME && !uRow.is_admin) {
+          db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(user.id);
+          uRow.is_admin = 1;
         }
-        socket.user.isAdmin = !!shouldBeAdmin;
+        socket.user.isAdmin = !!uRow.is_admin;
       }
     } catch {
       socket.user.displayName = user.displayName || user.username;
@@ -412,10 +642,16 @@ function setupSocketHandlers(io, db) {
   // Online tracking:  code → Map<userId, { id, username, socketId }>
   const channelUsers = new Map();
   const voiceUsers = new Map();
-  // Active music per voice room:  code → { url, userId, username } | null
+  // AFK voice tracking: userId → timestamp of last activity while in voice
+  const voiceLastActivity = new Map();
+  // Active music per voice room:  code → { url, userId, username, playbackState } | null
   const activeMusic = new Map();
+  // Playback queue per voice room: code → [{ id, url, title, userId, username, resolvedFrom }]
+  const musicQueues = new Map();
   // Active screen sharers per voice room:  code → Set<userId>
   const activeScreenSharers = new Map();
+  // Active webcam users per voice room:  code → Set<userId>
+  const activeWebcamUsers = new Map();
   // Stream viewers:  "code:sharerId" → Set<viewerUserId>
   const streamViewers = new Map();
   // Slow mode tracker:  "slow:{userId}:{channelId}" → timestamp of last message
@@ -425,6 +661,242 @@ function setupSocketHandlers(io, db) {
     const cutoff = Date.now() - 3600000; // 1 hour
     for (const [k, v] of slowModeTracker) { if (v < cutoff) slowModeTracker.delete(k); }
   }, 5 * 60 * 1000);
+
+  // ── AFK voice channel auto-move (per-channel) ──────────────
+  // Every 30 seconds, check if any voice users have been idle longer than
+  // their channel's AFK timeout and move them to the designated AFK sub-channel.
+  setInterval(() => {
+    try {
+      // Build a lookup: channelCode → { afk_sub_code, afk_timeout_minutes }
+      // Parent channels define AFK settings; sub-channels inherit from parent.
+      const afkChannels = db.prepare(
+        "SELECT code, afk_sub_code, afk_timeout_minutes FROM channels WHERE afk_sub_code IS NOT NULL AND afk_sub_code != '' AND afk_timeout_minutes > 0"
+      ).all();
+      if (!afkChannels.length) return;
+
+      // Map parent code → settings, and also map each sub-channel code → parent's settings
+      const afkMap = new Map(); // voiceRoomCode → { afkSubCode, timeout }
+      for (const ch of afkChannels) {
+        afkMap.set(ch.code, { afkSubCode: ch.afk_sub_code, timeout: ch.afk_timeout_minutes });
+        // Also map all sub-channels of this parent to the same AFK target
+        const subs = db.prepare("SELECT code FROM channels WHERE parent_channel_id = (SELECT id FROM channels WHERE code = ?)").all(ch.code);
+        for (const sub of subs) {
+          if (sub.code !== ch.afk_sub_code) { // Don't map the AFK sub itself
+            afkMap.set(sub.code, { afkSubCode: ch.afk_sub_code, timeout: ch.afk_timeout_minutes });
+          }
+        }
+      }
+
+      for (const [code, room] of voiceUsers) {
+        const afkConfig = afkMap.get(code);
+        if (!afkConfig) continue; // No AFK settings for this voice room
+
+        const cutoff = Date.now() - (afkConfig.timeout * 60 * 1000);
+
+        for (const [userId, user] of room) {
+          const lastActive = voiceLastActivity.get(userId);
+          if (lastActive && lastActive < cutoff) {
+            const userSocket = io.sockets.sockets.get(user.socketId);
+            if (!userSocket) continue;
+            userSocket.emit('voice-afk-move', { channelCode: afkConfig.afkSubCode });
+            handleVoiceLeave(userSocket, code);
+            voiceLastActivity.set(userId, Date.now());
+          }
+        }
+      }
+    } catch { /* columns may not exist yet */ }
+  }, 30 * 1000);
+
+  // Helper: update voice activity timestamp for a user
+  function touchVoiceActivity(userId) {
+    if (voiceLastActivity.has(userId)) {
+      voiceLastActivity.set(userId, Date.now());
+    }
+  }
+
+  function clampMusicPosition(positionSeconds, durationSeconds = null) {
+    const pos = Number(positionSeconds);
+    if (!Number.isFinite(pos)) return 0;
+    if (Number.isFinite(durationSeconds) && durationSeconds >= 0) {
+      return Math.max(0, Math.min(pos, durationSeconds));
+    }
+    return Math.max(0, pos);
+  }
+
+  function getActiveMusicSyncState(music) {
+    if (!music) return null;
+    const playback = music.playbackState || {};
+    const baseUpdatedAt = Number(playback.updatedAt) || Date.now();
+    const durationSeconds = Number.isFinite(playback.durationSeconds) ? playback.durationSeconds : null;
+    let positionSeconds = clampMusicPosition(playback.positionSeconds || 0, durationSeconds);
+    if (playback.isPlaying) {
+      positionSeconds = clampMusicPosition(
+        positionSeconds + Math.max(0, Date.now() - baseUpdatedAt) / 1000,
+        durationSeconds
+      );
+    }
+    return {
+      isPlaying: !!playback.isPlaying,
+      positionSeconds,
+      durationSeconds,
+      updatedAt: Date.now()
+    };
+  }
+
+  function updateActiveMusicPlaybackState(code, next = {}) {
+    const music = activeMusic.get(code);
+    if (!music) return null;
+    const current = getActiveMusicSyncState(music) || {
+      isPlaying: false,
+      positionSeconds: 0,
+      durationSeconds: null
+    };
+    const durationSeconds = Number.isFinite(next.durationSeconds)
+      ? Math.max(0, Number(next.durationSeconds))
+      : current.durationSeconds;
+    const positionSeconds = Number.isFinite(next.positionSeconds)
+      ? clampMusicPosition(next.positionSeconds, durationSeconds)
+      : current.positionSeconds;
+    music.playbackState = {
+      isPlaying: typeof next.isPlaying === 'boolean' ? next.isPlaying : current.isPlaying,
+      positionSeconds,
+      durationSeconds,
+      updatedAt: Date.now()
+    };
+    return getActiveMusicSyncState(music);
+  }
+
+  function trimMusicText(value, max = 200) {
+    return typeof value === 'string' ? value.trim().slice(0, max) : '';
+  }
+
+  function stripYouTubePlaylistParam(url) {
+    if (typeof url !== 'string' || !url) return '';
+    if (!/(youtube\.com|youtu\.be)/i.test(url)) return url;
+    try {
+      const parsed = new URL(url);
+      parsed.searchParams.delete('list');
+      return parsed.toString();
+    } catch {
+      return url.replace(/([?&])list=[^&]+&?/i, '$1').replace(/[?&]$/g, '');
+    }
+  }
+
+  function sanitizeQueueEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    return {
+      id: trimMusicText(entry.id, 64),
+      url: trimMusicText(entry.url, 500),
+      title: trimMusicText(entry.title, 200) || 'Untitled track',
+      userId: Number(entry.userId) || 0,
+      username: trimMusicText(entry.username, 80) || 'Unknown',
+      resolvedFrom: trimMusicText(entry.resolvedFrom, 32) || null
+    };
+  }
+
+  function getMusicQueuePayload(code) {
+    const queue = (musicQueues.get(code) || []).map(sanitizeQueueEntry).filter(Boolean);
+    return {
+      channelCode: code,
+      queue,
+      upNext: queue[0] || null
+    };
+  }
+
+  function broadcastMusicQueue(code) {
+    io.to(`voice:${code}`).emit('music-queue-update', getMusicQueuePayload(code));
+  }
+
+  function setActiveMusic(code, entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const playbackState = entry.playbackState && typeof entry.playbackState === 'object'
+      ? {
+          isPlaying: !!entry.playbackState.isPlaying,
+          positionSeconds: clampMusicPosition(entry.playbackState.positionSeconds || 0, Number(entry.playbackState.durationSeconds) || null),
+          durationSeconds: Number.isFinite(entry.playbackState.durationSeconds) ? Math.max(0, Number(entry.playbackState.durationSeconds)) : null,
+          updatedAt: Number(entry.playbackState.updatedAt) || Date.now()
+        }
+      : {
+          isPlaying: true,
+          positionSeconds: 0,
+          durationSeconds: null,
+          updatedAt: Date.now()
+        };
+    const music = { ...entry, playbackState };
+    activeMusic.set(code, music);
+    return music;
+  }
+
+  function emitMusicSharedToRoom(code, music) {
+    const voiceRoom = voiceUsers.get(code);
+    if (!voiceRoom || !music) return;
+    for (const [, user] of voiceRoom) {
+      io.to(user.socketId).emit('music-shared', {
+        userId: music.userId,
+        username: music.username,
+        url: music.url,
+        title: music.title,
+        trackId: music.id,
+        channelCode: code,
+        resolvedFrom: music.resolvedFrom,
+        syncState: getActiveMusicSyncState(music)
+      });
+    }
+  }
+
+  function startQueuedMusic(code, entry) {
+    const music = setActiveMusic(code, entry);
+    if (!music) return;
+    emitMusicSharedToRoom(code, music);
+    broadcastMusicQueue(code);
+  }
+
+  function popNextQueuedMusic(code) {
+    const queue = musicQueues.get(code) || [];
+    const next = queue.shift() || null;
+    if (queue.length > 0) musicQueues.set(code, queue);
+    else musicQueues.delete(code);
+    return next;
+  }
+//Check if music finished gracefully or ended prematurely
+  function isNaturalMusicFinish(current, reportedPositionSeconds, reportedDurationSeconds) {
+    const syncState = getActiveMusicSyncState(current);
+    if (!syncState) return false;
+    const durationSeconds = Number.isFinite(reportedDurationSeconds) && reportedDurationSeconds > 0
+      ? Number(reportedDurationSeconds)
+      : (Number.isFinite(syncState.durationSeconds) ? syncState.durationSeconds : null);
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return false;
+    const positionSeconds = Number.isFinite(reportedPositionSeconds)
+      ? clampMusicPosition(reportedPositionSeconds, durationSeconds)
+      : clampMusicPosition(syncState.positionSeconds, durationSeconds);
+    const remainingSeconds = Math.max(0, durationSeconds - positionSeconds);
+    return remainingSeconds <= Math.min(2, durationSeconds * 0.02);
+  }
+
+  // ── Temporary channel cleanup (check every 60s) ──────────
+  setInterval(() => {
+    try {
+      const expired = db.prepare(
+        "SELECT id, code FROM channels WHERE expires_at IS NOT NULL AND expires_at <= datetime('now')"
+      ).all();
+      for (const ch of expired) {
+        // Delete child records then the channel itself (same as delete-channel)
+        db.prepare('DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = ?)').run(ch.id);
+        db.prepare('DELETE FROM pinned_messages WHERE channel_id = ?').run(ch.id);
+        db.prepare('DELETE FROM messages WHERE channel_id = ?').run(ch.id);
+        db.prepare('DELETE FROM channel_members WHERE channel_id = ?').run(ch.id);
+        db.prepare('DELETE FROM channels WHERE id = ?').run(ch.id);
+        io.to(`channel:${ch.code}`).to(`voice:${ch.code}`).emit('channel-deleted', { code: ch.code, reason: 'expired' });
+        channelUsers.delete(ch.code);
+        voiceUsers.delete(ch.code);
+        activeMusic.delete(ch.code);
+        musicQueues.delete(ch.code);
+        console.log(`[Temporary] Channel "${ch.code}" expired and was deleted`);
+      }
+    } catch (err) {
+      console.error('Temporary channel cleanup error:', err);
+    }
+  }, 60 * 1000);
 
   // ── Push notification helper ──────────────────────────────
   // Sends push notifications for a new message to channel members
@@ -446,23 +918,21 @@ function setupSocketHandlers(io, db) {
           AND ps.user_id != ?
       `).all(channelId, senderUserId);
 
-      if (!subs.length) return;
-
       // Truncate message for notification body
       const body = messageContent.length > 120
         ? messageContent.slice(0, 117) + '...'
         : messageContent;
 
+      const title = `${senderUsername} in #${channelName}`;
+
       const payload = JSON.stringify({
-        title: `${senderUsername} in #${channelName}`,
-        body,
-        channelCode,
+        title, body, channelCode,
         tag: `haven-${channelCode}`,
         url: '/app'
       });
 
+      // Web-push (VAPID) to browser subscribers
       for (const sub of subs) {
-        // Skip users whose tab is in focus (they see real-time events)
         if (activeUserIds.has(sub.user_id)) continue;
 
         const pushSub = {
@@ -472,15 +942,95 @@ function setupSocketHandlers(io, db) {
 
         webpush.sendNotification(pushSub, payload).catch((err) => {
           if (err.statusCode === 410 || err.statusCode === 404) {
-            // Subscription expired or invalid — remove it
             try {
               db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(sub.endpoint);
             } catch { /* non-critical */ }
           }
         });
       }
+
+      // FCM push to mobile app users (via relay or direct)
+      if (isFcmEnabled()) {
+        const inactiveMembers = db.prepare(`
+          SELECT DISTINCT cm.user_id FROM channel_members cm
+          WHERE cm.channel_id = ? AND cm.user_id != ?
+        `).all(channelId, senderUserId)
+          .filter(m => !activeUserIds.has(m.user_id))
+          .map(m => m.user_id);
+
+        if (inactiveMembers.length) {
+          const placeholders = inactiveMembers.map(() => '?').join(',');
+          const fcmRows = db.prepare(
+            `SELECT token FROM fcm_tokens WHERE user_id IN (${placeholders})`
+          ).all(...inactiveMembers);
+          const tokens = fcmRows.map(r => r.token);
+
+          if (tokens.length) {
+            sendFcm(tokens, title, body, { channelCode, tag: `haven-${channelCode}` })
+              .then(res => {
+                if (res.failedTokens && res.failedTokens.length) {
+                  const ph = res.failedTokens.map(() => '?').join(',');
+                  try { db.prepare(`DELETE FROM fcm_tokens WHERE token IN (${ph})`).run(...res.failedTokens); } catch {}
+                }
+              })
+              .catch(err => console.error('FCM push error:', err.message));
+          }
+        }
+      }
     } catch (err) {
       console.error('Push notification error:', err.message);
+    }
+  }
+
+  // ── Fire webhook callbacks for bots in a channel ──────
+  function fireWebhookCallbacks(channelId, channelCode, message) {
+    try {
+      const bots = db.prepare(
+        'SELECT id, callback_url, callback_secret FROM webhooks WHERE channel_id = ? AND is_active = 1 AND callback_url IS NOT NULL'
+      ).all(channelId);
+      if (!bots.length) return;
+
+      const payload = JSON.stringify({
+        event: 'message',
+        channelId: channelCode,
+        message: {
+          id: message.id,
+          content: message.content,
+          author: {
+            id: message.user_id,
+            username: message.username
+          },
+          reply_to: message.reply_to || null,
+          is_webhook: message.is_webhook || false,
+          timestamp: message.created_at
+        }
+      });
+
+      for (const bot of bots) {
+        // Skip if the message was sent BY this bot's own webhook (prevent loops)
+        if (message.is_webhook) continue;
+
+        const url = bot.callback_url;
+        // Basic URL validation — must be http(s)
+        if (!/^https?:\/\//i.test(url)) continue;
+
+        const headers = { 'Content-Type': 'application/json', 'User-Agent': 'Haven-Webhook/1.0' };
+        if (bot.callback_secret) {
+          const signature = crypto.createHmac('sha256', bot.callback_secret).update(payload).digest('hex');
+          headers['X-Haven-Signature'] = signature;
+        }
+
+        fetch(url, {
+          method: 'POST',
+          headers,
+          body: payload,
+          signal: AbortSignal.timeout(10000)
+        }).catch(err => {
+          console.error(`Webhook callback failed for bot ${bot.id} → ${url}: ${err.message}`);
+        });
+      }
+    } catch (err) {
+      console.error('Webhook callback error:', err.message);
     }
   }
 
@@ -560,6 +1110,7 @@ function setupSocketHandlers(io, db) {
 
     // Push authoritative user info to the client on every connect/reconnect
     // so stale localStorage is always corrected
+    // Note: stale 'away' status is already reset to 'online' in the auth middleware
     socket.emit('session-info', {
       id: socket.user.id,
       username: socket.user.username,
@@ -578,7 +1129,8 @@ function setupSocketHandlers(io, db) {
     // Send current voice counts so sidebar indicators are correct on connect
     for (const [code, room] of voiceUsers) {
       if (room.size > 0) {
-        socket.emit('voice-count-update', { code, count: room.size });
+        const users = Array.from(room.values()).map(u => ({ id: u.id, username: u.username, isMuted: u.isMuted || false, isDeafened: u.isDeafened || false }));
+        socket.emit('voice-count-update', { code, count: room.size, users });
       }
     }
 
@@ -602,8 +1154,20 @@ function setupSocketHandlers(io, db) {
       return false;
     }
 
+    // Events exempt from flood counting (WebRTC signaling generates
+    // high-frequency traffic that is not user-initiated spam)
+    const FLOOD_EXEMPT = new Set([
+      'voice-offer', 'voice-answer', 'voice-ice-candidate',
+      'screen-share-started', 'screen-share-stopped',
+      'voice-speaking', 'webcam-started', 'webcam-stopped',
+      'stream-viewer-joined', 'stream-viewer-left',
+      'visibility-change'
+    ]);
+
     // Global event counter — disconnect if spamming
     socket.use((packet, next) => {
+      const eventName = packet[0];
+      if (FLOOD_EXEMPT.has(eventName)) return next();
       if (floodCheck('event')) {
         socket.emit('error-msg', 'Slow down — too many requests');
         return; // drop the event silently
@@ -613,16 +1177,49 @@ function setupSocketHandlers(io, db) {
 
     // ── Helper: get enriched channel list for a user ───────
     function getEnrichedChannels(userId, isAdmin, joinRooms) {
-      const channels = db.prepare(`
-        SELECT c.id, c.name, c.code, c.created_by, c.topic, c.is_dm,
-               c.code_visibility, c.code_mode, c.code_rotation_type, c.code_rotation_interval,
-               c.parent_channel_id, c.position, c.is_private,
-               c.streams_enabled, c.music_enabled, c.slow_mode_interval, c.category, c.sort_alphabetical
-        FROM channels c
-        JOIN channel_members cm ON c.id = cm.channel_id
-        WHERE cm.user_id = ?
-        ORDER BY c.is_dm, c.position, c.name
-      `).all(userId);
+      let channels;
+      if (isAdmin) {
+        // Admins see ALL non-DM channels plus their own DMs
+        channels = db.prepare(`
+          SELECT c.id, c.name, c.code, c.created_by, c.topic, c.is_dm,
+                 c.code_visibility, c.code_mode, c.code_rotation_type, c.code_rotation_interval,
+                 c.parent_channel_id, c.position, c.is_private, c.expires_at, c.is_temp_voice,
+                 c.streams_enabled, c.music_enabled, c.media_enabled, c.slow_mode_interval, c.category, c.sort_alphabetical,
+                 c.cleanup_exempt, c.channel_type, c.voice_user_limit, c.notification_type, c.voice_enabled, c.text_enabled, c.voice_bitrate,
+                 c.afk_sub_code, c.afk_timeout_minutes
+          FROM channels c
+          WHERE c.is_dm = 0
+          UNION
+          SELECT c.id, c.name, c.code, c.created_by, c.topic, c.is_dm,
+                 c.code_visibility, c.code_mode, c.code_rotation_type, c.code_rotation_interval,
+                 c.parent_channel_id, c.position, c.is_private, c.expires_at, c.is_temp_voice,
+                 c.streams_enabled, c.music_enabled, c.media_enabled, c.slow_mode_interval, c.category, c.sort_alphabetical,
+                 c.cleanup_exempt, c.channel_type, c.voice_user_limit, c.notification_type, c.voice_enabled, c.text_enabled, c.voice_bitrate,
+                 c.afk_sub_code, c.afk_timeout_minutes
+          FROM channels c
+          JOIN channel_members cm ON c.id = cm.channel_id
+          WHERE cm.user_id = ? AND c.is_dm = 1
+          ORDER BY is_dm, position, name
+        `).all(userId);
+        // Auto-add admin to channel_members for any channels they aren't a member of
+        const insertMember = db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)');
+        channels.forEach(ch => {
+          if (!ch.is_dm) insertMember.run(ch.id, userId);
+        });
+      } else {
+        channels = db.prepare(`
+          SELECT c.id, c.name, c.code, c.created_by, c.topic, c.is_dm,
+                 c.code_visibility, c.code_mode, c.code_rotation_type, c.code_rotation_interval,
+                 c.parent_channel_id, c.position, c.is_private, c.expires_at, c.is_temp_voice,
+                 c.streams_enabled, c.music_enabled, c.media_enabled, c.slow_mode_interval, c.category, c.sort_alphabetical,
+                 c.cleanup_exempt, c.channel_type, c.voice_user_limit, c.notification_type, c.voice_enabled, c.text_enabled, c.voice_bitrate,
+                 c.afk_sub_code, c.afk_timeout_minutes
+          FROM channels c
+          JOIN channel_members cm ON c.id = cm.channel_id
+          WHERE cm.user_id = ?
+          ORDER BY c.is_dm, c.position, c.name
+        `).all(userId);
+      }
 
       if (channels.length > 0) {
         const channelIds = channels.map(c => c.id);
@@ -643,6 +1240,7 @@ function setupSocketHandlers(io, db) {
         channels.forEach(ch => {
           const lastRead = readMap[ch.id] || 0;
           const latestId = latestMap[ch.id] || 0;
+          ch.latestMessageId = latestId;
           if (latestId > lastRead) {
             const countRow = db.prepare(
               'SELECT COUNT(*) as cnt FROM messages WHERE channel_id = ? AND id > ? AND user_id != ?'
@@ -667,21 +1265,72 @@ function setupSocketHandlers(io, db) {
         channels.forEach(ch => joinRooms(`channel:${ch.code}`));
       }
 
-      if (!isAdmin) {
-        channels.forEach(ch => {
-          if (ch.code_visibility === 'private') ch.code = '••••••••';
-        });
-      }
+      // For non-admins, mask the display code but keep the real code for navigation.
+      // Private channels (is_private=1 OR code_visibility='private') hide the real code
+      // from regular members — only the creator, admins, and channel mods can see it.
+      // This prevents members from leaking the join code to uninvited people.
+      channels.forEach(ch => {
+        if (isAdmin) {
+          ch.display_code = ch.code;
+        } else if (ch.code_visibility === 'private' || ch.is_private) {
+          // Creators and mods can see the code so they can share it intentionally
+          const isMod = ch.created_by === userId || userHasPermission(userId, 'kick_user', ch.id);
+          ch.display_code = isMod ? ch.code : '••••••••';
+        } else {
+          ch.display_code = ch.code;
+        }
+      });
 
       return channels;
     }
 
     // Helper: broadcast enriched channel list to all connected clients
+    // ── Debounced broadcastChannelLists to avoid O(N × queries) DoS ──
+    let _broadcastPending = null;
     function broadcastChannelLists() {
-      for (const [, s] of io.sockets.sockets) {
-        if (s.user) {
-          s.emit('channels-list', getEnrichedChannels(s.user.id, s.user.isAdmin, null));
+      if (_broadcastPending) return; // already queued
+      _broadcastPending = setTimeout(() => {
+        _broadcastPending = null;
+        for (const [, s] of io.sockets.sockets) {
+          if (s.user) {
+            s.emit('channels-list', getEnrichedChannels(s.user.id, s.user.isAdmin, null));
+          }
         }
+      }, 150); // 150ms debounce — batches rapid channel mutations
+    }
+
+    // ── Stale voice user cleanup helper ──
+    // Removes voice entries whose sockets are no longer connected.
+    // Called before every broadcastVoiceUsers to prevent ghost users.
+    function pruneStaleVoiceUsers(code) {
+      const room = voiceUsers.get(code);
+      if (!room) return;
+      for (const [userId, entry] of room) {
+        const sock = io.sockets.sockets.get(entry.socketId);
+        if (!sock || !sock.connected) {
+          room.delete(userId);
+          console.log(`[Voice] Pruned stale voice entry for user ${userId} (socket ${entry.socketId} gone)`);
+        }
+      }
+      //Clear the queue if everyone leaves
+      if (room.size === 0) {
+        voiceUsers.delete(code);
+        activeMusic.delete(code);
+        musicQueues.delete(code);
+        // Auto-delete temporary voice channels when pruning empties the room
+        try {
+          const ch = db.prepare('SELECT id, is_temp_voice FROM channels WHERE code = ?').get(code);
+          if (ch && ch.is_temp_voice) {
+            db.prepare('DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = ?)').run(ch.id);
+            db.prepare('DELETE FROM pinned_messages WHERE channel_id = ?').run(ch.id);
+            db.prepare('DELETE FROM messages WHERE channel_id = ?').run(ch.id);
+            db.prepare('DELETE FROM channel_members WHERE channel_id = ?').run(ch.id);
+            db.prepare('DELETE FROM channels WHERE id = ?').run(ch.id);
+            io.emit('channel-deleted', { code, reason: 'temp-empty' });
+            channelUsers.delete(code);
+            console.log(`[Temporary] Temp voice channel "${code}" deleted (pruned empty)`);
+          }
+        } catch { /* column may not exist yet */ }
       }
     }
 
@@ -710,29 +1359,56 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Channel name too long (max 50)');
       }
       // Only allow safe characters in channel names
-      if (!/^[\w\s\-!?.,']+$/i.test(name)) {
+      if (!/^[\w\s\-!?.,'\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Emoji}\uFE0F\u200D]+$/iu.test(name)) {
         return socket.emit('error-msg', 'Channel name contains invalid characters');
       }
 
       const code = generateChannelCode();
+      const isPrivate = data.isPrivate ? 1 : 0;
+
+      // Optional temporary channel: duration in hours (1–720 = 30 days max)
+      let expiresAt = null;
+      if (data.temporary && data.duration) {
+        const hours = Math.max(1, Math.min(720, parseInt(data.duration, 10)));
+        if (!isNaN(hours)) {
+          expiresAt = new Date(Date.now() + hours * 3600000).toISOString();
+        }
+      }
 
       try {
         const result = db.prepare(
-          'INSERT INTO channels (name, code, created_by) VALUES (?, ?, ?)'
-        ).run(name.trim(), code, socket.user.id);
+          'INSERT INTO channels (name, code, created_by, is_private, expires_at) VALUES (?, ?, ?, ?, ?)'
+        ).run(name.trim(), code, socket.user.id, isPrivate, expiresAt);
 
         // Auto-join creator
         db.prepare(
           'INSERT INTO channel_members (channel_id, user_id) VALUES (?, ?)'
         ).run(result.lastInsertRowid, socket.user.id);
 
+        // Auto-assign creator a channel-scoped mod role in their new channel so they
+        // have elevated permissions in it (unless they're the original server admin).
+        if (!socket.user.isAdmin) {
+          // Find the highest-level channel-scoped role (e.g. Channel Mod)
+          const channelModRole = db.prepare(
+            "SELECT id FROM roles WHERE scope = 'channel' ORDER BY level DESC LIMIT 1"
+          ).get();
+          if (channelModRole) {
+            db.prepare(
+              'INSERT OR IGNORE INTO user_roles (user_id, role_id, channel_id, granted_by) VALUES (?, ?, ?, NULL)'
+            ).run(socket.user.id, channelModRole.id, result.lastInsertRowid);
+          }
+        }
+
         const channel = {
           id: result.lastInsertRowid,
           name: name.trim(),
           code,
+          display_code: code, // Creator always sees the real code
           created_by: socket.user.id,
           topic: '',
-          is_dm: 0
+          is_dm: 0,
+          is_private: isPrivate,
+          expires_at: expiresAt
         };
 
         socket.join(`channel:${code}`);
@@ -740,6 +1416,82 @@ function setupSocketHandlers(io, db) {
       } catch (err) {
         console.error('Create channel error:', err);
         socket.emit('error-msg', 'Failed to create channel');
+      }
+    });
+
+    // ── Create temporary voice channel (#163) ───────────────
+    // Users with `create_temp_channel` permission can create a temporary voice
+    // channel that auto-deletes when everyone leaves voice in it.
+    socket.on('create-temp-channel', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_temp_channel')) {
+        return socket.emit('error-msg', 'You don\'t have permission to create temporary channels');
+      }
+
+      const name = typeof data.name === 'string' ? data.name.trim() : '';
+      if (!name || name.length === 0) {
+        return socket.emit('error-msg', 'Channel name required');
+      }
+      if (name.length > 50) {
+        return socket.emit('error-msg', 'Channel name too long (max 50)');
+      }
+      if (!/^[\w\s\-!?.,'\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Emoji}\uFE0F\u200D]+$/iu.test(name)) {
+        return socket.emit('error-msg', 'Channel name contains invalid characters');
+      }
+
+      // Rate-limit: max 3 temp channels per user at a time
+      try {
+        const existing = db.prepare(
+          "SELECT COUNT(*) as cnt FROM channels WHERE created_by = ? AND expires_at IS NOT NULL"
+        ).get(socket.user.id);
+        if (existing && existing.cnt >= 3) {
+          return socket.emit('error-msg', 'You already have the maximum number of temporary channels (3)');
+        }
+      } catch { /* ignore */ }
+
+      const code = generateChannelCode();
+      // Temporary channels expire after 24h as a safety net (auto-delete-on-empty is the primary cleanup)
+      const expiresAt = new Date(Date.now() + 24 * 3600000).toISOString();
+
+      try {
+        const result = db.prepare(
+          'INSERT INTO channels (name, code, created_by, is_private, expires_at, voice_enabled, is_temp_voice) VALUES (?, ?, ?, 0, ?, 1, 1)'
+        ).run(name.trim(), code, socket.user.id, expiresAt);
+
+        const channelId = result.lastInsertRowid;
+
+        // Add all server users as members so the channel is visible to everyone
+        const allUsers = db.prepare('SELECT id FROM users').all();
+        const insertMember = db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)');
+        for (const u of allUsers) {
+          insertMember.run(channelId, u.id);
+        }
+
+        const channel = {
+          id: channelId,
+          name: name.trim(),
+          code,
+          display_code: code,
+          created_by: socket.user.id,
+          topic: '',
+          is_dm: 0,
+          is_private: 0,
+          expires_at: expiresAt,
+          voice_enabled: 1,
+          is_temp_voice: 1
+        };
+
+        // Join all connected sockets to the channel room so they receive events
+        for (const [, s] of io.sockets.sockets) {
+          if (s.user) s.join(`channel:${code}`);
+        }
+        // Notify all connected users so the channel appears in their sidebar
+        io.emit('temp-channel-created', channel);
+        // Tell the creator to auto-join voice in this channel
+        socket.emit('temp-channel-join-voice', { code });
+      } catch (err) {
+        console.error('Create temp channel error:', err);
+        socket.emit('error-msg', 'Failed to create temporary channel');
       }
     });
 
@@ -795,6 +1547,16 @@ function setupSocketHandlers(io, db) {
         db.prepare(
           'INSERT INTO channel_members (channel_id, user_id) VALUES (?, ?)'
         ).run(channel.id, socket.user.id);
+
+        // Auto-assign roles flagged as auto_assign to this user (if they don't already have them)
+        try {
+          const autoRoles = db.prepare('SELECT id FROM roles WHERE auto_assign = 1').all();
+          const insertAutoRole = db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id, channel_id, granted_by) VALUES (?, ?, NULL, NULL)');
+          for (const ar of autoRoles) {
+            insertAutoRole.run(socket.user.id, ar.id);
+            applyRoleChannelAccess(ar.id, socket.user.id, 'grant');
+          }
+        } catch { /* non-critical */ }
       }
 
       // Auto-add to all non-private sub-channels of this channel (both new & existing members)
@@ -855,11 +1617,18 @@ function setupSocketHandlers(io, db) {
         user: { id: socket.user.id, username: socket.user.displayName }
       });
 
-      // Send channel info to joiner
+      // Send channel info to joiner.
+      // Even though they used the code to join, mask it in the UI afterward for
+      // private channels so they can't trivially copy it to re-share with others.
+      const isPrivateCode = channel.code_visibility === 'private' || channel.is_private;
+      const joinerCanSeeCode = socket.user.isAdmin
+        || channel.created_by === socket.user.id
+        || userHasPermission(socket.user.id, 'kick_user', channel.id);
       socket.emit('channel-joined', {
         id: channel.id,
         name: channel.name,
         code: activeCode,
+        display_code: (isPrivateCode && !joinerCanSeeCode) ? '••••••••' : activeCode,
         created_by: channel.created_by,
         topic: channel.topic || '',
         is_dm: channel.is_dm || 0
@@ -869,19 +1638,70 @@ function setupSocketHandlers(io, db) {
       socket.emit('channels-list', getEnrichedChannels(socket.user.id, socket.user.isAdmin, (room) => socket.join(room)));
     });
 
+    // ── Leave channel ───────────────────────────────────────
+    socket.on('leave-channel', (data, callback) => {
+      if (!data || typeof data !== 'object') return;
+      const cb = typeof callback === 'function' ? callback : () => {};
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return cb({ error: 'Invalid code' });
+
+      const channel = db.prepare('SELECT * FROM channels WHERE code = ?').get(code);
+      if (!channel) return cb({ error: 'Channel not found' });
+
+      // Admins can't leave (they always have access to all channels)
+      if (socket.user.isAdmin) return cb({ error: 'Admins cannot leave channels' });
+
+      // Can't leave DMs via this mechanism
+      if (channel.is_dm) return cb({ error: 'Use Delete DM instead' });
+
+      // Remove membership
+      db.prepare('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?').run(channel.id, socket.user.id);
+
+      // Also remove from all sub-channels of this channel
+      if (!channel.parent_channel_id) {
+        const subs = db.prepare('SELECT id FROM channels WHERE parent_channel_id = ?').all(channel.id);
+        const delSub = db.prepare('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?');
+        subs.forEach(s => delSub.run(s.id, socket.user.id));
+      }
+
+      // Leave socket rooms
+      socket.leave(`channel:${code}`);
+
+      // Remove from online tracking
+      if (socket.currentChannel === code) {
+        const prevUsers = channelUsers.get(code);
+        if (prevUsers) {
+          prevUsers.delete(socket.user.id);
+          emitOnlineUsers(code);
+        }
+        socket.currentChannel = null;
+      }
+
+      // Refresh channel list for this user
+      socket.emit('channels-list', getEnrichedChannels(socket.user.id, socket.user.isAdmin, (room) => socket.join(room)));
+      cb({ success: true });
+    });
+
     // ── Switch active channel ───────────────────────────────
     socket.on('enter-channel', (data) => {
       if (!data || typeof data !== 'object') return;
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
 
-      // Verify membership before allowing channel access
-      const ch = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
+      // Verify membership before allowing channel access (admins bypass)
+      const ch = db.prepare('SELECT id, is_dm FROM channels WHERE code = ?').get(code);
       if (!ch) return;
       const isMember = db.prepare(
         'SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?'
       ).get(ch.id, socket.user.id);
-      if (!isMember) return socket.emit('error-msg', 'Not a member of this channel');
+      if (!isMember) {
+        if (socket.user.isAdmin && !ch.is_dm) {
+          // Auto-add admin to channel
+          db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)').run(ch.id, socket.user.id);
+        } else {
+          return socket.emit('error-msg', 'Not a member of this channel');
+        }
+      }
 
       // Remove from previous channel's online tracking
       if (socket.currentChannel && socket.currentChannel !== code) {
@@ -917,6 +1737,7 @@ function setupSocketHandlers(io, db) {
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
       const before = isInt(data.before) ? data.before : null;
+      const after  = isInt(data.after)  ? data.after  : null;
       const limit = isInt(data.limit) && data.limit > 0 && data.limit <= 100 ? data.limit : 80;
 
       const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
@@ -925,20 +1746,28 @@ function setupSocketHandlers(io, db) {
       const member = db.prepare(
         'SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?'
       ).get(channel.id, socket.user.id);
-      if (!member) return socket.emit('error-msg', 'Not a member of this channel');
+      if (!member && !socket.user.isAdmin) return socket.emit('error-msg', 'Not a member of this channel');
 
       let messages;
       if (before) {
         messages = db.prepare(`
-          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar, m.imported_from,
+          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar, m.imported_from, m.is_archived, m.poll_data,
                  COALESCE(m.webhook_username, u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar, COALESCE(u.avatar_shape, 'circle') as avatar_shape
           FROM messages m LEFT JOIN users u ON m.user_id = u.id
           WHERE m.channel_id = ? AND m.id < ?
           ORDER BY m.created_at DESC LIMIT ?
         `).all(channel.id, before, limit);
+      } else if (after) {
+        messages = db.prepare(`
+          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar, m.imported_from, m.is_archived, m.poll_data,
+                 COALESCE(m.webhook_username, u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar, COALESCE(u.avatar_shape, 'circle') as avatar_shape
+          FROM messages m LEFT JOIN users u ON m.user_id = u.id
+          WHERE m.channel_id = ? AND m.id > ?
+          ORDER BY m.created_at ASC LIMIT ?
+        `).all(channel.id, after, limit);
       } else {
         messages = db.prepare(`
-          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar, m.imported_from,
+          SELECT m.id, m.content, m.created_at, m.reply_to, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar, m.imported_from, m.is_archived, m.poll_data,
                  COALESCE(m.webhook_username, u.display_name, u.username, '[Deleted User]') as username, u.id as user_id, u.avatar, COALESCE(u.avatar_shape, 'circle') as avatar_shape
           FROM messages m LEFT JOIN users u ON m.user_id = u.id
           WHERE m.channel_id = ?
@@ -964,22 +1793,49 @@ function setupSocketHandlers(io, db) {
 
       // Batch reactions
       const reactionMap = new Map(); // messageId → [reactions]
+      const pollVoteMap = new Map(); // messageId → [votes]
+      let pinnedSet = null;
       if (msgIds.length > 0) {
         const ph = msgIds.map(() => '?').join(',');
         db.prepare(`
           SELECT r.message_id, r.emoji, r.user_id, COALESCE(u.display_name, u.username) as username
           FROM reactions r JOIN users u ON r.user_id = u.id
-          WHERE r.message_id IN (${ph})
+          WHERE r.message_id IN (${ph}) ORDER BY r.id
         `).all(...msgIds).forEach(r => {
           if (!reactionMap.has(r.message_id)) reactionMap.set(r.message_id, []);
           reactionMap.get(r.message_id).push({ emoji: r.emoji, user_id: r.user_id, username: r.username });
         });
 
         // Batch pin status
-        var pinnedSet = new Set(
+        pinnedSet = new Set(
           db.prepare(`SELECT message_id FROM pinned_messages WHERE message_id IN (${ph})`)
             .all(...msgIds).map(r => r.message_id)
         );
+
+        // Batch poll votes
+        db.prepare(`
+          SELECT pv.message_id, pv.option_index, pv.user_id, COALESCE(u.display_name, u.username) as username
+          FROM poll_votes pv JOIN users u ON pv.user_id = u.id
+          WHERE pv.message_id IN (${ph}) ORDER BY pv.id
+        `).all(...msgIds).forEach(v => {
+          if (!pollVoteMap.has(v.message_id)) pollVoteMap.set(v.message_id, []);
+          pollVoteMap.get(v.message_id).push(v);
+        });
+      }
+
+      // Batch-lookup current webhook avatars for webhook messages missing a stored avatar
+      const webhookAvatarMap = new Map();
+      const webhookNamesNeedingAvatar = [...new Set(
+        messages.filter(m => m.is_webhook && !m.webhook_avatar && m.webhook_username)
+          .map(m => m.webhook_username)
+      )];
+      if (webhookNamesNeedingAvatar.length > 0) {
+        const ph = webhookNamesNeedingAvatar.map(() => '?').join(',');
+        db.prepare(
+          `SELECT name, avatar_url FROM webhooks WHERE channel_id = ? AND name IN (${ph}) AND avatar_url IS NOT NULL`
+        ).all(channel.id, ...webhookNamesNeedingAvatar).forEach(w => {
+          webhookAvatarMap.set(w.name, w.avatar_url);
+        });
       }
 
       const enriched = messages.map(m => {
@@ -990,11 +1846,28 @@ function setupSocketHandlers(io, db) {
         obj.replyContext = m.reply_to ? (replyMap.get(m.reply_to) || null) : null;
         obj.reactions = reactionMap.get(m.id) || [];
         obj.pinned = pinnedSet ? pinnedSet.has(m.id) : false;
+        obj.is_archived = !!m.is_archived;
+        // Parse poll data and attach vote results
+        if (m.poll_data) {
+          try {
+            obj.poll = JSON.parse(m.poll_data);
+            const votes = pollVoteMap.get(m.id) || [];
+            obj.poll.votes = {};
+            obj.poll.options.forEach((_, i) => { obj.poll.votes[i] = []; });
+            votes.forEach(v => {
+              if (!obj.poll.votes[v.option_index]) obj.poll.votes[v.option_index] = [];
+              obj.poll.votes[v.option_index].push({ user_id: v.user_id, username: v.username });
+            });
+            obj.poll.totalVotes = votes.length;
+          } catch (e) { /* invalid poll_data — skip */ }
+        }
         // Flag webhook messages so the client renders a BOT badge
         if (m.is_webhook) {
           obj.is_webhook = true;
           obj.username = `[BOT] ${m.webhook_username || 'Bot'}`;
           obj.avatar_shape = 'square';
+          // Use stored avatar, or fall back to the webhook's current avatar
+          obj.avatar = m.webhook_avatar || webhookAvatarMap.get(m.webhook_username) || null;
         }
         // Flag imported messages (Discord, etc.)
         if (m.imported_from) {
@@ -1006,7 +1879,7 @@ function setupSocketHandlers(io, db) {
 
       socket.emit('message-history', {
         channelCode: code,
-        messages: enriched.reverse()
+        messages: after ? enriched : enriched.reverse()
       });
     });
 
@@ -1054,6 +1927,9 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Message too long (max 2000 characters)');
       }
 
+      // Update AFK voice activity
+      touchVoiceActivity(socket.user.id);
+
       // Flood check for messages specifically
       if (floodCheck('message')) {
         return socket.emit('error-msg', 'Slow down — you\'re sending messages too fast');
@@ -1068,13 +1944,29 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', `You are muted for ${remaining} more minute${remaining !== 1 ? 's' : ''}`);
       }
 
-      const channel = db.prepare('SELECT id, name, slow_mode_interval FROM channels WHERE code = ?').get(code);
-      if (!channel) return;
+      const channel = db.prepare('SELECT id, name, slow_mode_interval, text_enabled, voice_enabled, media_enabled FROM channels WHERE code = ?').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found — try switching channels and back');
 
       const member = db.prepare(
         'SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?'
       ).get(channel.id, socket.user.id);
       if (!member) return socket.emit('error-msg', 'Not a member of this channel');
+
+      // Block text messages when text is disabled (allow media uploads if media is enabled)
+      if (channel.text_enabled === 0) {
+        const isMedia = /^\/uploads\b/i.test(content.trim()) || /^\[file:[^\]]+\]\(/i.test(content.trim());
+        if (!isMedia || channel.media_enabled === 0) {
+          return socket.emit('error-msg', 'Text messages are disabled in this channel');
+        }
+      }
+
+      // Block media uploads if media is disabled in this channel
+      if (channel.media_enabled === 0 && !socket.user.isAdmin) {
+        const isMediaContent = /^\/uploads\b/i.test(content.trim()) || /^\[file:[^\]]+\]\(/i.test(content.trim());
+        if (isMediaContent) {
+          return socket.emit('error-msg', 'Media uploads are disabled in this channel');
+        }
+      }
 
       // ── Slow mode check (admins and mods bypass) ──────
       if (channel.slow_mode_interval > 0 && !socket.user.isAdmin && getUserEffectiveLevel(socket.user.id, channel.id) < 25) {
@@ -1127,6 +2019,9 @@ function setupSocketHandlers(io, db) {
           // Send push notifications to offline channel members
           sendPushNotifications(channel.id, code, channel.name, socket.user.id, socket.user.displayName, slashResult.content);
 
+          // Fire webhook callbacks for bots in this channel
+          fireWebhookCallbacks(channel.id, code, message);
+
           // Auto-update sender's read position for slash command messages too
           try {
             db.prepare(`
@@ -1137,51 +2032,62 @@ function setupSocketHandlers(io, db) {
           } catch (e) { /* non-critical */ }
           return;
         }
-        // Unknown command — tell the user
-        return socket.emit('error-msg', `Unknown command: /${cmd}`);
+        // Unknown slash command — fall through as a plain message so bots/webhooks can handle it
       }
 
       const replyTo = isInt(data.replyTo) ? data.replyTo : null;
 
-      const result = db.prepare(
-        'INSERT INTO messages (channel_id, user_id, content, reply_to) VALUES (?, ?, ?, ?)'
-      ).run(channel.id, socket.user.id, content.trim(), replyTo);
+      // Server-side sanitization (defense-in-depth — client also escapes)
+      const safeContent = sanitizeText(content.trim());
+      if (!safeContent) return;
 
-      const message = {
-        id: result.lastInsertRowid,
-        content: content.trim(),
-        created_at: new Date().toISOString(),
-        username: socket.user.displayName,
-        user_id: socket.user.id,
-        avatar: socket.user.avatar || null,
-        avatar_shape: socket.user.avatar_shape || 'circle',
-        reply_to: replyTo,
-        replyContext: null,
-        reactions: [],
-        edited_at: null
-      };
-
-      // Attach reply context if replying
-      if (replyTo) {
-        message.replyContext = db.prepare(`
-          SELECT m.id, m.content, COALESCE(u.display_name, u.username, '[Deleted User]') as username FROM messages m
-          LEFT JOIN users u ON m.user_id = u.id WHERE m.id = ?
-        `).get(replyTo) || null;
-      }
-
-      io.to(`channel:${code}`).emit('new-message', { channelCode: code, message });
-
-      // Send push notifications to offline channel members
-      sendPushNotifications(channel.id, code, channel.name, socket.user.id, socket.user.displayName, content.trim());
-
-      // Auto-update sender's read position so own messages never count as unread
       try {
-        db.prepare(`
-          INSERT INTO read_positions (user_id, channel_id, last_read_message_id)
-          VALUES (?, ?, ?)
-          ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_message_id = MAX(last_read_message_id, excluded.last_read_message_id)
-        `).run(socket.user.id, channel.id, result.lastInsertRowid);
-      } catch (e) { /* non-critical */ }
+        const result = db.prepare(
+          'INSERT INTO messages (channel_id, user_id, content, reply_to) VALUES (?, ?, ?, ?)'
+        ).run(channel.id, socket.user.id, safeContent, replyTo);
+
+        const message = {
+          id: result.lastInsertRowid,
+          content: safeContent,
+          created_at: new Date().toISOString(),
+          username: socket.user.displayName,
+          user_id: socket.user.id,
+          avatar: socket.user.avatar || null,
+          avatar_shape: socket.user.avatar_shape || 'circle',
+          reply_to: replyTo,
+          replyContext: null,
+          reactions: [],
+          edited_at: null
+        };
+
+        // Attach reply context if replying
+        if (replyTo) {
+          message.replyContext = db.prepare(`
+            SELECT m.id, m.content, COALESCE(u.display_name, u.username, '[Deleted User]') as username FROM messages m
+            LEFT JOIN users u ON m.user_id = u.id WHERE m.id = ?
+          `).get(replyTo) || null;
+        }
+
+        io.to(`channel:${code}`).emit('new-message', { channelCode: code, message });
+
+        // Send push notifications to offline channel members
+        sendPushNotifications(channel.id, code, channel.name, socket.user.id, socket.user.displayName, safeContent);
+
+        // Fire webhook callbacks for bots in this channel
+        fireWebhookCallbacks(channel.id, code, message);
+
+        // Auto-update sender's read position so own messages never count as unread
+        try {
+          db.prepare(`
+            INSERT INTO read_positions (user_id, channel_id, last_read_message_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_message_id = MAX(last_read_message_id, excluded.last_read_message_id)
+          `).run(socket.user.id, channel.id, result.lastInsertRowid);
+        } catch (e) { /* non-critical */ }
+      } catch (err) {
+        console.error('send-message error:', err.message);
+        socket.emit('error-msg', 'Failed to send message — please try again');
+      }
     });
 
     // ── Typing indicator ────────────────────────────────────
@@ -1216,6 +2122,22 @@ function setupSocketHandlers(io, db) {
       ).get(vch.id, socket.user.id);
       if (!vMember) return socket.emit('error-msg', 'Not a member of this channel');
 
+      // Check channel type and voice user limit
+      const vchSettings = db.prepare('SELECT voice_enabled, voice_user_limit, voice_bitrate FROM channels WHERE code = ?').get(code);
+      if (vchSettings && vchSettings.voice_enabled === 0) {
+        return socket.emit('error-msg', 'Voice is disabled in this channel');
+      }
+      // Check use_voice permission (admins bypass)
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'use_voice', vch.id)) {
+        return socket.emit('error-msg', 'You don\'t have permission to use voice chat');
+      }
+      if (vchSettings && vchSettings.voice_user_limit > 0) {
+        const currentCount = voiceUsers.has(code) ? voiceUsers.get(code).size : 0;
+        if (currentCount >= vchSettings.voice_user_limit) {
+          return socket.emit('error-msg', `Voice is full (${currentCount}/${vchSettings.voice_user_limit})`);
+        }
+      }
+
       // Leave any previous voice room first
       for (const [prevCode, room] of voiceUsers) {
         if (room.has(socket.user.id) && prevCode !== code) {
@@ -1235,13 +2157,19 @@ function setupSocketHandlers(io, db) {
       voiceUsers.get(code).set(socket.user.id, {
         id: socket.user.id,
         username: socket.user.displayName,
-        socketId: socket.id
+        socketId: socket.id,
+        isMuted: false,
+        isDeafened: false
       });
+
+      // Track AFK activity
+      voiceLastActivity.set(socket.user.id, Date.now());
 
       // Tell new user about existing peers (they'll create offers)
       socket.emit('voice-existing-users', {
         channelCode: code,
-        users: existingUsers.map(u => ({ id: u.id, username: u.username }))
+        users: existingUsers.map(u => ({ id: u.id, username: u.username })),
+        voiceBitrate: vchSettings ? (vchSettings.voice_bitrate || 0) : 0
       });
 
       // Tell existing users about new peer (they'll expect offers)
@@ -1263,10 +2191,14 @@ function setupSocketHandlers(io, db) {
           userId: music.userId,
           username: music.username,
           url: music.url,
+          title: music.title,
+          trackId: music.id,
           channelCode: code,
-          resolvedFrom: music.resolvedFrom
+          resolvedFrom: music.resolvedFrom,
+          syncState: getActiveMusicSyncState(music)
         });
       }
+      socket.emit('music-queue-update', getMusicQueuePayload(code));
 
       // Send active screen share info to late joiner — tell screen sharers to renegotiate
       const sharers = activeScreenSharers.get(code);
@@ -1292,6 +2224,31 @@ function setupSocketHandlers(io, db) {
             }
           }
         }, 2000);
+      }
+
+      // Send active webcam info to late joiner — tell webcam users to renegotiate
+      const camUsers = activeWebcamUsers.get(code);
+      if (camUsers && camUsers.size > 0) {
+        socket.emit('active-webcam-users', {
+          channelCode: code,
+          users: Array.from(camUsers).map(uid => {
+            const u = voiceUsers.get(code)?.get(uid);
+            return u ? { id: uid, username: u.username } : null;
+          }).filter(Boolean)
+        });
+        // After a delay (let initial offer/answer complete), tell each
+        // webcam user to renegotiate so the late joiner receives video tracks.
+        setTimeout(() => {
+          for (const camUserId of camUsers) {
+            const camUserInfo = voiceUsers.get(code)?.get(camUserId);
+            if (camUserInfo) {
+              io.to(camUserInfo.socketId).emit('renegotiate-webcam', {
+                targetUserId: socket.user.id,
+                channelCode: code
+              });
+            }
+          }
+        }, 2500);
       }
     });
 
@@ -1338,10 +2295,12 @@ function setupSocketHandlers(io, db) {
       }
     });
 
-    socket.on('voice-leave', (data) => {
+    socket.on('voice-leave', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       if (!isString(data.code, 8, 8)) return;
       handleVoiceLeave(socket, data.code);
+      // Acknowledge so the client knows the server processed the leave
+      if (typeof callback === 'function') callback({ ok: true });
     });
 
     // ── Voice Kick (mod/admin can remove lower-level users from voice) ──
@@ -1382,6 +2341,10 @@ function setupSocketHandlers(io, db) {
       // Untrack screen sharer if they were sharing
       const sharers = activeScreenSharers.get(data.code);
       if (sharers) { sharers.delete(data.userId); if (sharers.size === 0) activeScreenSharers.delete(data.code); }
+
+      // Untrack webcam user if they had their camera on
+      const camUsers = activeWebcamUsers.get(data.code);
+      if (camUsers) { camUsers.delete(data.userId); if (camUsers.size === 0) activeWebcamUsers.delete(data.code); }
 
       // Clean up stream viewer entries
       const viewerKey = `${data.code}:${data.userId}`;
@@ -1467,6 +2430,50 @@ function setupSocketHandlers(io, db) {
       broadcastStreamInfo(data.code);
     });
 
+    // ── Webcam Signaling ──────────────────────────────────
+
+    socket.on('webcam-started', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+
+      if (!activeWebcamUsers.has(data.code)) activeWebcamUsers.set(data.code, new Set());
+      activeWebcamUsers.get(data.code).add(socket.user.id);
+
+      for (const [uid, user] of voiceRoom) {
+        if (uid !== socket.user.id) {
+          io.to(user.socketId).emit('webcam-started', {
+            userId: socket.user.id,
+            username: socket.user.displayName,
+            channelCode: data.code
+          });
+        }
+      }
+    });
+
+    socket.on('webcam-stopped', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+
+      const camUsers = activeWebcamUsers.get(data.code);
+      if (camUsers) {
+        camUsers.delete(socket.user.id);
+        if (camUsers.size === 0) activeWebcamUsers.delete(data.code);
+      }
+
+      for (const [uid, user] of voiceRoom) {
+        if (uid !== socket.user.id) {
+          io.to(user.socketId).emit('webcam-stopped', {
+            userId: socket.user.id,
+            channelCode: data.code
+          });
+        }
+      }
+    });
+
     // ── Stream Viewer Tracking ──────────────────────────
 
     socket.on('stream-watch', (data) => {
@@ -1528,6 +2535,7 @@ function setupSocketHandlers(io, db) {
       if (!data || typeof data !== 'object') return;
       if (!isString(data.code, 8, 8)) return;
       if (!isString(data.url, 1, 500)) return;
+      if (!/^https?:\/\//i.test(data.url)) return socket.emit('error-msg', 'Invalid URL');
       const voiceRoom = voiceUsers.get(data.code);
       if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
 
@@ -1537,38 +2545,105 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Music sharing is disabled in this channel');
       }
 
-      let playUrl = data.url;
+      let playUrl = stripYouTubePlaylistParam(data.url);
       let resolvedFrom = null;
+      let title = trimMusicText(data.title, 200);
 
       // Convert Spotify URLs → YouTube for universal full playback + sync
       // Spotify embeds are 30-second preview only (non-premium) with no external API
       const isSpotify = /open\.spotify\.com\/(track|album|playlist|episode|show)\/[a-zA-Z0-9]+/.test(data.url);
       if (isSpotify) {
-        const ytUrl = await resolveSpotifyToYouTube(data.url);
-        if (ytUrl) {
-          playUrl = ytUrl;
+        const resolved = await resolveSpotifyToYouTube(data.url);
+        if (resolved?.url) {
+          playUrl = resolved.url;
           resolvedFrom = 'spotify';
+          if (!title) title = trimMusicText(resolved.title, 200);
         } else {
           // Resolution failed — notify the sharer instead of passing a broken embed
           return socket.emit('error-msg', 'Could not resolve Spotify link to YouTube. Try sharing a YouTube link directly.');
         }
       }
 
-      // Store active music for late joiners
-      activeMusic.set(data.code, {
+      if (!title) {
+        const resolvedMeta = await resolveMusicMetadata(playUrl);
+         title = trimMusicText(resolvedMeta.title, 200);
+      }
+
+      const entry = sanitizeQueueEntry({
+        id: crypto.randomBytes(12).toString('hex'),
         url: playUrl,
+        title: title || 'Shared track',
         userId: socket.user.id,
         username: socket.user.displayName,
         resolvedFrom
       });
-      for (const [uid, user] of voiceRoom) {
-        io.to(user.socketId).emit('music-shared', {
+      if (!entry) return;
+
+      if (!activeMusic.get(data.code)) {
+        startQueuedMusic(data.code, entry);
+        return;
+      }
+
+      const queue = musicQueues.get(data.code) || [];
+      queue.push(entry);
+      musicQueues.set(data.code, queue);
+      broadcastMusicQueue(data.code);
+      io.to(`voice:${data.code}`).emit('toast', {
+        message: `${entry.username} queued ${entry.title}`,
+        type: 'info'
+      });
+    });
+
+    socket.on('music-share-playlist', async (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      if (!isString(data.playlistId, 1, 200)) return;
+      if (!/^[a-zA-Z0-9_-]+$/.test(data.playlistId)) return socket.emit('error-msg', 'Invalid playlist ID');
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+
+      const musicChannel = db.prepare('SELECT music_enabled FROM channels WHERE code = ?').get(data.code);
+      if (musicChannel && musicChannel.music_enabled === 0 && !socket.user.isAdmin) {
+        return socket.emit('error-msg', 'Music sharing is disabled in this channel');
+      }
+
+      socket.emit('toast', { message: 'Fetching playlist…', type: 'info' });
+
+      const tracks = await fetchYouTubePlaylist(data.playlistId);
+      if (!tracks.length) {
+        return socket.emit('error-msg', 'Could not fetch playlist or it is empty');
+      }
+
+      let addedCount = 0;
+      for (const track of tracks) {
+        const url = `https://www.youtube.com/watch?v=${track.videoId}`;
+        const entry = sanitizeQueueEntry({
+          id: crypto.randomBytes(12).toString('hex'),
+          url,
+          title: trimMusicText(track.title, 200) || 'Untitled track',
           userId: socket.user.id,
           username: socket.user.displayName,
-          url: playUrl,
-          channelCode: data.code,
-          resolvedFrom
+          resolvedFrom: null
         });
+        if (!entry) continue;
+        if (!activeMusic.get(data.code) && addedCount === 0) {
+          startQueuedMusic(data.code, entry);
+        } else {
+          const queue = musicQueues.get(data.code) || [];
+          queue.push(entry);
+          musicQueues.set(data.code, queue);
+        }
+        addedCount++;
+      }
+
+      if (addedCount > 0) {
+        broadcastMusicQueue(data.code);
+        io.to(`voice:${data.code}`).emit('toast', {
+          message: `${socket.user.displayName} added ${addedCount} track${addedCount !== 1 ? 's' : ''} from a playlist`,
+          type: 'info'
+        });
+      } else {
+        socket.emit('error-msg', 'No playable tracks found in playlist');
       }
     });
 
@@ -1577,8 +2652,17 @@ function setupSocketHandlers(io, db) {
       if (!isString(data.code, 8, 8)) return;
       const voiceRoom = voiceUsers.get(data.code);
       if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const current = activeMusic.get(data.code);
+      if (!current) return;
+      if (socket.user.id !== current.userId && !socket.user.isAdmin) {
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+        if (!channel || !userHasPermission(socket.user.id, 'manage_music_queue', channel.id)) {
+          return socket.emit('error-msg', 'Only the requestor or a moderator can stop playback');
+        }
+      }
       // Clear active music
       activeMusic.delete(data.code);
+      musicQueues.delete(data.code);
       for (const [uid, user] of voiceRoom) {
         io.to(user.socketId).emit('music-stopped', {
           userId: socket.user.id,
@@ -1586,6 +2670,7 @@ function setupSocketHandlers(io, db) {
           channelCode: data.code
         });
       }
+      broadcastMusicQueue(data.code);
     });
 
     // Music playback control sync (play/pause/next/prev/shuffle)
@@ -1597,13 +2682,30 @@ function setupSocketHandlers(io, db) {
       if (!allowed.includes(action)) return;
       const voiceRoom = voiceUsers.get(data.code);
       if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const current = activeMusic.get(data.code);
+      if (!current) return;
+      if (socket.user.id !== current.userId && !socket.user.isAdmin) {
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+        if (!channel || !userHasPermission(socket.user.id, 'manage_music_queue', channel.id)) {
+          const label = (action === 'play' || action === 'pause') ? 'pause/resume playback' : 'skip tracks';
+          return socket.emit('error-msg', `Only the requestor or a moderator can ${label}`);
+        }
+      }
+      const rawPosition = Number(data.positionSeconds);
+      const rawDuration = Number(data.durationSeconds);
+      const syncState = updateActiveMusicPlaybackState(data.code, {
+        isPlaying: action === 'play' ? true : action === 'pause' ? false : undefined,
+        positionSeconds: Number.isFinite(rawPosition) ? rawPosition : undefined,
+        durationSeconds: Number.isFinite(rawDuration) && rawDuration >= 0 ? rawDuration : undefined
+      });
       for (const [uid, user] of voiceRoom) {
         if (uid === socket.user.id) continue; // don't echo back to sender
         io.to(user.socketId).emit('music-control', {
           action,
           userId: socket.user.id,
           username: socket.user.displayName,
-          channelCode: data.code
+          channelCode: data.code,
+          syncState
         });
       }
     });
@@ -1612,19 +2714,139 @@ function setupSocketHandlers(io, db) {
     socket.on('music-seek', (data) => {
       if (!data || typeof data !== 'object') return;
       if (!isString(data.code, 8, 8)) return;
-      const position = parseFloat(data.position);
-      if (isNaN(position) || position < 0 || position > 100) return;
       const voiceRoom = voiceUsers.get(data.code);
       if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const current = activeMusic.get(data.code);
+      if (!current) return;
+      if (socket.user.id !== current.userId && !socket.user.isAdmin) {
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+        if (!channel || !userHasPermission(socket.user.id, 'manage_music_queue', channel.id)) {
+          return socket.emit('error-msg', 'Only the requestor or a moderator can seek');
+        }
+      }
+      const rawDuration = Number(data.durationSeconds);
+      const durationSeconds = Number.isFinite(rawDuration) && rawDuration >= 0 ? rawDuration : undefined;
+      let positionSeconds = Number(data.positionSeconds);
+      if (!Number.isFinite(positionSeconds)) {
+        const positionPct = Number(data.position);
+        if (!Number.isFinite(positionPct) || positionPct < 0 || positionPct > 100 || !Number.isFinite(durationSeconds)) return;
+        positionSeconds = (durationSeconds * positionPct) / 100;
+      }
+      const syncState = updateActiveMusicPlaybackState(data.code, {
+        positionSeconds,
+        durationSeconds
+      });
       for (const [uid, user] of voiceRoom) {
         if (uid === socket.user.id) continue;
         io.to(user.socketId).emit('music-seek', {
-          position,
+          position: syncState && Number.isFinite(syncState.durationSeconds) && syncState.durationSeconds > 0
+            ? (syncState.positionSeconds / syncState.durationSeconds) * 100
+            : undefined,
+          positionSeconds: syncState ? syncState.positionSeconds : positionSeconds,
+          durationSeconds: syncState ? syncState.durationSeconds : (durationSeconds ?? null),
           userId: socket.user.id,
           username: socket.user.displayName,
+          channelCode: data.code,
+          syncState
+        });
+      }
+    });
+
+    socket.on('music-finished', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const current = activeMusic.get(data.code);
+      if (!current) return;
+      const trackId = trimMusicText(data.trackId, 64);
+      if (!trackId || !current.id || trackId !== current.id) return;
+      const isPrivileged = socket.user.id === current.userId || socket.user.isAdmin || (() => {
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+        return !!channel && userHasPermission(socket.user.id, 'manage_music_queue', channel.id);
+      })();
+      if (data.isSkip) {
+        if (!isPrivileged) {
+          return socket.emit('error-msg', 'Only the requestor or a moderator can skip tracks');
+        }
+      } else if (!isPrivileged && !isNaturalMusicFinish(current, Number(data.positionSeconds), Number(data.durationSeconds))) {
+        return;
+      }
+      const next = popNextQueuedMusic(data.code);
+      if (next) {
+        startQueuedMusic(data.code, next);
+        return;
+      }
+      activeMusic.delete(data.code);
+      for (const [, user] of voiceRoom) {
+        io.to(user.socketId).emit('music-stopped', {
+          userId: current.userId,
+          username: current.username,
           channelCode: data.code
         });
       }
+      broadcastMusicQueue(data.code);
+    });
+
+    socket.on('music-queue-remove', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8) || !isString(data.entryId, 1, 64)) return;
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+      if (!channel) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_music_queue', channel.id)) {
+        return socket.emit('error-msg', 'You do not have permission to manage the music queue');
+      }
+      const queue = musicQueues.get(data.code) || [];
+      const nextQueue = queue.filter(item => item.id !== data.entryId);
+      if (nextQueue.length > 0) musicQueues.set(data.code, nextQueue);
+      else musicQueues.delete(data.code);
+      broadcastMusicQueue(data.code);
+    });
+
+    socket.on('music-queue-reorder', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8) || !Array.isArray(data.entryIds)) return;
+      if (data.entryIds.length > 200) return;
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+      if (!channel) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_music_queue', channel.id)) {
+        return socket.emit('error-msg', 'You do not have permission to manage the music queue');
+      }
+      const queue = musicQueues.get(data.code) || [];
+      if (queue.length < 2) return;
+      const byId = new Map(queue.map(item => [item.id, item]));
+      const reordered = [];
+      for (const entryId of data.entryIds.map(id => trimMusicText(id, 64))) {
+        const item = byId.get(entryId);
+        if (item) reordered.push(item);
+      }
+      if (reordered.length !== queue.length) return;
+      musicQueues.set(data.code, reordered);
+      broadcastMusicQueue(data.code);
+    });
+
+    socket.on('music-queue-shuffle', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isString(data.code, 8, 8)) return;
+      const voiceRoom = voiceUsers.get(data.code);
+      if (!voiceRoom || !voiceRoom.has(socket.user.id)) return;
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(data.code);
+      if (!channel) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_music_queue', channel.id)) {
+        return socket.emit('error-msg', 'You do not have permission to manage the music queue');
+      }
+      const queue = musicQueues.get(data.code) || [];
+      if (queue.length < 2) return;
+      for (let i = queue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [queue[i], queue[j]] = [queue[j], queue[i]];
+      }
+      musicQueues.set(data.code, queue);
+      broadcastMusicQueue(data.code);
     });
 
     // Music search — user types /play <query> to search by name
@@ -1648,33 +2870,33 @@ function setupSocketHandlers(io, db) {
     // ═══════════════ REACTIONS ═════════════════════════════════
 
     socket.on('add-reaction', (data) => {
-      if (!data || typeof data !== 'object') return;
-      if (!isInt(data.messageId) || !isString(data.emoji, 1, 32)) return;
-
-      // Verify the emoji is a real emoji or a custom server emoji (:name:)
-      const allowed = /^[\p{Emoji}\p{Emoji_Component}\uFE0F\u200D]+$/u;
-      const customEmojiPattern = /^:[a-zA-Z0-9_-]{1,30}:$/;
-      if (!allowed.test(data.emoji) && !customEmojiPattern.test(data.emoji)) return;
-      if (data.emoji.length > 32) return;
-
-      // If custom emoji, verify it exists
-      if (customEmojiPattern.test(data.emoji)) {
-        const emojiName = data.emoji.slice(1, -1).toLowerCase();
-        const exists = db.prepare('SELECT 1 FROM custom_emojis WHERE name = ?').get(emojiName);
-        if (!exists) return;
-      }
-
-      const code = socket.currentChannel;
-      if (!code) return;
-
-      const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
-      if (!channel) return;
-
-      // Verify message belongs to this channel
-      const msg = db.prepare('SELECT id FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
-      if (!msg) return;
-
       try {
+        if (!data || typeof data !== 'object') return;
+        if (!isInt(data.messageId) || !isString(data.emoji, 1, 32)) return;
+
+        // Verify the emoji is a real emoji or a custom server emoji (:name:)
+        const allowed = /^[\p{Emoji}\p{Emoji_Component}\uFE0F\u200D]+$/u;
+        const customEmojiPattern = /^:[a-zA-Z0-9_-]{1,30}:$/;
+        if (!allowed.test(data.emoji) && !customEmojiPattern.test(data.emoji)) return;
+        if (data.emoji.length > 32) return;
+
+        // If custom emoji, verify it exists
+        if (customEmojiPattern.test(data.emoji)) {
+          const emojiName = data.emoji.slice(1, -1).toLowerCase();
+          const exists = db.prepare('SELECT 1 FROM custom_emojis WHERE name = ?').get(emojiName);
+          if (!exists) return;
+        }
+
+        const code = socket.currentChannel;
+        if (!code) return;
+
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
+        if (!channel) return;
+
+        // Verify message belongs to this channel
+        const msg = db.prepare('SELECT id FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
+        if (!msg) return;
+
         db.prepare(
           'INSERT OR IGNORE INTO reactions (message_id, user_id, emoji) VALUES (?, ?, ?)'
         ).run(data.messageId, socket.user.id, data.emoji);
@@ -1682,7 +2904,7 @@ function setupSocketHandlers(io, db) {
         // Broadcast updated reactions for this message
         const reactions = db.prepare(`
           SELECT r.emoji, r.user_id, COALESCE(u.display_name, u.username) as username FROM reactions r
-          JOIN users u ON r.user_id = u.id WHERE r.message_id = ?
+          JOIN users u ON r.user_id = u.id WHERE r.message_id = ? ORDER BY r.id
         `).all(data.messageId);
 
         io.to(`channel:${code}`).emit('reactions-updated', {
@@ -1690,36 +2912,218 @@ function setupSocketHandlers(io, db) {
           messageId: data.messageId,
           reactions
         });
-      } catch { /* duplicate — ignore */ }
+      } catch (err) {
+        console.error('add-reaction error:', err.message);
+      }
     });
 
     socket.on('remove-reaction', (data) => {
-      if (!data || typeof data !== 'object') return;
-      if (!isInt(data.messageId) || !isString(data.emoji, 1, 32)) return;
+      try {
+        if (!data || typeof data !== 'object') return;
+        if (!isInt(data.messageId) || !isString(data.emoji, 1, 32)) return;
 
-      const code = socket.currentChannel;
-      if (!code) return;
+        const code = socket.currentChannel;
+        if (!code) return;
 
-      // Verify message belongs to this channel
-      const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
-      if (!channel) return;
-      const msgCheck = db.prepare('SELECT id FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
-      if (!msgCheck) return;
+        // Verify message belongs to this channel
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
+        if (!channel) return;
+        const msgCheck = db.prepare('SELECT id FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
+        if (!msgCheck) return;
 
-      db.prepare(
-        'DELETE FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?'
-      ).run(data.messageId, socket.user.id, data.emoji);
+        db.prepare(
+          'DELETE FROM reactions WHERE message_id = ? AND user_id = ? AND emoji = ?'
+        ).run(data.messageId, socket.user.id, data.emoji);
 
-      const reactions = db.prepare(`
-        SELECT r.emoji, r.user_id, COALESCE(u.display_name, u.username) as username FROM reactions r
-        JOIN users u ON r.user_id = u.id WHERE r.message_id = ?
-      `).all(data.messageId);
+        const reactions = db.prepare(`
+          SELECT r.emoji, r.user_id, COALESCE(u.display_name, u.username) as username FROM reactions r
+          JOIN users u ON r.user_id = u.id WHERE r.message_id = ? ORDER BY r.id
+        `).all(data.messageId);
 
-      io.to(`channel:${code}`).emit('reactions-updated', {
-        channelCode: code,
-        messageId: data.messageId,
-        reactions
-      });
+        io.to(`channel:${code}`).emit('reactions-updated', {
+          channelCode: code,
+          messageId: data.messageId,
+          reactions
+        });
+      } catch (err) {
+        console.error('remove-reaction error:', err.message);
+      }
+    });
+
+    // ═══════════════ POLLS ═══════════════════════════════════
+
+    socket.on('create-poll', (data) => {
+      try {
+        if (!data || typeof data !== 'object') return;
+        const question = typeof data.question === 'string' ? data.question.trim() : '';
+        if (!question || question.length > 300) return;
+        const maxPollOpts = parseInt(db.prepare('SELECT value FROM server_settings WHERE key = ?').get('max_poll_options')?.value) || 10;
+        const options = Array.isArray(data.options) ? data.options : [];
+        if (options.length < 2 || options.length > maxPollOpts) return;
+        const cleanOptions = options.map(o => typeof o === 'string' ? sanitizeText(o.trim()) : '').filter(Boolean);
+        if (cleanOptions.length < 2 || cleanOptions.length > maxPollOpts) return;
+        if (cleanOptions.some(o => o.length > 100)) return;
+        const multiVote = !!data.multiVote;
+        const anonymous = !!data.anonymous;
+
+        if (floodCheck('message')) {
+          return socket.emit('error-msg', 'Slow down — you\'re sending messages too fast');
+        }
+
+        // ── Mute check ─────────────────────
+        const activeMute = db.prepare(
+          'SELECT id, expires_at FROM mutes WHERE user_id = ? AND expires_at > datetime(\'now\') ORDER BY expires_at DESC LIMIT 1'
+        ).get(socket.user.id);
+        if (activeMute) {
+          const remaining = Math.ceil((new Date(activeMute.expires_at + 'Z') - Date.now()) / 60000);
+          return socket.emit('error-msg', `You are muted for ${remaining} more minute${remaining !== 1 ? 's' : ''}`);
+        }
+
+        const code = socket.currentChannel;
+        if (!code) return;
+        const channel = db.prepare('SELECT id, name, text_enabled FROM channels WHERE code = ?').get(code);
+        if (!channel) return;
+        if (channel.text_enabled === 0) return socket.emit('error-msg', 'Polls are not allowed when text is disabled');
+        const member = db.prepare('SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?').get(channel.id, socket.user.id);
+        if (!member) return socket.emit('error-msg', 'Not a member of this channel');
+
+        const safeQuestion = sanitizeText(question);
+        if (!safeQuestion) return;
+
+        const pollData = JSON.stringify({ question: safeQuestion, options: cleanOptions, multiVote, anonymous });
+        const content = `📊 Poll: ${safeQuestion}`;
+        const result = db.prepare(
+          'INSERT INTO messages (channel_id, user_id, content, poll_data) VALUES (?, ?, ?, ?)'
+        ).run(channel.id, socket.user.id, content, pollData);
+
+        const message = {
+          id: result.lastInsertRowid,
+          content,
+          created_at: new Date().toISOString(),
+          username: socket.user.displayName,
+          user_id: socket.user.id,
+          avatar: socket.user.avatar || null,
+          avatar_shape: socket.user.avatar_shape || 'circle',
+          reply_to: null,
+          replyContext: null,
+          reactions: [],
+          edited_at: null,
+          poll: { question: safeQuestion, options: cleanOptions, multiVote, anonymous, votes: {}, totalVotes: 0 }
+        };
+        cleanOptions.forEach((_, i) => { message.poll.votes[i] = []; });
+
+        io.to(`channel:${code}`).emit('new-message', { channelCode: code, message });
+        sendPushNotifications(channel.id, code, channel.name, socket.user.id, socket.user.displayName, content);
+        fireWebhookCallbacks(channel.id, code, message);
+
+        try {
+          db.prepare(`
+            INSERT INTO read_positions (user_id, channel_id, last_read_message_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_message_id = MAX(last_read_message_id, excluded.last_read_message_id)
+          `).run(socket.user.id, channel.id, result.lastInsertRowid);
+        } catch (e) { /* non-critical */ }
+      } catch (err) {
+        console.error('create-poll error:', err.message);
+        socket.emit('error-msg', 'Failed to create poll');
+      }
+    });
+
+    socket.on('vote-poll', (data) => {
+      try {
+        if (!data || typeof data !== 'object') return;
+        if (!isInt(data.messageId)) return;
+        const optionIndex = typeof data.optionIndex === 'number' ? data.optionIndex : -1;
+        if (optionIndex < 0 || optionIndex > 9 || !Number.isInteger(optionIndex)) return;
+
+        const code = socket.currentChannel;
+        if (!code) return;
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
+        if (!channel) return;
+
+        const msg = db.prepare('SELECT id, poll_data FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
+        if (!msg || !msg.poll_data) return;
+
+        let poll;
+        try { poll = JSON.parse(msg.poll_data); } catch (e) { return; }
+        if (optionIndex >= poll.options.length) return;
+
+        if (!poll.multiVote) {
+          // Single-vote: remove any previous vote by this user, then insert
+          db.prepare('DELETE FROM poll_votes WHERE message_id = ? AND user_id = ?').run(data.messageId, socket.user.id);
+        }
+
+        db.prepare(
+          'INSERT OR IGNORE INTO poll_votes (message_id, user_id, option_index) VALUES (?, ?, ?)'
+        ).run(data.messageId, socket.user.id, optionIndex);
+
+        // Fetch updated votes for this poll
+        const votes = db.prepare(`
+          SELECT pv.option_index, pv.user_id, COALESCE(u.display_name, u.username) as username
+          FROM poll_votes pv JOIN users u ON pv.user_id = u.id
+          WHERE pv.message_id = ? ORDER BY pv.id
+        `).all(data.messageId);
+
+        const votesByOption = {};
+        poll.options.forEach((_, i) => { votesByOption[i] = []; });
+        votes.forEach(v => {
+          if (!votesByOption[v.option_index]) votesByOption[v.option_index] = [];
+          votesByOption[v.option_index].push({ user_id: v.user_id, username: v.username });
+        });
+
+        io.to(`channel:${code}`).emit('poll-updated', {
+          channelCode: code,
+          messageId: data.messageId,
+          votes: votesByOption,
+          totalVotes: votes.length
+        });
+      } catch (err) {
+        console.error('vote-poll error:', err.message);
+      }
+    });
+
+    socket.on('unvote-poll', (data) => {
+      try {
+        if (!data || typeof data !== 'object') return;
+        if (!isInt(data.messageId)) return;
+        const optionIndex = typeof data.optionIndex === 'number' ? data.optionIndex : -1;
+        if (optionIndex < 0 || optionIndex > 9 || !Number.isInteger(optionIndex)) return;
+
+        const code = socket.currentChannel;
+        if (!code) return;
+        const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
+        if (!channel) return;
+        const msg = db.prepare('SELECT id, poll_data FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
+        if (!msg || !msg.poll_data) return;
+
+        db.prepare('DELETE FROM poll_votes WHERE message_id = ? AND user_id = ? AND option_index = ?')
+          .run(data.messageId, socket.user.id, optionIndex);
+
+        let poll;
+        try { poll = JSON.parse(msg.poll_data); } catch (e) { return; }
+
+        const votes = db.prepare(`
+          SELECT pv.option_index, pv.user_id, COALESCE(u.display_name, u.username) as username
+          FROM poll_votes pv JOIN users u ON pv.user_id = u.id
+          WHERE pv.message_id = ? ORDER BY pv.id
+        `).all(data.messageId);
+
+        const votesByOption = {};
+        poll.options.forEach((_, i) => { votesByOption[i] = []; });
+        votes.forEach(v => {
+          if (!votesByOption[v.option_index]) votesByOption[v.option_index] = [];
+          votesByOption[v.option_index].push({ user_id: v.user_id, username: v.username });
+        });
+
+        io.to(`channel:${code}`).emit('poll-updated', {
+          channelCode: code,
+          messageId: data.messageId,
+          votes: votesByOption,
+          totalVotes: votes.length
+        });
+      } catch (err) {
+        console.error('unvote-poll error:', err.message);
+      }
     });
 
     // ═══════════════ CHANNEL MEMBERS (for @mentions) ═════════
@@ -1743,10 +3147,52 @@ function setupSocketHandlers(io, db) {
       const users = room
         ? Array.from(room.values()).map(u => {
             const role = getUserHighestRole(u.id, channelId);
-            return { id: u.id, username: u.username, roleColor: role ? role.color : null };
+            return { id: u.id, username: u.username, roleColor: role ? role.color : null, isMuted: u.isMuted || false, isDeafened: u.isDeafened || false };
           })
         : [];
       socket.emit('voice-users-update', { channelCode: code, users });
+    });
+
+    socket.on('voice-mute-state', (data) => {
+      if (!data || typeof data !== 'object') return;
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+      const room = voiceUsers.get(code);
+      if (!room || !room.has(socket.user.id)) return;
+      room.get(socket.user.id).isMuted = !!data.muted;
+      // Unmuting counts as activity for AFK purposes
+      if (!data.muted) touchVoiceActivity(socket.user.id);
+      broadcastVoiceUsers(code);
+    });
+
+    // Voice activity ping — client reports user is active (for AFK tracking + presence)
+    socket.on('voice-activity', () => {
+      touchVoiceActivity(socket.user.id);
+      // Also reset 'away' → 'online' if the idle timer had fired before
+      // the client's resetIdle/goOnline could catch it (e.g. tab hidden + voice)
+      if (socket.user.status === 'away') {
+        try {
+          db.prepare('UPDATE users SET status = ? WHERE id = ?').run('online', socket.user.id);
+          socket.user.status = 'online';
+          for (const [code, users] of channelUsers) {
+            if (users.has(socket.user.id)) {
+              users.get(socket.user.id).status = 'online';
+              emitOnlineUsers(code);
+            }
+          }
+          socket.emit('status-updated', { status: 'online', statusText: socket.user.statusText || '' });
+        } catch { /* ignore */ }
+      }
+    });
+
+    socket.on('voice-deafen-state', (data) => {
+      if (!data || typeof data !== 'object') return;
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+      const room = voiceUsers.get(code);
+      if (!room || !room.has(socket.user.id)) return;
+      room.get(socket.user.id).isDeafened = !!data.deafened;
+      broadcastVoiceUsers(code);
     });
 
     // Voice re-join after socket reconnect — server lost state during disconnect
@@ -1779,7 +3225,9 @@ function setupSocketHandlers(io, db) {
       voiceUsers.get(code).set(socket.user.id, {
         id: socket.user.id,
         username: socket.user.displayName,
-        socketId: socket.id
+        socketId: socket.id,
+        isMuted: false,
+        isDeafened: false
       });
 
       // Tell existing peers about the re-joined user so they can re-establish WebRTC
@@ -1800,13 +3248,76 @@ function setupSocketHandlers(io, db) {
 
       broadcastVoiceUsers(code);
       broadcastStreamInfo(code); // Ensure re-joined user gets current stream info
+
+      const music = activeMusic.get(code);
+      if (music) {
+        socket.emit('music-shared', {
+          userId: music.userId,
+          username: music.username,
+          url: music.url,
+          title: music.title,
+          trackId: music.id,
+          channelCode: code,
+          resolvedFrom: music.resolvedFrom,
+          syncState: getActiveMusicSyncState(music)
+        });
+      }
+      socket.emit('music-queue-update', getMusicQueuePayload(code));
+
+      // Send active screen share info — tell screen sharers to renegotiate
+      // (mirrors the logic in voice-join so reconnected users get screen tracks)
+      const sharers = activeScreenSharers.get(code);
+      if (sharers && sharers.size > 0) {
+        socket.emit('active-screen-sharers', {
+          channelCode: code,
+          sharers: Array.from(sharers).map(uid => {
+            const u = voiceUsers.get(code)?.get(uid);
+            return u ? { id: uid, username: u.username } : null;
+          }).filter(Boolean)
+        });
+        setTimeout(() => {
+          for (const sharerId of sharers) {
+            const sharerInfo = voiceUsers.get(code)?.get(sharerId);
+            if (sharerInfo) {
+              io.to(sharerInfo.socketId).emit('renegotiate-screen', {
+                targetUserId: socket.user.id,
+                channelCode: code
+              });
+            }
+          }
+        }, 2000);
+      }
+
+      // Send active webcam info — tell webcam users to renegotiate
+      const camUsers = activeWebcamUsers.get(code);
+      if (camUsers && camUsers.size > 0) {
+        socket.emit('active-webcam-users', {
+          channelCode: code,
+          users: Array.from(camUsers).map(uid => {
+            const u = voiceUsers.get(code)?.get(uid);
+            return u ? { id: uid, username: u.username } : null;
+          }).filter(Boolean)
+        });
+        setTimeout(() => {
+          for (const camUserId of camUsers) {
+            const camUserInfo = voiceUsers.get(code)?.get(camUserId);
+            if (camUserInfo) {
+              io.to(camUserInfo.socketId).emit('renegotiate-webcam', {
+                targetUserId: socket.user.id,
+                channelCode: code
+              });
+            }
+          }
+        }, 2500);
+      }
     });
 
     // Let clients explicitly request voice counts (fallback for missed push events)
     socket.on('get-voice-counts', () => {
       for (const [code, room] of voiceUsers) {
         if (room.size > 0) {
-          socket.emit('voice-count-update', { code, count: room.size });
+          const users = Array.from(room.values()).map(u => ({ id: u.id, username: u.username, isMuted: u.isMuted || false, isDeafened: u.isDeafened || false }));
+          socket.emit('voice-count-update', { code, count: room.size, users });
         }
       }
     });
@@ -1904,11 +3415,15 @@ function setupSocketHandlers(io, db) {
 
     socket.on('delete-channel', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) {
+      const delCode = typeof data.code === 'string' ? data.code.trim() : '';
+      // Allow temp channel creators to delete their own temp channels
+      const delCh = delCode ? db.prepare('SELECT created_by, is_temp_voice FROM channels WHERE code = ?').get(delCode) : null;
+      const isOwnTemp = delCh && delCh.is_temp_voice && delCh.created_by === socket.user.id;
+      if (!socket.user.isAdmin && !isOwnTemp && !userHasPermission(socket.user.id, 'delete_channel')) {
         return socket.emit('error-msg', 'Only admins can delete channels');
       }
 
-      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      const code = delCode;
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
       const channel = db.prepare('SELECT * FROM channels WHERE code = ?').get(code);
       if (!channel) return;
@@ -1923,10 +3438,12 @@ function setupSocketHandlers(io, db) {
       });
       deleteAll(channel.id);
 
-      io.to(`channel:${code}`).emit('channel-deleted', { code });
+      io.to(`channel:${code}`).to(`voice:${code}`).emit('channel-deleted', { code });
 
       channelUsers.delete(code);
       voiceUsers.delete(code);
+      activeMusic.delete(code);
+      musicQueues.delete(code);
     });
 
     // ═══════════════ EDIT MESSAGE ═══════════════════════════
@@ -1954,8 +3471,16 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'You don\'t have permission to edit messages');
       }
 
-      const newContent = data.content.trim();
+      const newContent = sanitizeText(data.content.trim());
       if (!newContent) return;
+
+      // Prevent turning a text message into an image/file by editing in an upload path
+      if (/^\/uploads\/[\w\-]+\.(jpg|jpeg|png|gif|webp)$/i.test(newContent)) {
+        const origMsg = db.prepare('SELECT original_name FROM messages WHERE id = ?').get(data.messageId);
+        if (!origMsg || !origMsg.original_name) {
+          return socket.emit('error-msg', 'Cannot change a text message into an image');
+        }
+      }
 
       try {
         db.prepare(
@@ -1987,15 +3512,23 @@ function setupSocketHandlers(io, db) {
       if (!channel) return;
 
       const msg = db.prepare(
-        'SELECT id, user_id FROM messages WHERE id = ? AND channel_id = ?'
+        'SELECT id, user_id, content FROM messages WHERE id = ? AND channel_id = ?'
       ).get(data.messageId, channel.id);
       if (!msg) return;
 
       // Permission check for deletion
       if (msg.user_id === socket.user.id) {
-        // Own message — check delete_own_messages permission
-        if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'delete_own_messages', channel.id)) {
-          return socket.emit('error-msg', 'You don\'t have permission to delete messages');
+        // Own message — users can always delete their own messages.
+        // (delete_own_messages can still be used as an explicit deny override via roles.)
+        if (!socket.user.isAdmin) {
+          try {
+            const deny = db.prepare(
+              "SELECT allowed FROM user_role_perms WHERE user_id = ? AND permission = 'delete_own_messages' ORDER BY allowed ASC LIMIT 1"
+            ).get(socket.user.id);
+            if (deny && deny.allowed === 0) {
+              return socket.emit('error-msg', 'You don\'t have permission to delete messages');
+            }
+          } catch { /* table may not exist */ }
         }
       } else {
         // Other user's message — check delete_message, delete_lower_messages, or admin
@@ -2020,10 +3553,83 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Failed to delete message');
       }
 
+      // Move any uploaded files referenced in the message to the deleted-attachments
+      // folder so they're preserved temporarily and swept by auto-cleanup later.
+      const uploadRe = /\/uploads\/((?!deleted-attachments)[\w\-.]+)/g;
+      let m;
+      while ((m = uploadRe.exec(msg.content || '')) !== null) {
+        const src = path.join(UPLOADS_DIR, m[1]);
+        const dst = path.join(DELETED_ATTACHMENTS_DIR, m[1]);
+        if (fs.existsSync(src)) {
+          try { fs.renameSync(src, dst); } catch { /* file locked or already moved */ }
+        }
+      }
+
       io.to(`channel:${code}`).emit('message-deleted', {
         channelCode: code,
         messageId: data.messageId
       });
+    });
+
+    // ═══════════════ MOVE MESSAGES ══════════════════════════
+
+    socket.on('move-messages', (data, callback) => {
+      if (!data || typeof data !== 'object') return;
+      const cb = typeof callback === 'function' ? callback : () => {};
+
+      const messageIds = Array.isArray(data.messageIds) ? data.messageIds.filter(id => isInt(id)) : [];
+      if (messageIds.length === 0 || messageIds.length > 200) return cb({ error: 'Select between 1 and 200 messages' });
+
+      const fromCode = typeof data.fromChannel === 'string' ? data.fromChannel.trim() : '';
+      const toCode   = typeof data.toChannel   === 'string' ? data.toChannel.trim()   : '';
+      if (!fromCode || !toCode || fromCode === toCode) return cb({ error: 'Invalid channels' });
+      if (!/^[a-f0-9]{8}$/i.test(fromCode) || !/^[a-f0-9]{8}$/i.test(toCode)) return cb({ error: 'Invalid channel codes' });
+
+      const fromCh = db.prepare('SELECT id, is_dm FROM channels WHERE code = ?').get(fromCode);
+      const toCh   = db.prepare('SELECT id, is_dm FROM channels WHERE code = ?').get(toCode);
+      if (!fromCh || !toCh) return cb({ error: 'Channel not found' });
+      if (fromCh.is_dm || toCh.is_dm) return cb({ error: 'Cannot move messages to or from DMs' });
+
+      // Permission: admin or delete_message on the source channel
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'delete_message', fromCh.id)) {
+        return cb({ error: 'You need message management permissions to move messages' });
+      }
+
+      // Verify all messages belong to the source channel
+      const placeholders = messageIds.map(() => '?').join(',');
+      const count = db.prepare(
+        `SELECT COUNT(*) as cnt FROM messages WHERE id IN (${placeholders}) AND channel_id = ?`
+      ).get(...messageIds, fromCh.id);
+      if (!count || count.cnt !== messageIds.length) return cb({ error: 'Some messages were not found in the source channel' });
+
+      // Move messages in a transaction
+      try {
+        db.prepare(
+          `UPDATE messages SET channel_id = ? WHERE id IN (${placeholders}) AND channel_id = ?`
+        ).run(toCh.id, ...messageIds, fromCh.id);
+
+        // Also move any pinned_messages references
+        db.prepare(
+          `UPDATE pinned_messages SET channel_id = ? WHERE message_id IN (${placeholders}) AND channel_id = ?`
+        ).run(toCh.id, ...messageIds, fromCh.id);
+      } catch (err) {
+        console.error('Move messages error:', err);
+        return cb({ error: 'Failed to move messages' });
+      }
+
+      // Notify both channels
+      io.to(`channel:${fromCode}`).emit('messages-moved', {
+        channelCode: fromCode,
+        messageIds,
+        toChannel: toCode
+      });
+      io.to(`channel:${toCode}`).emit('messages-received', {
+        channelCode: toCode,
+        fromChannel: fromCode,
+        messageIds
+      });
+
+      cb({ success: true, moved: messageIds.length });
     });
 
     // ═══════════════ PIN / UNPIN MESSAGE ════════════════════
@@ -2113,6 +3719,75 @@ function setupSocketHandlers(io, db) {
       });
     });
 
+    // ═══════════════ ARCHIVE / PROTECT MESSAGE ══════════════
+
+    socket.on('archive-message', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isInt(data.messageId)) return;
+
+      const archCode = socket.currentChannel;
+      const archCh = archCode ? db.prepare('SELECT id FROM channels WHERE code = ?').get(archCode) : null;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'archive_messages', archCh ? archCh.id : null)) {
+        return socket.emit('error-msg', 'You don\'t have permission to archive messages');
+      }
+
+      const code = socket.currentChannel;
+      if (!code) return;
+
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
+      if (!channel) return;
+
+      const msg = db.prepare('SELECT id, is_archived FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
+      if (!msg) return socket.emit('error-msg', 'Message not found');
+      if (msg.is_archived) return socket.emit('error-msg', 'Message is already archived');
+
+      try {
+        db.prepare('UPDATE messages SET is_archived = 1 WHERE id = ?').run(data.messageId);
+      } catch (err) {
+        console.error('Archive message error:', err);
+        return socket.emit('error-msg', 'Failed to archive message');
+      }
+
+      io.to(`channel:${code}`).emit('message-archived', {
+        channelCode: code,
+        messageId: data.messageId,
+        archivedBy: socket.user.displayName
+      });
+    });
+
+    socket.on('unarchive-message', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!isInt(data.messageId)) return;
+
+      const unarchCode = socket.currentChannel;
+      const unarchCh = unarchCode ? db.prepare('SELECT id FROM channels WHERE code = ?').get(unarchCode) : null;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'archive_messages', unarchCh ? unarchCh.id : null)) {
+        return socket.emit('error-msg', 'You don\'t have permission to unarchive messages');
+      }
+
+      const code = socket.currentChannel;
+      if (!code) return;
+
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
+      if (!channel) return;
+
+      const msg = db.prepare('SELECT id, is_archived FROM messages WHERE id = ? AND channel_id = ?').get(data.messageId, channel.id);
+      if (!msg) return socket.emit('error-msg', 'Message not found');
+      if (!msg.is_archived) return socket.emit('error-msg', 'Message is not archived');
+
+      try {
+        db.prepare('UPDATE messages SET is_archived = 0 WHERE id = ?').run(data.messageId);
+      } catch (err) {
+        console.error('Unarchive message error:', err);
+        return socket.emit('error-msg', 'Failed to unarchive message');
+      }
+
+      io.to(`channel:${code}`).emit('message-unarchived', {
+        channelCode: code,
+        messageId: data.messageId
+      });
+    });
+
     socket.on('get-pinned-messages', (data) => {
       if (!data || typeof data !== 'object') return;
       const code = typeof data.code === 'string' ? data.code.trim() : '';
@@ -2127,8 +3802,8 @@ function setupSocketHandlers(io, db) {
       if (!member) return;
 
       const pins = db.prepare(`
-        SELECT m.id, m.content, m.created_at, m.edited_at,
-               COALESCE(u.display_name, u.username, '[Deleted User]') as username, u.id as user_id,
+        SELECT m.id, m.content, m.created_at, m.edited_at, m.is_webhook, m.webhook_username, m.webhook_avatar,
+               COALESCE(m.webhook_username, u.display_name, u.username, '[Deleted User]') as username, u.id as user_id,
                pm.pinned_at, COALESCE(pb.display_name, pb.username, '[Deleted User]') as pinned_by
         FROM pinned_messages pm
         JOIN messages m ON pm.message_id = m.id
@@ -2138,11 +3813,14 @@ function setupSocketHandlers(io, db) {
         ORDER BY pm.pinned_at DESC
       `).all(channel.id);
 
-      // Normalize UTC timestamps
+      // Normalize UTC timestamps + enrich webhook/bot pins
       pins.forEach(p => {
         p.created_at = utcStamp(p.created_at);
         p.edited_at = utcStamp(p.edited_at);
         p.pinned_at = utcStamp(p.pinned_at);
+        if (p.is_webhook) {
+          p.username = `[BOT] ${p.webhook_username || 'Bot'}`;
+        }
       });
 
       socket.emit('pinned-messages', { channelCode: code, pins });
@@ -2162,6 +3840,15 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'You can\'t kick yourself');
       }
 
+      // Level check: can only kick users with a LOWER effective level
+      if (!socket.user.isAdmin) {
+        const myLevel = getUserEffectiveLevel(socket.user.id, kickCh ? kickCh.id : null);
+        const targetLevel = getUserEffectiveLevel(data.userId, kickCh ? kickCh.id : null);
+        if (targetLevel >= myLevel) {
+          return socket.emit('error-msg', 'You can\'t kick a user with equal or higher rank');
+        }
+      }
+
       const code = socket.currentChannel;
       if (!code) return;
 
@@ -2172,11 +3859,31 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'User is not currently online in this channel (use ban instead)');
       }
 
+      // Permanently revoke channel membership so kicked user can't rejoin
+      if (kickCh) {
+        db.prepare('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?').run(kickCh.id, data.userId);
+        // Also revoke from sub-channels
+        const subs = db.prepare('SELECT id FROM channels WHERE parent_channel_id = ?').all(kickCh.id);
+        const delSub = db.prepare('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?');
+        subs.forEach(s => delSub.run(s.id, data.userId));
+      }
+
       // Emit kicked event to target
       io.to(targetInfo.socketId).emit('kicked', {
         channelCode: code,
         reason: typeof data.reason === 'string' ? data.reason.trim().slice(0, 200) : ''
       });
+
+      // Force the kicked user's socket to leave the room and refresh their channel list
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.user && s.user.id === data.userId);
+      for (const ts of targetSockets) {
+        ts.leave(`channel:${code}`);
+        if (kickCh) {
+          const subs = db.prepare('SELECT code FROM channels WHERE parent_channel_id = ?').all(kickCh.id);
+          subs.forEach(sub => ts.leave(`channel:${sub.code}`));
+        }
+        ts.emit('channels-list', getEnrichedChannels(data.userId, false, (room) => ts.join(room)));
+      }
 
       // Remove from channel tracking
       channelRoom.delete(data.userId);
@@ -2198,6 +3905,19 @@ function setupSocketHandlers(io, db) {
         }
       });
 
+      // Scrub messages if requested (skip archived messages)
+      // Non-admins can only scrub channel-scope (prevent channel mods nuking server-wide messages)
+      if (data.scrubMessages) {
+        const scrubScope = (socket.user.isAdmin && data.scrubScope === 'server') ? 'server' : 'channel';
+        if (scrubScope === 'channel' && kickCh) {
+          db.prepare('DELETE FROM reactions WHERE user_id = ? AND message_id IN (SELECT id FROM messages WHERE channel_id = ? AND is_archived = 0)').run(data.userId, kickCh.id);
+          db.prepare('DELETE FROM messages WHERE user_id = ? AND channel_id = ? AND is_archived = 0').run(data.userId, kickCh.id);
+        } else if (scrubScope === 'server') {
+          db.prepare('DELETE FROM reactions WHERE user_id = ? AND message_id IN (SELECT id FROM messages WHERE user_id = ? AND is_archived = 0)').run(data.userId, data.userId);
+          db.prepare('DELETE FROM messages WHERE user_id = ? AND is_archived = 0').run(data.userId);
+        }
+      }
+
       socket.emit('error-msg', `Kicked ${targetInfo.username}`);
     });
 
@@ -2211,6 +3931,21 @@ function setupSocketHandlers(io, db) {
       if (!isInt(data.userId)) return;
       if (data.userId === socket.user.id) {
         return socket.emit('error-msg', 'You can\'t ban yourself');
+      }
+
+      // Protect admins from being banned by non-admins
+      const targetRow = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(data.userId);
+      if (targetRow && targetRow.is_admin && !socket.user.isAdmin) {
+        return socket.emit('error-msg', 'You cannot ban an admin');
+      }
+
+      // Level check: can only ban users with a LOWER effective level
+      if (!socket.user.isAdmin) {
+        const myLevel = getUserEffectiveLevel(socket.user.id);
+        const targetLevel = getUserEffectiveLevel(data.userId);
+        if (targetLevel >= myLevel) {
+          return socket.emit('error-msg', 'You can\'t ban a user with equal or higher rank');
+        }
       }
 
       const reason = typeof data.reason === 'string' ? data.reason.trim().slice(0, 200) : '';
@@ -2239,6 +3974,12 @@ function setupSocketHandlers(io, db) {
       // Re-emit online users for all channels to remove banned user from lists
       for (const [code] of channelUsers) {
         emitOnlineUsers(code);
+      }
+
+      // Scrub messages server-wide if requested (skip archived messages)
+      if (data.scrubMessages) {
+        db.prepare('DELETE FROM reactions WHERE user_id = ? AND message_id IN (SELECT id FROM messages WHERE user_id = ? AND is_archived = 0)').run(data.userId, data.userId);
+        db.prepare('DELETE FROM messages WHERE user_id = ? AND is_archived = 0').run(data.userId);
       }
 
       socket.emit('error-msg', `Banned ${targetUser.username}`);
@@ -2278,8 +4019,14 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'You can\'t delete yourself');
       }
 
-      const targetUser = db.prepare('SELECT id, COALESCE(display_name, username) as username FROM users WHERE id = ?').get(data.userId);
+      const targetUser = db.prepare('SELECT id, username, display_name, COALESCE(display_name, username) as displayName FROM users WHERE id = ?').get(data.userId);
       if (!targetUser) return socket.emit('error-msg', 'User not found');
+
+      // Record the deletion for audit trail (before purging the user row)
+      const reason = typeof data.reason === 'string' ? data.reason.trim().slice(0, 500) : '';
+      db.prepare('INSERT INTO deleted_users (username, display_name, reason, deleted_by) VALUES (?, ?, ?, ?)').run(
+        targetUser.username, targetUser.display_name, reason, socket.user.id
+      );
 
       // Disconnect the user if online
       for (const [, s] of io.sockets.sockets) {
@@ -2309,13 +4056,25 @@ function setupSocketHandlers(io, db) {
         db.prepare('DELETE FROM mutes WHERE user_id = ?').run(uid);
         db.prepare('DELETE FROM bans WHERE user_id = ?').run(uid);
         db.prepare('DELETE FROM channel_members WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM user_roles WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM read_positions WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM fcm_tokens WHERE user_id = ?').run(uid);
         // Re-assign pins to the admin performing the deletion, then nullify messages
         db.prepare('UPDATE pinned_messages SET pinned_by = ? WHERE pinned_by = ?').run(socket.user.id, uid);
         db.prepare('DELETE FROM high_scores WHERE user_id = ?').run(uid);
         db.prepare('DELETE FROM eula_acceptances WHERE user_id = ?').run(uid);
         db.prepare('DELETE FROM user_preferences WHERE user_id = ?').run(uid);
-        // Mark their messages as [deleted user] instead of deleting (preserves chat history)
-        db.prepare('UPDATE messages SET user_id = NULL WHERE user_id = ?').run(uid);
+        if (data.scrubMessages) {
+          // Actually delete messages (skip archived/protected ones)
+          db.prepare('DELETE FROM pinned_messages WHERE message_id IN (SELECT id FROM messages WHERE user_id = ? AND is_archived = 0)').run(uid);
+          db.prepare('DELETE FROM messages WHERE user_id = ? AND is_archived = 0').run(uid);
+          // Any remaining archived messages get nullified so they stay as [Deleted User]
+          db.prepare('UPDATE messages SET user_id = NULL WHERE user_id = ?').run(uid);
+        } else {
+          // Mark their messages as [deleted user] instead of deleting (preserves chat history)
+          db.prepare('UPDATE messages SET user_id = NULL WHERE user_id = ?').run(uid);
+        }
         db.prepare('DELETE FROM users WHERE id = ?').run(uid);
       });
 
@@ -2326,7 +4085,14 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Failed to delete user');
       }
 
-      socket.emit('error-msg', `Deleted user "${targetUser.username}" — username is now available`);
+      socket.emit('error-msg', `Deleted user "${targetUser.displayName}" — username is now available`);
+
+      // Notify all admins so their member lists update in real time
+      for (const [, s] of io.sockets.sockets) {
+        if (s.user && s.user.isAdmin) {
+          s.emit('user-deleted', { userId: data.userId, username: targetUser.displayName });
+        }
+      }
 
       // Refresh ban list for admin
       const bans = db.prepare(`
@@ -2336,7 +4102,106 @@ function setupSocketHandlers(io, db) {
       bans.forEach(b => { b.created_at = utcStamp(b.created_at); });
       socket.emit('ban-list', bans);
 
-      console.log(`🗑️  Admin deleted user "${targetUser.username}" (id: ${data.userId})`);
+      console.log(`🗑️  Admin deleted user "${targetUser.displayName}" (id: ${data.userId})`);
+    });
+
+    // ═══════════════ SELF-DELETE ACCOUNT ═════════════════════
+
+    socket.on('self-delete-account', async (data, callback) => {
+      if (!data || typeof data !== 'object') return;
+      const cb = typeof callback === 'function' ? callback : () => {};
+      const uid = socket.user.id;
+
+      // Admins can't self-delete (must transfer first)
+      if (socket.user.isAdmin) {
+        return cb({ error: 'Admins must transfer admin to another user before deleting their account' });
+      }
+
+      // Password verification
+      const password = typeof data.password === 'string' ? data.password : '';
+      if (!password) return cb({ error: 'Password is required' });
+
+      const userRow = db.prepare('SELECT password_hash, COALESCE(display_name, username) as username FROM users WHERE id = ?').get(uid);
+      if (!userRow) return cb({ error: 'User not found' });
+
+      let validPw;
+      try {
+        validPw = await bcrypt.compare(password, userRow.password_hash);
+        if (!validPw) return cb({ error: 'Incorrect password' });
+      } catch (err) {
+        console.error('Self-delete password verification error:', err);
+        return cb({ error: 'Password verification failed' });
+      }
+
+      const scrubMessages = !!data.scrubMessages;
+
+      // Remove from online/voice tracking
+      for (const [code, users] of channelUsers) {
+        if (users.has(uid)) {
+          users.delete(uid);
+          emitOnlineUsers(code);
+        }
+      }
+      for (const [code, users] of voiceUsers) {
+        if (users.has(uid)) {
+          users.delete(uid);
+          broadcastVoiceUsers(code);
+        }
+      }
+
+      // Purge user data
+      const purge = db.transaction(() => {
+        db.prepare('DELETE FROM reactions WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM mutes WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM bans WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM user_roles WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM read_positions WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM high_scores WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM eula_acceptances WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM user_preferences WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM fcm_tokens WHERE user_id = ?').run(uid);
+
+        if (scrubMessages) {
+          // Delete all non-archived messages
+          db.prepare('DELETE FROM pinned_messages WHERE message_id IN (SELECT id FROM messages WHERE user_id = ? AND is_archived = 0)').run(uid);
+          db.prepare('DELETE FROM messages WHERE user_id = ? AND is_archived = 0').run(uid);
+          // Nullify remaining archived messages
+          db.prepare('UPDATE messages SET user_id = NULL WHERE user_id = ?').run(uid);
+
+          // Clean up DM channels that are now empty
+          const dmChannels = db.prepare(`
+            SELECT c.id, c.code FROM channels c
+            JOIN channel_members cm ON c.id = cm.channel_id
+            WHERE c.is_dm = 1 AND cm.user_id = ?
+          `).all(uid);
+          for (const dm of dmChannels) {
+            const remaining = db.prepare('SELECT COUNT(*) as cnt FROM messages WHERE channel_id = ?').get(dm.id);
+            if (remaining.cnt === 0) {
+              db.prepare('DELETE FROM channel_members WHERE channel_id = ?').run(dm.id);
+              db.prepare('DELETE FROM read_positions WHERE channel_id = ?').run(dm.id);
+              db.prepare('DELETE FROM channels WHERE id = ?').run(dm.id);
+            }
+          }
+        } else {
+          // Preserve messages as [Deleted User]
+          db.prepare('UPDATE messages SET user_id = NULL WHERE user_id = ?').run(uid);
+        }
+
+        db.prepare('DELETE FROM channel_members WHERE user_id = ?').run(uid);
+        db.prepare('DELETE FROM users WHERE id = ?').run(uid);
+      });
+
+      try {
+        purge();
+      } catch (err) {
+        console.error('Self-delete error:', err);
+        return cb({ error: 'Failed to delete account' });
+      }
+
+      console.log(`🗑️  User self-deleted: "${userRow.username}" (id: ${uid}, scrub: ${scrubMessages})`);
+      cb({ success: true });
+      socket.disconnect(true);
     });
 
     // ═══════════════ ADMIN: MUTE USER ═══════════════════════
@@ -2351,6 +4216,15 @@ function setupSocketHandlers(io, db) {
       if (!isInt(data.userId)) return;
       if (data.userId === socket.user.id) {
         return socket.emit('error-msg', 'You can\'t mute yourself');
+      }
+
+      // Level check: can only mute users with a LOWER effective level
+      if (!socket.user.isAdmin) {
+        const myLevel = getUserEffectiveLevel(socket.user.id, muteCh ? muteCh.id : null);
+        const targetLevel = getUserEffectiveLevel(data.userId, muteCh ? muteCh.id : null);
+        if (targetLevel >= myLevel) {
+          return socket.emit('error-msg', 'You can\'t mute a user with equal or higher rank');
+        }
       }
 
       const durationMinutes = isInt(data.duration) && data.duration > 0 && data.duration <= 43200
@@ -2405,6 +4279,19 @@ function setupSocketHandlers(io, db) {
       socket.emit('ban-list', bans);
     });
 
+    socket.on('get-deleted-users', () => {
+      if (!socket.user.isAdmin) return;
+      const rows = db.prepare(`
+        SELECT d.id, d.username, d.display_name, d.reason, d.deleted_at,
+               COALESCE(u.display_name, u.username) as deleted_by_name
+        FROM deleted_users d
+        LEFT JOIN users u ON d.deleted_by = u.id
+        ORDER BY d.deleted_at DESC
+      `).all();
+      rows.forEach(r => { r.deleted_at = utcStamp(r.deleted_at); });
+      socket.emit('deleted-users-list', rows);
+    });
+
     // ═══════════════ SERVER SETTINGS ════════════════════════
 
     socket.on('get-server-settings', () => {
@@ -2421,14 +4308,14 @@ function setupSocketHandlers(io, db) {
     // ═══════════════ WHITELIST MANAGEMENT ═══════════════════
 
     socket.on('get-whitelist', () => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       const rows = db.prepare('SELECT id, username, created_at FROM whitelist ORDER BY username').all();
       rows.forEach(r => { r.created_at = utcStamp(r.created_at); });
       socket.emit('whitelist-list', rows);
     });
 
     socket.on('whitelist-add', (data) => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       if (!data || typeof data !== 'object') return;
       const username = typeof data.username === 'string' ? data.username.trim() : '';
       if (!username || username.length < 3 || username.length > 20) {
@@ -2451,7 +4338,7 @@ function setupSocketHandlers(io, db) {
     });
 
     socket.on('whitelist-remove', (data) => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       if (!data || typeof data !== 'object') return;
       const username = typeof data.username === 'string' ? data.username.trim() : '';
       if (!username) return;
@@ -2465,7 +4352,7 @@ function setupSocketHandlers(io, db) {
     });
 
     socket.on('whitelist-toggle', (data) => {
-      if (!socket.user.isAdmin) return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) return;
       if (!data || typeof data !== 'object') return;
       const enabled = data.enabled === true ? 'true' : 'false';
       db.prepare("INSERT OR REPLACE INTO server_settings (key, value) VALUES ('whitelist_enabled', ?)").run(enabled);
@@ -2548,14 +4435,14 @@ function setupSocketHandlers(io, db) {
 
     socket.on('update-server-setting', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can change server settings');
       }
 
       const key = typeof data.key === 'string' ? data.key.trim() : '';
       const value = typeof data.value === 'string' ? data.value.trim() : '';
 
-      const allowedKeys = ['member_visibility', 'cleanup_enabled', 'cleanup_max_age_days', 'cleanup_max_size_mb', 'giphy_api_key', 'server_name', 'server_icon', 'permission_thresholds', 'tunnel_enabled', 'tunnel_provider', 'server_code', 'max_upload_mb', 'setup_wizard_complete'];
+      const allowedKeys = ['member_visibility', 'cleanup_enabled', 'cleanup_max_age_days', 'cleanup_max_size_mb', 'giphy_api_key', 'server_name', 'server_title', 'server_icon', 'permission_thresholds', 'tunnel_enabled', 'tunnel_provider', 'server_code', 'max_upload_mb', 'max_poll_options', 'max_sound_kb', 'max_emoji_kb', 'setup_wizard_complete', 'update_banner_admin_only', 'default_theme', 'channel_sort_mode', 'channel_cat_order', 'channel_cat_sort', 'channel_tag_sorts', 'custom_tos'];
       if (!allowedKeys.includes(key)) return;
 
       if (key === 'member_visibility' && !['all', 'online', 'none'].includes(value)) return;
@@ -2572,6 +4459,18 @@ function setupSocketHandlers(io, db) {
         const n = parseInt(value);
         if (isNaN(n) || n < 1 || n > 2048) return;
       }
+      if (key === 'max_poll_options') {
+        const n = parseInt(value);
+        if (isNaN(n) || n < 2 || n > 25) return;
+      }
+      if (key === 'max_sound_kb') {
+        const n = parseInt(value);
+        if (isNaN(n) || n < 256 || n > 10240) return;
+      }
+      if (key === 'max_emoji_kb') {
+        const n = parseInt(value);
+        if (isNaN(n) || n < 64 || n > 1024) return;
+      }
       if (key === 'giphy_api_key') {
         // Allow empty value to clear the key, otherwise validate format
         if (value && (value.length < 10 || value.length > 100)) return;
@@ -2579,12 +4478,36 @@ function setupSocketHandlers(io, db) {
       if (key === 'server_name') {
         if (value.length > 32) return;
       }
+      if (key === 'server_title') {
+        if (value.length > 40) return;
+      }
       if (key === 'server_icon') {
-        if (value && !value.startsWith('/uploads/')) return;
+        if (value && !isValidUploadPath(value)) return;
       }
       if (key === 'tunnel_enabled' && !['true', 'false'].includes(value)) return;
       if (key === 'tunnel_provider' && !['localtunnel', 'cloudflared'].includes(value)) return;
       if (key === 'setup_wizard_complete' && !['true', 'false'].includes(value)) return;
+      if (key === 'update_banner_admin_only' && !['true', 'false'].includes(value)) return;
+      if (key === 'channel_sort_mode' && !['manual', 'alpha', 'created', 'oldest', 'dynamic'].includes(value)) return;
+      if (key === 'channel_cat_sort' && !['az', 'za', 'manual'].includes(value)) return;
+      if (key === 'channel_cat_order') {
+        try { const arr = JSON.parse(value); if (!Array.isArray(arr)) return; } catch { return; }
+      }
+      if (key === 'channel_tag_sorts') {
+        try {
+          const obj = JSON.parse(value);
+          if (typeof obj !== 'object' || Array.isArray(obj)) return;
+          const validModes = ['manual', 'alpha', 'created', 'oldest', 'dynamic'];
+          for (const v of Object.values(obj)) { if (!validModes.includes(v)) return; }
+        } catch { return; }
+      }
+      if (key === 'default_theme') {
+        const validThemes = ['', 'haven', 'discord', 'matrix', 'fallout', 'ffx', 'ice', 'nord', 'darksouls', 'eldenring', 'bloodborne', 'cyberpunk', 'lotr', 'abyss', 'scripture', 'chapel', 'gospel', 'tron', 'halo', 'dracula', 'win95'];
+        if (!validThemes.includes(value)) return;
+      }
+      if (key === 'custom_tos') {
+        if (value.length > 50000) return;
+      }
       if (key === 'server_code') {
         // Server code is managed via generate/rotate events, not directly
         return;
@@ -2594,23 +4517,21 @@ function setupSocketHandlers(io, db) {
         try {
           const obj = JSON.parse(value);
           if (typeof obj !== 'object' || Array.isArray(obj)) return;
-          const validPerms = [
-            'edit_own_messages', 'delete_own_messages', 'delete_message', 'delete_lower_messages',
-            'pin_message', 'kick_user', 'mute_user', 'ban_user',
-            'rename_channel', 'rename_sub_channel', 'set_channel_topic', 'manage_sub_channels',
-            'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-            'promote_user', 'transfer_admin'
-          ];
+          const validPerms = VALID_ROLE_PERMS;
           for (const [k, v] of Object.entries(obj)) {
             if (!validPerms.includes(k)) return;
             if (!Number.isInteger(v) || v < 1 || v > 100) return;
           }
         } catch { return; }
       }
-
-      db.prepare(
-        'INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)'
-      ).run(key, value);
+      try {
+        db.prepare(
+          'INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)'
+        ).run(key, value);
+      } catch (err) {
+        console.error('Failed to save server setting:', key, err.message);
+        return socket.emit('error-msg', 'Failed to save setting — database write error');
+      }
 
       // Broadcast to all connected clients
       io.emit('server-setting-changed', { key, value });
@@ -2626,7 +4547,7 @@ function setupSocketHandlers(io, db) {
     // ═══════════════ SERVER-WIDE INVITE CODE ════════════════
 
     socket.on('generate-server-code', () => {
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can manage server codes');
       }
       const code = generateChannelCode();
@@ -2636,7 +4557,7 @@ function setupSocketHandlers(io, db) {
     });
 
     socket.on('clear-server-code', () => {
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can manage server codes');
       }
       db.prepare('INSERT OR REPLACE INTO server_settings (key, value) VALUES (?, ?)').run('server_code', '');
@@ -2647,7 +4568,7 @@ function setupSocketHandlers(io, db) {
     // ═══════════════ ADMIN: RUN CLEANUP NOW ═════════════════
 
     socket.on('run-cleanup-now', () => {
-      if (!socket.user.isAdmin) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_server')) {
         return socket.emit('error-msg', 'Only admins can run cleanup');
       }
       // Trigger the global cleanup function exposed on the server
@@ -2689,6 +4610,7 @@ function setupSocketHandlers(io, db) {
       // Return the full list
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -2702,6 +4624,7 @@ function setupSocketHandlers(io, db) {
       if (!socket.user.isAdmin) return;
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -2721,6 +4644,7 @@ function setupSocketHandlers(io, db) {
 
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -2741,6 +4665,7 @@ function setupSocketHandlers(io, db) {
 
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -2778,10 +4703,22 @@ function setupSocketHandlers(io, db) {
         const av = typeof data.avatar_url === 'string' ? data.avatar_url.trim().slice(0, 512) : null;
         db.prepare('UPDATE webhooks SET avatar_url = ? WHERE id = ?').run(av || null, webhookId);
       }
+      // Update callback URL if provided
+      if (data.callback_url !== undefined) {
+        let cbUrl = typeof data.callback_url === 'string' ? data.callback_url.trim().slice(0, 1024) : null;
+        if (cbUrl && !/^https?:\/\//i.test(cbUrl)) cbUrl = null; // must be http(s)
+        db.prepare('UPDATE webhooks SET callback_url = ? WHERE id = ?').run(cbUrl || null, webhookId);
+      }
+      // Update callback secret if provided
+      if (data.callback_secret !== undefined) {
+        const secret = typeof data.callback_secret === 'string' ? data.callback_secret.trim().slice(0, 256) : null;
+        db.prepare('UPDATE webhooks SET callback_secret = ? WHERE id = ?').run(secret || null, webhookId);
+      }
 
       // Return updated list
       const webhooks = db.prepare(`
         SELECT w.id, w.channel_id, w.name, w.token, w.avatar_url, w.is_active, w.created_at,
+               w.callback_url, w.callback_secret,
                c.name as channel_name, c.code as channel_code
         FROM webhooks w JOIN channels c ON w.channel_id = c.id
         ORDER BY w.created_at DESC
@@ -2797,8 +4734,8 @@ function setupSocketHandlers(io, db) {
     socket.on('set-avatar', (data) => {
       if (!data || typeof data !== 'object') return;
       const url = typeof data.url === 'string' ? data.url.trim() : '';
-      // Only allow /uploads/ paths or empty (clear) — no data: URLs via socket
-      if (url && !url.startsWith('/uploads/')) return;
+      // Only allow safe /uploads/ paths or empty (clear) — no data: URLs or path traversal
+      if (url && !isValidUploadPath(url)) return;
       // DB was already updated by the HTTP endpoint; just sync the in-memory state
       socket.user.avatar = url || null;
       console.log(`[Avatar] ${socket.user.username} broadcast avatar: ${url || '(removed)'}`);
@@ -2874,25 +4811,53 @@ function setupSocketHandlers(io, db) {
         ).get(data.userId);
         if (!row) return;
 
-        // Get user's roles (deduplicated — SQLite UNIQUE doesn't prevent NULL channel_id dups)
+        // Get user's server-wide roles
         const roles = db.prepare(
           `SELECT DISTINCT r.id, r.name, r.level, r.color
            FROM roles r
            JOIN user_roles ur ON r.id = ur.role_id
-           WHERE ur.user_id = ?
+           WHERE ur.user_id = ? AND ur.channel_id IS NULL
            GROUP BY r.id
            ORDER BY r.level DESC`
         ).all(data.userId);
 
-        // If user is admin, prepend the Admin pseudo-role so it shows in their profile
-        const isAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(data.userId);
-        if (isAdmin && isAdmin.is_admin) {
-          roles.unshift({ id: -1, name: 'Admin', level: 100, color: '#e74c3c' });
+        // Also include channel-specific roles for the requesting user's current channel
+        const currentChannelCode = socket.currentChannel;
+        if (currentChannelCode) {
+          const ch = db.prepare('SELECT id FROM channels WHERE code = ?').get(currentChannelCode);
+          if (ch) {
+            const chain = getChannelRoleChain(ch.id);
+            if (chain.length > 0) {
+              const placeholders = chain.map(() => '?').join(',');
+              const channelRoles = db.prepare(
+                `SELECT DISTINCT r.id, r.name, COALESCE(ur.custom_level, r.level) as level, r.color
+                 FROM roles r
+                 JOIN user_roles ur ON r.id = ur.role_id
+                 WHERE ur.user_id = ? AND ur.channel_id IN (${placeholders})
+                 GROUP BY r.id
+                 ORDER BY r.level DESC`
+              ).all(data.userId, ...chain);
+              // Merge channel roles (avoid duplicates)
+              const existingIds = new Set(roles.map(r => r.id));
+              for (const cr of channelRoles) {
+                if (!existingIds.has(cr.id)) {
+                  roles.push(cr);
+                  existingIds.add(cr.id);
+                }
+              }
+              // Re-sort by level descending
+              roles.sort((a, b) => b.level - a.level);
+            }
+          }
         }
 
-        // Strip the default "User" role whenever a higher-level role exists
-        // (e.g. Channel Mod + User → just Channel Mod; Admin + User → just Admin)
-        if (roles.length > 1) {
+        // If user is admin, show only the Admin pseudo-role (admin supersedes all)
+        const isAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(data.userId);
+        if (isAdmin && isAdmin.is_admin) {
+          roles.length = 0;
+          roles.push({ id: -1, name: 'Admin', level: 100, color: '#e74c3c' });
+        } else if (roles.length > 1) {
+          // Strip the default "User" role whenever a higher-level role exists
           const userRoleIdx = roles.findIndex(r => r.name === 'User' && r.level <= 1);
           if (userRoleIdx !== -1) roles.splice(userRoleIdx, 1);
         }
@@ -2923,7 +4888,7 @@ function setupSocketHandlers(io, db) {
 
     socket.on('set-bio', (data) => {
       if (!data || typeof data.bio !== 'string') return;
-      const bio = data.bio.trim().slice(0, 190);
+      const bio = sanitizeText(data.bio.trim().slice(0, 190));
       try {
         db.prepare('UPDATE users SET bio = ? WHERE id = ?').run(bio, socket.user.id);
         socket.emit('bio-updated', { bio });
@@ -2937,7 +4902,13 @@ function setupSocketHandlers(io, db) {
     socket.on('push-subscribe', (data) => {
       if (!data || typeof data !== 'object') return;
       const { endpoint, keys } = data;
-      if (!endpoint || !keys || !keys.p256dh || !keys.auth) return;
+      if (typeof endpoint !== 'string' || !endpoint) return;
+      if (!keys || typeof keys !== 'object') return;
+      if (typeof keys.p256dh !== 'string' || !keys.p256dh) return;
+      if (typeof keys.auth !== 'string' || !keys.auth) return;
+
+      // Endpoint must be a valid HTTPS push service URL
+      try { const u = new URL(endpoint); if (u.protocol !== 'https:') return; } catch { return; }
 
       try {
         db.prepare(`
@@ -3005,7 +4976,7 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'You don\'t have permission to set channel topics');
       }
 
-      const topic = isString(data.topic, 0, 256) ? data.topic.trim() : '';
+      const topic = isString(data.topic, 0, 256) ? sanitizeText(data.topic.trim()) : '';
 
       try {
         db.prepare('UPDATE channels SET topic = ? WHERE id = ?').run(topic, channel.id);
@@ -3021,8 +4992,8 @@ function setupSocketHandlers(io, db) {
 
     socket.on('update-channel-code-settings', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) {
-        return socket.emit('error-msg', 'Only admins can change channel code settings');
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) {
+        return socket.emit('error-msg', 'You don\'t have permission to change channel code settings');
       }
 
       const channelId = typeof data.channelId === 'number' ? data.channelId : null;
@@ -3245,6 +5216,149 @@ function setupSocketHandlers(io, db) {
       }
     });
 
+    // ═══════════════ INVITE USER TO CHANNEL ════════════════
+
+    socket.on('invite-to-channel', (data) => {
+      if (!data || typeof data !== 'object') return;
+      const targetUserId = isInt(data.targetUserId) ? data.targetUserId : null;
+      const channelId = isInt(data.channelId) ? data.channelId : null;
+      if (!targetUserId || !channelId) return socket.emit('error-msg', 'Invalid invite data');
+      if (targetUserId === socket.user.id) return;
+
+      // Check inviter is a member of this channel
+      const inviterMember = db.prepare(
+        'SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?'
+      ).get(channelId, socket.user.id);
+      if (!inviterMember && !socket.user.isAdmin) {
+        return socket.emit('error-msg', 'You are not a member of that channel');
+      }
+
+      // Check channel exists and is not a DM
+      const channel = db.prepare('SELECT * FROM channels WHERE id = ? AND is_dm = 0').get(channelId);
+      if (!channel) return socket.emit('error-msg', 'Channel not found');
+
+      // Private channels: only the creator, admins, and mods can invite others.
+      // Regular members cannot bypass the code requirement by using the invite feature.
+      // Treat both is_private=1 AND code_visibility='private' as private for this check.
+      const channelIsPrivate = channel.is_private || channel.code_visibility === 'private';
+      if (channelIsPrivate && !socket.user.isAdmin) {
+        const isCreator = channel.created_by === socket.user.id;
+        const isMod = userHasPermission(socket.user.id, 'kick_user', channelId);
+        if (!isCreator && !isMod) {
+          return socket.emit('error-msg', 'Only the channel creator or moderators can invite people to private channels');
+        }
+      }
+
+      // Check target user exists
+      const targetUser = db.prepare('SELECT id, username FROM users WHERE id = ?').get(targetUserId);
+      if (!targetUser) return socket.emit('error-msg', 'User not found');
+
+      // Check target isn't already a member
+      const alreadyMember = db.prepare(
+        'SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?'
+      ).get(channelId, targetUserId);
+      if (alreadyMember) {
+        return socket.emit('error-msg', `${targetUser.username} is already in #${channel.name}`);
+      }
+
+      // Add the target user to the channel
+      db.prepare('INSERT INTO channel_members (channel_id, user_id) VALUES (?, ?)').run(channelId, targetUserId);
+
+      // Also add to non-private sub-channels
+      if (!channel.parent_channel_id) {
+        const subs = db.prepare(
+          'SELECT id, code FROM channels WHERE parent_channel_id = ? AND is_private = 0'
+        ).all(channel.id);
+        const insertSub = db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)');
+        subs.forEach(sub => insertSub.run(sub.id, targetUserId));
+      }
+
+      // Auto-assign roles
+      try {
+        const autoRoles = db.prepare('SELECT id FROM roles WHERE auto_assign = 1').all();
+        const insertAutoRole = db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role_id, channel_id, granted_by) VALUES (?, ?, NULL, NULL)');
+        for (const ar of autoRoles) {
+          insertAutoRole.run(targetUserId, ar.id);
+          applyRoleChannelAccess(ar.id, targetUserId, 'grant');
+        }
+      } catch { /* non-critical */ }
+
+      // If the target user is online, refresh their channel list
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.user && s.user.id === targetUserId);
+      for (const ts of targetSockets) {
+        ts.join(`channel:${channel.code}`);
+        // Also join sub-channel rooms
+        if (!channel.parent_channel_id) {
+          const subs = db.prepare('SELECT code FROM channels WHERE parent_channel_id = ? AND is_private = 0').all(channel.id);
+          subs.forEach(sub => ts.join(`channel:${sub.code}`));
+        }
+        ts.emit('channels-list', getEnrichedChannels(targetUserId, ts.user.isAdmin, (room) => ts.join(room)));
+        ts.emit('toast', { message: `${socket.user.username} invited you to #${channel.name}`, type: 'info' });
+      }
+
+      socket.emit('error-msg', `Invited ${targetUser.username} to #${channel.name}`);
+    });
+
+    // ═══════════════ REMOVE FROM CHANNEL ═══════════════════
+
+    socket.on('remove-from-channel', (data, callback) => {
+      const cb = typeof callback === 'function' ? callback : () => {};
+      if (!data || typeof data !== 'object') return cb({ error: 'Invalid data' });
+      const targetUserId = isInt(data.userId) ? data.userId : null;
+      const channelId = isInt(data.channelId) ? data.channelId : null;
+      if (!targetUserId || !channelId) return cb({ error: 'Invalid data' });
+      if (targetUserId === socket.user.id) return cb({ error: 'You can\'t remove yourself' });
+
+      // Permission check: admin or kick_user perm
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'kick_user', channelId)) {
+        return cb({ error: 'You don\'t have permission to remove users from channels' });
+      }
+
+      // Level check: can only remove users with a LOWER effective level
+      if (!socket.user.isAdmin) {
+        const myLevel = getUserEffectiveLevel(socket.user.id, channelId);
+        const targetLevel = getUserEffectiveLevel(targetUserId, channelId);
+        if (targetLevel >= myLevel) {
+          return cb({ error: 'You can\'t remove a user with equal or higher rank' });
+        }
+      }
+
+      const channel = db.prepare('SELECT * FROM channels WHERE id = ? AND is_dm = 0').get(channelId);
+      if (!channel) return cb({ error: 'Channel not found' });
+
+      const targetUser = db.prepare('SELECT id, username, COALESCE(display_name, username) as displayName FROM users WHERE id = ?').get(targetUserId);
+      if (!targetUser) return cb({ error: 'User not found' });
+
+      // Check target is actually a member
+      const membership = db.prepare('SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?').get(channelId, targetUserId);
+      if (!membership) return cb({ error: `${targetUser.username} is not in #${channel.name}` });
+
+      // Remove from channel + sub-channels
+      db.prepare('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?').run(channelId, targetUserId);
+      const subs = db.prepare('SELECT id, code FROM channels WHERE parent_channel_id = ?').all(channelId);
+      const delSub = db.prepare('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?');
+      subs.forEach(s => delSub.run(s.id, targetUserId));
+
+      // If the target is online, update their socket rooms and channel list
+      const targetSockets = [...io.sockets.sockets.values()].filter(s => s.user && s.user.id === targetUserId);
+      for (const ts of targetSockets) {
+        ts.leave(`channel:${channel.code}`);
+        subs.forEach(sub => ts.leave(`channel:${sub.code}`));
+        ts.emit('channels-list', getEnrichedChannels(targetUserId, ts.user.isAdmin, (room) => ts.join(room)));
+        ts.emit('toast', { message: `You were removed from #${channel.name}`, type: 'warning' });
+      }
+
+      // Remove from channel tracking
+      const channelRoom = channelUsers.get(channel.code);
+      if (channelRoom) {
+        channelRoom.delete(targetUserId);
+        emitOnlineUsers(channel.code);
+      }
+
+      cb({ success: true });
+      socket.emit('error-msg', `Removed ${targetUser.username} from #${channel.name}`);
+    });
+
     // ═══════════════ DIRECT MESSAGES ═══════════════════════
 
     socket.on('start-dm', (data) => {
@@ -3363,6 +5477,10 @@ function setupSocketHandlers(io, db) {
       const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
       if (!channel) return;
 
+      // Verify user is actually a member of this channel
+      const member = db.prepare('SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?').get(channel.id, socket.user.id);
+      if (!member) return;
+
       try {
         db.prepare(`
           INSERT INTO read_positions (user_id, channel_id, last_read_message_id)
@@ -3371,6 +5489,42 @@ function setupSocketHandlers(io, db) {
         `).run(socket.user.id, channel.id, data.messageId);
       } catch (err) {
         console.error('Mark read error:', err);
+      }
+    });
+
+    // ═══════════════ ANDROID BETA SIGNUP ═════════════════════
+
+    socket.on('android-beta-signup', (data, callback) => {
+      if (typeof callback !== 'function') return;
+      if (!data || !data.email || typeof data.email !== 'string') {
+        return callback({ ok: false, error: 'Invalid email.' });
+      }
+      const email = data.email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) {
+        return callback({ ok: false, error: 'Invalid email address.' });
+      }
+
+      try {
+        const filePath = path.join(DATA_DIR, 'beta-signups.json');
+        let signups = [];
+        try { signups = JSON.parse(fs.readFileSync(filePath, 'utf8')); } catch { /* first signup */ }
+
+        // Prevent duplicates
+        if (signups.some(s => s.email === email)) {
+          return callback({ ok: true }); // silently accept duplicate
+        }
+
+        signups.push({
+          email,
+          username: socket.user.username,
+          date: new Date().toISOString()
+        });
+        fs.writeFileSync(filePath, JSON.stringify(signups, null, 2));
+        console.log(`📱 Android beta signup: ${email} (${socket.user.username})`);
+        callback({ ok: true });
+      } catch (err) {
+        console.error('Beta signup error:', err);
+        callback({ ok: false, error: 'Server error — try again later.' });
       }
     });
 
@@ -3428,6 +5582,10 @@ function setupSocketHandlers(io, db) {
       const sharers = activeScreenSharers.get(code);
       if (sharers) { sharers.delete(socket.user.id); if (sharers.size === 0) activeScreenSharers.delete(code); }
 
+      // Untrack webcam user if they had their camera on
+      const camUsers = activeWebcamUsers.get(code);
+      if (camUsers) { camUsers.delete(socket.user.id); if (camUsers.size === 0) activeWebcamUsers.delete(code); }
+
       // Clean up stream viewer entries for this user (as sharer or viewer)
       const viewerKey = `${code}:${socket.user.id}`;
       streamViewers.delete(viewerKey);  // remove their stream's viewer list
@@ -3448,16 +5606,45 @@ function setupSocketHandlers(io, db) {
 
       broadcastVoiceUsers(code);
       broadcastStreamInfo(code);
+      if (voiceRoom.size === 0) {
+        activeMusic.delete(code);
+        musicQueues.delete(code);
+
+        // Auto-delete temporary voice channels when the last person leaves (#163)
+        try {
+          const ch = db.prepare('SELECT id, is_temp_voice FROM channels WHERE code = ?').get(code);
+          if (ch && ch.is_temp_voice) {
+            db.prepare('DELETE FROM reactions WHERE message_id IN (SELECT id FROM messages WHERE channel_id = ?)').run(ch.id);
+            db.prepare('DELETE FROM pinned_messages WHERE channel_id = ?').run(ch.id);
+            db.prepare('DELETE FROM messages WHERE channel_id = ?').run(ch.id);
+            db.prepare('DELETE FROM channel_members WHERE channel_id = ?').run(ch.id);
+            db.prepare('DELETE FROM channels WHERE id = ?').run(ch.id);
+            io.emit('channel-deleted', { code, reason: 'temp-empty' });
+            channelUsers.delete(code);
+            voiceUsers.delete(code);
+            console.log(`[Temporary] Temp voice channel "${code}" deleted (everyone left)`);
+          }
+        } catch { /* column may not exist yet */ }
+      }
+
+      // Clean up AFK tracking if user is no longer in any voice room
+      let stillInVoice = false;
+      for (const [, room] of voiceUsers) {
+        if (room.has(socket.user.id)) { stillInVoice = true; break; }
+      }
+      if (!stillInVoice) voiceLastActivity.delete(socket.user.id);
     }
 
     function broadcastVoiceUsers(code) {
+      // Prune any stale/disconnected voice entries first
+      pruneStaleVoiceUsers(code);
       const channel = db.prepare('SELECT id FROM channels WHERE code = ?').get(code);
       const channelId = channel ? channel.id : null;
       const room = voiceUsers.get(code);
       const users = room
         ? Array.from(room.values()).map(u => {
             const role = getUserHighestRole(u.id, channelId);
-            return { id: u.id, username: u.username, roleColor: role ? role.color : null };
+            return { id: u.id, username: u.username, roleColor: role ? role.color : null, isMuted: u.isMuted || false, isDeafened: u.isDeafened || false };
           })
         : [];
       // Emit to voice participants (may have switched text channels) AND text viewers
@@ -3465,8 +5652,12 @@ function setupSocketHandlers(io, db) {
         channelCode: code,
         users
       });
-      // Lightweight count for sidebar voice indicators (all connected clients)
-      io.emit('voice-count-update', { code, count: users.length });
+      // Sidebar voice indicators (all connected clients) — includes user list for display
+      io.emit('voice-count-update', {
+        code,
+        count: users.length,
+        users: users.map(u => ({ id: u.id, username: u.username, isMuted: u.isMuted || false, isDeafened: u.isDeafened || false }))
+      });
     }
 
     function emitOnlineUsers(code) {
@@ -3556,8 +5747,9 @@ function setupSocketHandlers(io, db) {
         return a.username.toLowerCase().localeCompare(b.username.toLowerCase());
       });
 
-      // Send per-socket: invisible users appear offline to others, but normal to themselves
+      // Check if per-socket emission is needed (invisible users require per-viewer filtering)
       const hasInvisible = users.some(u => u.status === 'invisible');
+
       if (!hasInvisible) {
         // Fast path: no invisible users, broadcast to everyone
         io.to(`channel:${code}`).emit('online-users', {
@@ -3566,16 +5758,20 @@ function setupSocketHandlers(io, db) {
           visibilityMode: mode
         });
       } else {
-        // Slow path: customize the list per recipient
+        // Per-socket path: hide invisible users from non-self viewers
         for (const [, s] of io.of('/').sockets) {
           if (!s.user || !s.rooms || !s.rooms.has(`channel:${code}`)) continue;
           const viewerId = s.user.id;
+
           const customUsers = users.map(u => {
             if (u.status === 'invisible' && u.id !== viewerId) {
+              // In 'online' mode, omit invisible users entirely so their
+              // presence isn't revealed by an "offline" entry in an online-only list
+              if (mode === 'online') return null;
               return { ...u, online: false, status: 'offline' };
             }
             return u;
-          });
+          }).filter(Boolean);
           customUsers.sort((a, b) => {
             if (a.online !== b.online) return a.online ? -1 : 1;
             return a.username.toLowerCase().localeCompare(b.username.toLowerCase());
@@ -3588,6 +5784,138 @@ function setupSocketHandlers(io, db) {
         }
       }
     }
+
+    // ═══════════════ ADMIN MEMBER LIST ═════════════════════
+
+    socket.on('get-all-members', (data, callback) => {
+      const cb = typeof callback === 'function' ? callback : () => {};
+
+      const isAdmin = socket.user.isAdmin;
+      const canMod = isAdmin || userHasPermission(socket.user.id, 'kick_user') || userHasPermission(socket.user.id, 'ban_user');
+      const canSeeAll = canMod || userHasPermission(socket.user.id, 'view_all_members');
+
+      // Channel-scoped member viewing: if the caller can't see ALL members,
+      // check if they have view_channel_members for the requested channel.
+      let channelOnly = null; // null = all members, otherwise restrict to this channel's members
+      if (!canSeeAll) {
+        const channelCode = data && typeof data.channelCode === 'string' ? data.channelCode : null;
+        if (channelCode) {
+          const ch = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0').get(channelCode);
+          if (ch && userHasPermission(socket.user.id, 'view_channel_members', ch.id)) {
+            channelOnly = ch.id;
+          }
+        }
+        if (channelOnly === null) return cb({ error: 'Permission denied' });
+      }
+
+      try {
+        let users;
+        if (channelOnly) {
+          // Only fetch members of the specific channel
+          users = db.prepare(`
+            SELECT u.id, u.username, COALESCE(u.display_name, u.username) as displayName,
+                   u.is_admin, u.created_at, u.avatar, u.avatar_shape, u.status, u.status_text
+            FROM users u
+            JOIN channel_members cm ON u.id = cm.user_id
+            WHERE cm.channel_id = ?
+            ORDER BY u.created_at DESC
+          `).all(channelOnly);
+        } else {
+          users = db.prepare(`
+            SELECT u.id, u.username, COALESCE(u.display_name, u.username) as displayName,
+                   u.is_admin, u.created_at, u.avatar, u.avatar_shape, u.status, u.status_text
+            FROM users u
+            LEFT JOIN bans b ON u.id = b.user_id
+            ORDER BY u.created_at DESC
+          `).all();
+        }
+
+        // Build online set from connected sockets
+        const onlineIds = new Set();
+        for (const [, s] of io.of('/').sockets) {
+          if (s.user) onlineIds.add(s.user.id);
+        }
+
+        // Fetch all user-role assignments
+        const roleRows = db.prepare(`
+          SELECT ur.user_id, r.id as role_id, r.name, r.level, r.color
+          FROM user_roles ur
+          JOIN roles r ON ur.role_id = r.id
+          WHERE ur.channel_id IS NULL
+          ORDER BY r.level DESC
+        `).all();
+        const userRoles = {};
+        roleRows.forEach(r => {
+          if (!userRoles[r.user_id]) userRoles[r.user_id] = [];
+          userRoles[r.user_id].push({ id: r.role_id, name: r.name, level: r.level, color: r.color });
+        });
+
+        // Check banned status
+        const bannedRows = db.prepare('SELECT user_id FROM bans').all();
+        const bannedIds = new Set(bannedRows.map(r => r.user_id));
+
+        // Count channels per user
+        const channelCounts = {};
+        const ccRows = db.prepare('SELECT user_id, COUNT(*) as cnt FROM channel_members GROUP BY user_id').all();
+        ccRows.forEach(r => { channelCounts[r.user_id] = r.cnt; });
+
+        // Get all channels for admin/mod channel management
+        let allChannels = [];
+        if (canMod) {
+          allChannels = db.prepare('SELECT id, name, code, parent_channel_id FROM channels WHERE is_dm = 0 ORDER BY position, name').all()
+            .map(c => ({ id: c.id, name: c.name, code: c.code, parentId: c.parent_channel_id }));
+        }
+
+        // Get user-channel membership map (for admin/mod to see which channels each user is in)
+        const userChannelMap = {};
+        if (canMod) {
+          const cmRows = db.prepare(`
+            SELECT cm.user_id, cm.channel_id, c.name as channel_name, c.code as channel_code
+            FROM channel_members cm
+            JOIN channels c ON cm.channel_id = c.id
+            WHERE c.is_dm = 0
+          `).all();
+          cmRows.forEach(r => {
+            if (!userChannelMap[r.user_id]) userChannelMap[r.user_id] = [];
+            userChannelMap[r.user_id].push({ id: r.channel_id, name: r.channel_name, code: r.channel_code });
+          });
+        }
+
+        const members = users.map(u => ({
+          id: u.id,
+          username: u.username,
+          displayName: u.displayName,
+          isAdmin: !!u.is_admin,
+          online: onlineIds.has(u.id),
+          banned: bannedIds.has(u.id),
+          roles: userRoles[u.id] || [],
+          channels: channelCounts[u.id] || 0,
+          channelList: canMod ? (userChannelMap[u.id] || []) : undefined,
+          avatar: u.avatar || null,
+          avatarShape: u.avatar_shape || 'circle',
+          status: u.status || 'online',
+          statusText: u.status_text || '',
+          createdAt: u.created_at
+        }));
+
+        cb({
+          members,
+          total: members.length,
+          channelOnly: !!channelOnly,
+          allChannels: canMod ? allChannels : undefined,
+          callerPerms: {
+            isAdmin,
+            canMod,
+            canPromote: isAdmin || userHasPermission(socket.user.id, 'promote_user'),
+            canKick: isAdmin || userHasPermission(socket.user.id, 'kick_user'),
+            canBan: isAdmin || userHasPermission(socket.user.id, 'ban_user'),
+          }
+        });
+      } catch (err) {
+        console.error('get-all-members error:', err);
+        cb({ error: 'Failed to load members' });
+      }
+    });
 
     // ═══════════════ ROLE MANAGEMENT ═════════════════════════
 
@@ -3618,7 +5946,7 @@ function setupSocketHandlers(io, db) {
     socket.on('get-channel-member-roles', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can view channel roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can view channel roles' });
 
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return cb({ error: 'Invalid channel' });
@@ -3677,29 +6005,34 @@ function setupSocketHandlers(io, db) {
     socket.on('create-role', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can create roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can create roles' });
 
       const name = isString(data.name, 1, 30) ? data.name.trim() : '';
       if (!name) return cb({ error: 'Role name required (1-30 chars)' });
 
       const level = isInt(data.level) && data.level >= 1 && data.level <= 99 ? data.level : 25;
       const scope = data.scope === 'channel' ? 'channel' : 'server';
-      const color = isString(data.color, 4, 7) ? data.color : null;
+      const color = isString(data.color, 4, 7) && /^#[0-9a-fA-F]{3,6}$/.test(data.color) ? data.color : null;
+      const autoAssign = data.autoAssign ? 1 : 0;
 
       try {
-        const result = db.prepare('INSERT INTO roles (name, level, scope, color) VALUES (?, ?, ?, ?)').run(name, level, scope, color);
+        // If marking this role as auto-assign, clear any existing auto-assign roles first
+        if (autoAssign) {
+          db.prepare('UPDATE roles SET auto_assign = 0').run();
+        }
+        const result = db.prepare('INSERT INTO roles (name, level, scope, color, auto_assign) VALUES (?, ?, ?, ?, ?)').run(name, level, scope, color, autoAssign);
 
         // Add permissions
         const perms = Array.isArray(data.permissions) ? data.permissions : [];
-        const validPerms = [
-          'kick_user', 'mute_user', 'ban_user', 'delete_message', 'delete_own_messages',
-          'delete_lower_messages', 'edit_own_messages', 'pin_message', 'set_channel_topic',
-          'manage_sub_channels', 'rename_channel', 'rename_sub_channel',
-          'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-          'promote_user', 'transfer_admin'
-        ];
+        const validPerms = VALID_ROLE_PERMS;
+        // Escalation guard: non-admins cannot grant permissions they don't have
+        const adminOnlyPerms = ['transfer_admin', 'manage_roles', 'manage_server', 'delete_channel'];
         const insertPerm = db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
-        perms.forEach(p => { if (validPerms.includes(p)) insertPerm.run(result.lastInsertRowid, p); });
+        perms.forEach(p => {
+          if (!validPerms.includes(p)) return;
+          if (!socket.user.isAdmin && (adminOnlyPerms.includes(p) || !userHasPermission(socket.user.id, p))) return;
+          insertPerm.run(result.lastInsertRowid, p);
+        });
 
         cb({ success: true, roleId: result.lastInsertRowid });
       } catch (err) {
@@ -3711,7 +6044,7 @@ function setupSocketHandlers(io, db) {
     socket.on('update-role', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can edit roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can edit roles' });
 
       const roleId = isInt(data.roleId) ? data.roleId : null;
       if (!roleId) return;
@@ -3719,67 +6052,269 @@ function setupSocketHandlers(io, db) {
       const role = db.prepare('SELECT * FROM roles WHERE id = ?').get(roleId);
       if (!role) return cb({ error: 'Role not found' });
 
-      const updates = [];
-      const values = [];
+      // Run the entire role update inside a transaction so the auto_assign
+      // clear + set is atomic and can't leave the DB in a half-updated state.
+      const updateRoleTx = db.transaction(() => {
+        const updates = [];
+        const values = [];
 
-      if (isString(data.name, 1, 30)) { updates.push('name = ?'); values.push(data.name.trim()); }
-      if (isInt(data.level) && data.level >= 1 && data.level <= 99) { updates.push('level = ?'); values.push(data.level); }
-      if (data.color !== undefined) { updates.push('color = ?'); values.push(data.color || null); }
+        if (isString(data.name, 1, 30)) { updates.push('name = ?'); values.push(data.name.trim()); }
+        if (isInt(data.level) && data.level >= 1 && data.level <= 99) { updates.push('level = ?'); values.push(data.level); }
+        if (data.color !== undefined) {
+          const safeColor = (isString(data.color, 4, 7) && /^#[0-9a-fA-F]{3,6}$/.test(data.color)) ? data.color : null;
+          updates.push('color = ?'); values.push(safeColor);
+        }
+        if (data.autoAssign !== undefined) {
+          if (data.autoAssign) {
+            db.prepare('UPDATE roles SET auto_assign = 0').run();
+          }
+          updates.push('auto_assign = ?'); values.push(data.autoAssign ? 1 : 0);
+        }
+        if (data.linkChannelAccess !== undefined) {
+          updates.push('link_channel_access = ?'); values.push(data.linkChannelAccess ? 1 : 0);
+        }
 
-      if (updates.length > 0) {
-        values.push(roleId);
-        db.prepare(`UPDATE roles SET ${updates.join(', ')} WHERE id = ?`).run(...values);
-      }
+        if (updates.length > 0) {
+          values.push(roleId);
+          db.prepare(`UPDATE roles SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+        }
 
-      // Update permissions
-      if (Array.isArray(data.permissions)) {
-        const validPerms = [
-          'kick_user', 'mute_user', 'ban_user', 'delete_message', 'delete_own_messages',
-          'delete_lower_messages', 'edit_own_messages', 'pin_message', 'set_channel_topic',
-          'manage_sub_channels', 'rename_channel', 'rename_sub_channel',
-          'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-          'promote_user', 'transfer_admin'
-        ];
-        db.prepare('DELETE FROM role_permissions WHERE role_id = ?').run(roleId);
-        const insertPerm = db.prepare('INSERT INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
-        data.permissions.forEach(p => { if (validPerms.includes(p)) insertPerm.run(roleId, p); });
-      }
+        // Update permissions
+        if (Array.isArray(data.permissions)) {
+          const validPerms = VALID_ROLE_PERMS;
+          // Escalation guard: non-admins cannot grant permissions they don't have
+          const adminOnlyPerms = ['transfer_admin', 'manage_roles', 'manage_server', 'delete_channel'];
+          db.prepare('DELETE FROM role_permissions WHERE role_id = ?').run(roleId);
+          const insertPerm = db.prepare('INSERT INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
+          data.permissions.forEach(p => {
+            if (!validPerms.includes(p)) return;
+            if (!socket.user.isAdmin && (adminOnlyPerms.includes(p) || !userHasPermission(socket.user.id, p))) return;
+            insertPerm.run(roleId, p);
+          });
+        }
+      });
+      updateRoleTx();
+
+      // Return the full refreshed role list so the saving client gets
+      // authoritative data without needing a second round-trip.
+      const freshRoles = db.prepare('SELECT * FROM roles ORDER BY level DESC').all();
+      const perms = db.prepare('SELECT * FROM role_permissions').all();
+      const pm = {};
+      perms.forEach(p => { if (!pm[p.role_id]) pm[p.role_id] = []; pm[p.role_id].push(p.permission); });
+      freshRoles.forEach(r => { r.permissions = pm[r.id] || []; });
 
       // Refresh all online users' role data
       for (const [code] of channelUsers) { emitOnlineUsers(code); }
-      cb({ success: true });
+      // Notify OTHER connected admins (not the saving socket — they get data in the callback)
+      socket.broadcast.emit('roles-updated');
+      cb({ success: true, roles: freshRoles });
     });
 
     socket.on('delete-role', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
-      if (!socket.user.isAdmin) return cb({ error: 'Only admins can delete roles' });
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can delete roles' });
 
       const roleId = isInt(data.roleId) ? data.roleId : null;
       if (!roleId) return;
 
       db.prepare('DELETE FROM user_roles WHERE role_id = ?').run(roleId);
       db.prepare('DELETE FROM role_permissions WHERE role_id = ?').run(roleId);
+      db.prepare('DELETE FROM role_channel_access WHERE role_id = ?').run(roleId);
       db.prepare('DELETE FROM roles WHERE id = ?').run(roleId);
       // Refresh all online users' role data
       for (const [code] of channelUsers) { emitOnlineUsers(code); }
       cb({ success: true });
     });
 
-    socket.on('assign-role', (data, callback) => {
+    // ── Reset Roles to Default ────────────────────────────
+    socket.on('reset-roles-to-default', (data, callback) => {
+      const cb = typeof callback === 'function' ? callback : () => {};
+      if (!socket.user.isAdmin) return cb({ error: 'Only admins can reset roles' });
+
+      try {
+        // Wipe all existing roles & related data
+        db.exec('DELETE FROM user_roles');
+        db.exec('DELETE FROM role_permissions');
+        db.exec('DELETE FROM role_channel_access');
+        db.exec('DELETE FROM roles');
+
+        // Re-seed defaults (mirrors database.js init)
+        const insertRole = db.prepare('INSERT INTO roles (name, level, scope, color) VALUES (?, ?, ?, ?)');
+        const insertPerm = db.prepare('INSERT INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
+
+        const serverMod = insertRole.run('Server Mod', 50, 'server', '#3498db');
+        ['kick_user','mute_user','delete_message','pin_message','set_channel_topic','manage_sub_channels','rename_channel','rename_sub_channel','delete_lower_messages','manage_webhooks','upload_files','use_voice','view_history','view_all_members','manage_music_queue','delete_own_messages','edit_own_messages']
+          .forEach(p => insertPerm.run(serverMod.lastInsertRowid, p));
+
+        const channelMod = insertRole.run('Channel Mod', 25, 'channel', '#2ecc71');
+        ['kick_user','mute_user','delete_message','pin_message','manage_sub_channels','rename_sub_channel','delete_lower_messages','upload_files','use_voice','view_history','view_channel_members','manage_music_queue','delete_own_messages','edit_own_messages']
+          .forEach(p => insertPerm.run(channelMod.lastInsertRowid, p));
+
+        const userRole = insertRole.run('User', 1, 'server', '#95a5a6');
+        db.prepare('UPDATE roles SET auto_assign = 1 WHERE id = ?').run(userRole.lastInsertRowid);
+        ['delete_own_messages','edit_own_messages','upload_files','use_voice','view_history']
+          .forEach(p => insertPerm.run(userRole.lastInsertRowid, p));
+
+        // Auto-assign the User role to all existing users
+        const autoRoles = db.prepare('SELECT id FROM roles WHERE auto_assign = 1 AND scope = ?').all('server');
+        for (const ar of autoRoles) {
+          db.prepare(`
+            INSERT OR IGNORE INTO user_roles (user_id, role_id, channel_id, granted_by)
+            SELECT u.id, ?, NULL, NULL FROM users u
+          `).run(ar.id);
+        }
+
+        for (const [code] of channelUsers) { emitOnlineUsers(code); }
+        io.emit('roles-updated');
+        cb({ success: true });
+      } catch (err) {
+        cb({ error: 'Failed to reset roles: ' + err.message });
+      }
+    });
+
+    // ═══════════════ CENTRALIZED ROLE ASSIGNMENT ═══════════
+    // Three-pane role assignment data: returns users, shared channels, and role options
+    // filtered by the caller's permissions and level hierarchy.
+    socket.on('get-role-assignment-data', (data, callback) => {
       if (!data || typeof data !== 'object') return;
       const cb = typeof callback === 'function' ? callback : () => {};
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'promote_user') && !userHasPermission(socket.user.id, 'manage_roles')) {
+        return cb({ error: 'You lack permission to manage roles' });
+      }
+
+      try {
+        const callerId = socket.user.id;
+        const callerIsAdmin = socket.user.isAdmin;
+        const callerServerLevel = getUserEffectiveLevel(callerId);
+
+        // Get all channels the caller has access to (non-DM)
+        const callerChannels = db.prepare(`
+          SELECT c.id, c.name, c.code, c.parent_channel_id, c.position
+          FROM channels c
+          JOIN channel_members cm ON c.id = cm.channel_id
+          WHERE cm.user_id = ? AND c.is_dm = 0
+          ORDER BY c.position, c.name
+        `).all(callerId);
+        const callerChannelIds = new Set(callerChannels.map(c => c.id));
+
+        if (callerChannels.length === 0) {
+          // Caller has no accessible channels — return empty but valid data
+          const roles = db.prepare('SELECT * FROM roles ORDER BY level DESC').all();
+          const permissions = db.prepare('SELECT * FROM role_permissions').all();
+          const permMap = {};
+          permissions.forEach(p => { if (!permMap[p.role_id]) permMap[p.role_id] = []; permMap[p.role_id].push(p.permission); });
+          roles.forEach(r => { r.permissions = permMap[r.id] || []; });
+          return cb({ users: [], userChannelMap: {}, channels: [], roles, callerPerms: getUserPermissions(callerId), callerLevel: callerServerLevel, callerIsAdmin });
+        }
+
+        // Get all users in channels the caller can see
+        const allMembers = db.prepare(`
+          SELECT DISTINCT u.id, u.username, COALESCE(u.display_name, u.username) as displayName,
+                 u.avatar, u.avatar_shape, u.is_admin
+          FROM users u
+          JOIN channel_members cm ON u.id = cm.user_id
+          WHERE cm.channel_id IN (${callerChannels.map(() => '?').join(',')})
+            AND u.id != ?
+          ORDER BY COALESCE(u.display_name, u.username)
+        `).all(...callerChannels.map(c => c.id), callerId);
+
+        // Filter to users whose server-wide level is strictly lower
+        const users = [];
+        const userChannelMap = {};
+        for (const m of allMembers) {
+          if (m.is_admin) continue; // Can't modify admin
+          const userServerLevel = getUserEffectiveLevel(m.id);
+          if (!callerIsAdmin && userServerLevel >= callerServerLevel) continue;
+
+          // Find shared channels where caller is strictly higher level
+          const uChans = db.prepare(`
+            SELECT cm.channel_id FROM channel_members cm
+            WHERE cm.user_id = ? AND cm.channel_id IN (${callerChannels.map(() => '?').join(',')})
+          `).all(m.id, ...callerChannels.map(c => c.id));
+
+          const sharedChannels = [];
+          for (const uc of uChans) {
+            const callerChanLevel = getUserEffectiveLevel(callerId, uc.channel_id);
+            const userChanLevel = getUserEffectiveLevel(m.id, uc.channel_id);
+            if (callerIsAdmin || callerChanLevel > userChanLevel) {
+              sharedChannels.push(uc.channel_id);
+            }
+          }
+          if (sharedChannels.length === 0 && !callerIsAdmin) continue;
+
+          // Get the user's current roles (all scopes)
+          const currentRoles = db.prepare(`
+            SELECT ur.role_id, ur.channel_id, r.name, r.level, r.color
+            FROM user_roles ur
+            JOIN roles r ON ur.role_id = r.id
+            WHERE ur.user_id = ?
+            GROUP BY ur.role_id, COALESCE(ur.channel_id, -1)
+          `).all(m.id);
+
+          users.push({
+            id: m.id,
+            username: m.username,
+            displayName: m.displayName,
+            avatar: m.avatar || null,
+            avatarShape: m.avatar_shape || 'circle',
+            serverLevel: userServerLevel,
+            currentRoles
+          });
+          userChannelMap[m.id] = sharedChannels;
+        }
+
+        // Build channel hierarchy for the center pane
+        const channelsWithHierarchy = callerChannels.map(c => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          parentId: c.parent_channel_id,
+          position: c.position
+        }));
+
+        // Get all available roles
+        const roles = db.prepare('SELECT * FROM roles ORDER BY level DESC').all();
+        const permissions = db.prepare('SELECT * FROM role_permissions').all();
+        const permMap = {};
+        permissions.forEach(p => {
+          if (!permMap[p.role_id]) permMap[p.role_id] = [];
+          permMap[p.role_id].push(p.permission);
+        });
+        roles.forEach(r => { r.permissions = permMap[r.id] || []; });
+
+        // Get caller's own permissions (for restricting which perms they can grant)
+        const callerPerms = getUserPermissions(callerId);
+
+        cb({
+          users,
+          userChannelMap,
+          channels: channelsWithHierarchy,
+          roles,
+          callerPerms,
+          callerLevel: callerServerLevel,
+          callerIsAdmin: callerIsAdmin
+        });
+      } catch (err) {
+        console.error('get-role-assignment-data error:', err);
+        cb({ error: 'Failed to load role assignment data' });
+      }
+    });
+
+    socket.on('assign-role', (data, callback) => {
+      const cb = typeof callback === 'function' ? callback : () => {};
+      if (!data || typeof data !== 'object') return cb({ error: 'Invalid request' });
       if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'promote_user')) {
         return cb({ error: 'You lack permission to assign roles' });
       }
 
       const userId = isInt(data.userId) ? data.userId : null;
       const roleId = isInt(data.roleId) ? data.roleId : null;
-      if (!userId || !roleId) return;
+      if (!userId || !roleId) return cb({ error: 'Missing userId or roleId' });
 
-      // Admins cannot modify their own roles (prevents accidental self-nerf)
-      if (socket.user.isAdmin && userId === socket.user.id) {
-        return cb({ error: 'Admins cannot modify their own roles' });
+      // Cannot modify your own roles (prevents privilege escalation and accidental self-nerf)
+      if (userId === socket.user.id) {
+        return cb({ error: 'You cannot modify your own roles' });
       }
 
       const role = db.prepare('SELECT * FROM roles WHERE id = ?').get(roleId);
@@ -3795,15 +6330,62 @@ function setupSocketHandlers(io, db) {
 
       const channelId = isInt(data.channelId) ? data.channelId : null;
 
-      try {
-        // Explicitly delete existing assignment to prevent duplicates
-        // (SQLite UNIQUE constraints don't work reliably with NULL channel_id)
-        if (channelId) {
-          db.prepare('DELETE FROM user_roles WHERE user_id = ? AND role_id = ? AND channel_id = ?').run(userId, roleId, channelId);
-        } else {
-          db.prepare('DELETE FROM user_roles WHERE user_id = ? AND role_id = ? AND channel_id IS NULL').run(userId, roleId);
+      // Custom level: allow caller to set a custom level (must be < caller's level)
+      let assignLevel = role.level;
+      if (data.customLevel !== undefined && data.customLevel !== null) {
+        const cl = parseInt(data.customLevel);
+        if (!isNaN(cl) && cl >= 1 && cl <= 99) {
+          if (!socket.user.isAdmin) {
+            const myLevel = getUserEffectiveLevel(socket.user.id);
+            if (cl >= myLevel) {
+              return cb({ error: `Custom level must be below your level (${myLevel})` });
+            }
+          }
+          assignLevel = cl;
         }
-        db.prepare('INSERT INTO user_roles (user_id, role_id, channel_id, granted_by) VALUES (?, ?, ?, ?)').run(userId, roleId, channelId, socket.user.id);
+      }
+
+      try {
+        // Replace all existing roles at the same scope —
+        // assigning "User" server-wide removes "Jester" server-wide, etc.
+        // Only remove roles of the same scope type so that assigning a channel-scoped
+        // role server-wide doesn't remove the user's server-scoped User role (#195).
+        if (channelId) {
+          db.prepare('DELETE FROM user_roles WHERE user_id = ? AND channel_id = ?').run(userId, channelId);
+        } else {
+          db.prepare(
+            `DELETE FROM user_roles WHERE user_id = ? AND channel_id IS NULL
+             AND role_id IN (SELECT id FROM roles WHERE scope = ?)`
+          ).run(userId, role.scope);
+        }
+        db.prepare('INSERT INTO user_roles (user_id, role_id, channel_id, granted_by, custom_level) VALUES (?, ?, ?, ?, ?)').run(userId, roleId, channelId, socket.user.id, assignLevel !== role.level ? assignLevel : null);
+
+        // Custom permissions: if provided, store per-user overrides
+        if (data.customPerms && Array.isArray(data.customPerms)) {
+          // Clear existing custom permission overrides for this user+role+scope
+          if (channelId) {
+            db.prepare('DELETE FROM user_role_perms WHERE user_id = ? AND role_id = ? AND channel_id = ?').run(userId, roleId, channelId);
+          } else {
+            db.prepare('DELETE FROM user_role_perms WHERE user_id = ? AND role_id = ? AND channel_id IS NULL').run(userId, roleId);
+          }
+          // Only store overrides if they differ from the role's default permissions
+          const rolePerms = db.prepare('SELECT permission FROM role_permissions WHERE role_id = ? AND allowed = 1').all(roleId).map(r => r.permission);
+          const customPerms = data.customPerms.filter(p => typeof p === 'string');
+          const added = customPerms.filter(p => !rolePerms.includes(p));
+          const removed = rolePerms.filter(p => !customPerms.includes(p));
+          if (added.length > 0 || removed.length > 0) {
+            const insertStmt = db.prepare('INSERT INTO user_role_perms (user_id, role_id, channel_id, permission, allowed) VALUES (?, ?, ?, ?, ?)');
+            for (const p of added) {
+              insertStmt.run(userId, roleId, channelId, p, 1);
+            }
+            for (const p of removed) {
+              insertStmt.run(userId, roleId, channelId, p, 0);
+            }
+          }
+        }
+
+        // Apply role-linked channel access (grant channels on promote)
+        applyRoleChannelAccess(roleId, userId, 'grant');
 
         // Notify the target user if online
         for (const [, s] of io.sockets.sockets) {
@@ -3823,19 +6405,20 @@ function setupSocketHandlers(io, db) {
       }
     });
 
-    socket.on('revoke-role', (data) => {
-      if (!data || typeof data !== 'object') return;
+    socket.on('revoke-role', (data, callback) => {
+      const cb = typeof callback === 'function' ? callback : () => {};
+      if (!data || typeof data !== 'object') return cb({ error: 'Invalid request' });
       if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'promote_user')) {
-        return socket.emit('error-msg', 'You lack permission to revoke roles');
+        return cb({ error: 'You lack permission to revoke roles' });
       }
 
       const userId = isInt(data.userId) ? data.userId : null;
       const roleId = isInt(data.roleId) ? data.roleId : null;
-      if (!userId || !roleId) return;
+      if (!userId || !roleId) return cb({ error: 'Missing userId or roleId' });
 
-      // Admins cannot revoke their own roles
-      if (socket.user.isAdmin && userId === socket.user.id) {
-        return socket.emit('error-msg', 'Admins cannot modify their own roles');
+      // Cannot modify your own roles (prevents privilege escalation and accidental self-nerf)
+      if (userId === socket.user.id) {
+        return cb({ error: 'You cannot modify your own roles' });
       }
 
       // Non-admins can only revoke roles below their own level
@@ -3844,12 +6427,15 @@ function setupSocketHandlers(io, db) {
         if (role) {
           const myLevel = getUserEffectiveLevel(socket.user.id);
           if (role.level >= myLevel) {
-            return socket.emit('error-msg', `You can only revoke roles below your level (${myLevel})`);
+            return cb({ error: `You can only revoke roles below your level (${myLevel})` });
           }
         }
       }
 
       const channelId = isInt(data.channelId) ? data.channelId : null;
+
+      // Apply role-linked channel access (revoke channels on demote) BEFORE removing the role
+      applyRoleChannelAccess(roleId, userId, 'revoke');
 
       if (channelId) {
         db.prepare('DELETE FROM user_roles WHERE user_id = ? AND role_id = ? AND channel_id = ?').run(userId, roleId, channelId);
@@ -3858,7 +6444,7 @@ function setupSocketHandlers(io, db) {
       }
 
       const target = db.prepare('SELECT COALESCE(display_name, username) as username FROM users WHERE id = ?').get(userId);
-      socket.emit('error-msg', `Revoked role from ${target ? target.username : 'user'}`);
+      cb({ success: true, message: `Revoked role from ${target ? target.username : 'user'}` });
 
       // Notify target user if online
       for (const [, s] of io.sockets.sockets) {
@@ -3869,6 +6455,114 @@ function setupSocketHandlers(io, db) {
         }
       }
       for (const [code] of channelUsers) { emitOnlineUsers(code); }
+    });
+
+    // ── Helper: apply role channel access for a user ──────
+    // direction: 'grant' (on promote) or 'revoke' (on demote)
+    function applyRoleChannelAccess(roleId, userId, direction) {
+      const role = db.prepare('SELECT link_channel_access FROM roles WHERE id = ?').get(roleId);
+      if (!role || !role.link_channel_access) return;
+
+      const col = direction === 'grant' ? 'grant_on_promote' : 'revoke_on_demote';
+      const channelRows = db.prepare(
+        `SELECT channel_id FROM role_channel_access WHERE role_id = ? AND ${col} = 1`
+      ).all(roleId);
+
+      if (direction === 'grant') {
+        const ins = db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)');
+        channelRows.forEach(r => ins.run(r.channel_id, userId));
+      } else {
+        const del = db.prepare('DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?');
+        channelRows.forEach(r => del.run(r.channel_id, userId));
+      }
+
+      // Refresh the user's channel list if they're online
+      for (const [, s] of io.sockets.sockets) {
+        if (s.user && s.user.id === userId) {
+          s.emit('channels-list', getEnrichedChannels(userId, s.user.isAdmin, (room) => s.join(room)));
+        }
+      }
+    }
+
+    // ── Get role channel access config ──────────────────────
+    socket.on('get-role-channel-access', (data, callback) => {
+      if (!data || typeof data !== 'object') return;
+      const cb = typeof callback === 'function' ? callback : () => {};
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can view role channel access' });
+
+      const roleId = isInt(data.roleId) ? data.roleId : null;
+      if (!roleId) return cb({ error: 'Invalid role ID' });
+
+      const rows = db.prepare('SELECT channel_id, grant_on_promote, revoke_on_demote FROM role_channel_access WHERE role_id = ?').all(roleId);
+      const channels = db.prepare('SELECT id, name, parent_channel_id, is_dm, is_private, position FROM channels WHERE is_dm = 0 ORDER BY parent_channel_id IS NOT NULL, position, name').all();
+      cb({ success: true, access: rows, channels });
+    });
+
+    // ── Update role channel access config ───────────────────
+    socket.on('update-role-channel-access', (data, callback) => {
+      if (!data || typeof data !== 'object') return;
+      const cb = typeof callback === 'function' ? callback : () => {};
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can edit role channel access' });
+
+      const roleId = isInt(data.roleId) ? data.roleId : null;
+      if (!roleId) return cb({ error: 'Invalid role ID' });
+      if (!Array.isArray(data.access)) return cb({ error: 'Invalid access data' });
+
+      try {
+        const txn = db.transaction(() => {
+          db.prepare('DELETE FROM role_channel_access WHERE role_id = ?').run(roleId);
+          const ins = db.prepare('INSERT INTO role_channel_access (role_id, channel_id, grant_on_promote, revoke_on_demote) VALUES (?, ?, ?, ?)');
+          data.access.forEach(a => {
+            const chId = isInt(a.channelId) ? a.channelId : null;
+            if (!chId) return;
+            const grant = a.grant ? 1 : 0;
+            const revoke = a.revoke ? 1 : 0;
+            if (grant || revoke) ins.run(roleId, chId, grant, revoke);
+          });
+
+          // Also update the link_channel_access flag on the role
+          if (data.linkEnabled !== undefined) {
+            db.prepare('UPDATE roles SET link_channel_access = ? WHERE id = ?').run(data.linkEnabled ? 1 : 0, roleId);
+          }
+        });
+        txn();
+        cb({ success: true });
+      } catch (err) {
+        console.error('Update role channel access error:', err);
+        cb({ error: 'Failed to update channel access' });
+      }
+    });
+
+    // ── Reapply role channel access to all users with this role ──
+    socket.on('reapply-role-access', (data, callback) => {
+      if (!data || typeof data !== 'object') return;
+      const cb = typeof callback === 'function' ? callback : () => {};
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_roles')) return cb({ error: 'Only admins can reapply access' });
+
+      const roleId = isInt(data.roleId) ? data.roleId : null;
+      if (!roleId) return cb({ error: 'Invalid role ID' });
+
+      const role = db.prepare('SELECT * FROM roles WHERE id = ?').get(roleId);
+      if (!role) return cb({ error: 'Role not found' });
+      if (!role.link_channel_access) return cb({ error: 'Channel access linking is not enabled for this role' });
+
+      // Get all users who have this role
+      const users = db.prepare('SELECT DISTINCT user_id FROM user_roles WHERE role_id = ?').all(roleId);
+
+      // Get grant channels
+      const grantChannels = db.prepare('SELECT channel_id FROM role_channel_access WHERE role_id = ? AND grant_on_promote = 1').all(roleId);
+      const ins = db.prepare('INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)');
+
+      const txn = db.transaction(() => {
+        users.forEach(u => {
+          grantChannels.forEach(c => ins.run(c.channel_id, u.user_id));
+        });
+      });
+      txn();
+
+      // Refresh channel lists for affected online users
+      broadcastChannelLists();
+      cb({ success: true, affected: users.length });
     });
 
     // ═══════════════ PROMOTE USER (role-based) ═══════════════
@@ -3933,20 +6627,31 @@ function setupSocketHandlers(io, db) {
 
       if (!socket.user.isAdmin) return cb({ error: 'Only admins can transfer admin' });
 
-      // Password verification required
-      const password = typeof data.password === 'string' ? data.password : '';
-      if (!password) return cb({ error: 'Password is required for this action' });
-
-      const adminUser = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(socket.user.id);
-      if (!adminUser) return cb({ error: 'Admin user not found' });
+      // Prevent concurrent transfer-admin race condition
+      if (transferAdminInProgress) return cb({ error: 'A transfer is already in progress' });
+      transferAdminInProgress = true;
 
       try {
-        const validPw = await bcrypt.compare(password, adminUser.password_hash);
-        if (!validPw) return cb({ error: 'Incorrect password' });
+      // Password verification required
+      const password = typeof data.password === 'string' ? data.password : '';
+      if (!password) { transferAdminInProgress = false; return cb({ error: 'Password is required for this action' }); }
+
+      const adminUser = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(socket.user.id);
+      if (!adminUser) { transferAdminInProgress = false; return cb({ error: 'Admin user not found' }); }
+
+      let validPw;
+      try {
+        validPw = await bcrypt.compare(password, adminUser.password_hash);
+        if (!validPw) { transferAdminInProgress = false; return cb({ error: 'Incorrect password' }); }
       } catch (err) {
         console.error('Password verification error:', err);
+        transferAdminInProgress = false;
         return cb({ error: 'Password verification failed' });
       }
+
+      // Re-verify admin status from DB AFTER the async bcrypt gap
+      const stillAdmin = db.prepare('SELECT is_admin FROM users WHERE id = ?').get(socket.user.id);
+      if (!stillAdmin || !stillAdmin.is_admin) { transferAdminInProgress = false; return cb({ error: 'You are no longer an admin' }); }
 
       const userId = isInt(data.userId) ? data.userId : null;
       if (!userId) return cb({ error: 'Invalid user' });
@@ -3957,32 +6662,31 @@ function setupSocketHandlers(io, db) {
       if (targetUser.is_admin) return cb({ error: 'User is already an admin' });
 
       try {
-        // Make target an admin
-        db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(userId);
+        // Wrap all DB mutations in a transaction so a crash can't leave
+        // both users as admin or neither as admin
+        const transferTxn = db.transaction(() => {
+          // Make target an admin
+          db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(userId);
 
-        // Demote the current admin — remove admin flag, give them a level-99 role
-        db.prepare('UPDATE users SET is_admin = 0 WHERE id = ?').run(socket.user.id);
-        // Create or find a "Former Admin" role at level 99
-        let formerAdminRole = db.prepare("SELECT id FROM roles WHERE name = 'Former Admin' AND level = 99").get();
-        if (!formerAdminRole) {
-          const r = db.prepare("INSERT INTO roles (name, level, scope, color) VALUES ('Former Admin', 99, 'server', '#e74c3c')").run();
-          formerAdminRole = { id: r.lastInsertRowid };
-          // Give all permissions
-          const allPerms = [
-            'kick_user', 'mute_user', 'ban_user', 'delete_message', 'delete_own_messages',
-            'delete_lower_messages', 'edit_own_messages', 'pin_message', 'set_channel_topic',
-            'manage_sub_channels', 'rename_channel', 'rename_sub_channel',
-            'upload_files', 'use_voice', 'manage_webhooks', 'mention_everyone', 'view_history',
-            'promote_user', 'transfer_admin'
-          ];
-          const insertPerm = db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
-          allPerms.forEach(p => insertPerm.run(formerAdminRole.id, p));
-        }
-        // Explicitly remove then insert to avoid NULL-unique duplication
-        db.prepare('DELETE FROM user_roles WHERE user_id = ? AND role_id = ? AND channel_id IS NULL').run(socket.user.id, formerAdminRole.id);
-        db.prepare('INSERT INTO user_roles (user_id, role_id, channel_id, granted_by) VALUES (?, ?, NULL, ?)').run(
-          socket.user.id, formerAdminRole.id, socket.user.id
-        );
+          // Demote the current admin — remove admin flag, give them a level-99 role
+          db.prepare('UPDATE users SET is_admin = 0 WHERE id = ?').run(socket.user.id);
+          // Create or find a "Former Admin" role at level 99
+          let formerAdminRole = db.prepare("SELECT id FROM roles WHERE name = 'Former Admin' AND level = 99").get();
+          if (!formerAdminRole) {
+            const r = db.prepare("INSERT INTO roles (name, level, scope, color) VALUES ('Former Admin', 99, 'server', '#e74c3c')").run();
+            formerAdminRole = { id: r.lastInsertRowid };
+            // Give all permissions
+            const allPerms = [...VALID_ROLE_PERMS];
+            const insertPerm = db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
+            allPerms.forEach(p => insertPerm.run(formerAdminRole.id, p));
+          }
+          // Explicitly remove then insert to avoid NULL-unique duplication
+          db.prepare('DELETE FROM user_roles WHERE user_id = ? AND role_id = ? AND channel_id IS NULL').run(socket.user.id, formerAdminRole.id);
+          db.prepare('INSERT INTO user_roles (user_id, role_id, channel_id, granted_by) VALUES (?, ?, NULL, ?)').run(
+            socket.user.id, formerAdminRole.id, socket.user.id
+          );
+        });
+        transferTxn();
 
         // Update all connected sockets of both users
         for (const [, s] of io.sockets.sockets) {
@@ -4022,6 +6726,9 @@ function setupSocketHandlers(io, db) {
         console.error('Transfer admin error:', err);
         cb({ error: 'Failed to transfer admin' });
       }
+      } finally {
+        transferAdminInProgress = false;
+      }
     });
 
     // ═══════════════ SUB-CHANNELS ══════════════════════════
@@ -4036,7 +6743,7 @@ function setupSocketHandlers(io, db) {
       if (!name || name.length === 0 || name.length > 50) {
         return socket.emit('error-msg', 'Channel name must be 1-50 characters');
       }
-      if (!/^[\w\s\-!?.,']+$/i.test(name)) {
+      if (!/^[\w\s\-!?.,'\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Emoji}\uFE0F\u200D]+$/iu.test(name)) {
         return socket.emit('error-msg', 'Channel name contains invalid characters');
       }
 
@@ -4072,8 +6779,8 @@ function setupSocketHandlers(io, db) {
       const parentChannel = db.prepare('SELECT * FROM channels WHERE code = ? AND is_dm = 0').get(parentCode);
       if (!parentChannel) return socket.emit('error-msg', 'Parent channel not found');
 
-      // Check permission: admin, server mod, or channel mod for this channel
-      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_sub_channels', parentChannel.id)) {
+      // Check permission: admin, manage_sub_channels, or create_channel (all support channel-scoped roles)
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_sub_channels', parentChannel.id) && !userHasPermission(socket.user.id, 'create_channel', parentChannel.id)) {
         return socket.emit('error-msg', 'You don\'t have permission to create sub-channels');
       }
 
@@ -4081,7 +6788,7 @@ function setupSocketHandlers(io, db) {
       if (!name || name.length === 0 || name.length > 50) {
         return socket.emit('error-msg', 'Sub-channel name must be 1-50 characters');
       }
-      if (!/^[\w\s\-!?.,']+$/i.test(name)) {
+      if (!/^[\w\s\-!?.,'\p{Emoji_Presentation}\p{Extended_Pictographic}\p{Emoji}\uFE0F\u200D]+$/iu.test(name)) {
         return socket.emit('error-msg', 'Sub-channel name contains invalid characters');
       }
 
@@ -4093,14 +6800,23 @@ function setupSocketHandlers(io, db) {
       const code = generateChannelCode();
       const isPrivate = data.isPrivate ? 1 : 0;
 
+      // Optional temporary sub-channel: duration in hours (1–720 = 30 days max)
+      let expiresAt = null;
+      if (data.temporary && data.duration) {
+        const hours = Math.max(1, Math.min(720, parseInt(data.duration, 10)));
+        if (!isNaN(hours)) {
+          expiresAt = new Date(Date.now() + hours * 3600000).toISOString();
+        }
+      }
+
       // Get max position for ordering
       const maxPos = db.prepare('SELECT MAX(position) as mp FROM channels WHERE parent_channel_id = ?').get(parentChannel.id);
       const position = (maxPos && maxPos.mp != null) ? maxPos.mp + 1 : 0;
 
       try {
         const result = db.prepare(
-          'INSERT INTO channels (name, code, created_by, parent_channel_id, position, is_private) VALUES (?, ?, ?, ?, ?, ?)'
-        ).run(name, code, socket.user.id, parentChannel.id, position, isPrivate);
+          'INSERT INTO channels (name, code, created_by, parent_channel_id, position, is_private, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).run(name, code, socket.user.id, parentChannel.id, position, isPrivate, expiresAt);
 
         // Auto-join all members of the parent channel (even for private — creator controls who's in)
         const parentMembers = db.prepare('SELECT user_id FROM channel_members WHERE channel_id = ?').all(parentChannel.id);
@@ -4129,7 +6845,7 @@ function setupSocketHandlers(io, db) {
         return socket.emit('error-msg', 'Sub-channel not found');
       }
 
-      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_sub_channels', channel.parent_channel_id)) {
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'manage_sub_channels', channel.parent_channel_id) && !userHasPermission(socket.user.id, 'create_channel')) {
         return socket.emit('error-msg', 'You don\'t have permission to delete sub-channels');
       }
 
@@ -4156,25 +6872,38 @@ function setupSocketHandlers(io, db) {
 
     socket.on('toggle-channel-permission', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) return socket.emit('error-msg', 'Only admins can toggle channel permissions');
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) return socket.emit('error-msg', 'You don\'t have permission to toggle channel permissions');
 
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
 
       const permission = typeof data.permission === 'string' ? data.permission.trim() : '';
-      const validPerms = ['streams', 'music'];
+      const validPerms = ['streams', 'music', 'media', 'voice', 'text'];
       if (!validPerms.includes(permission)) return socket.emit('error-msg', 'Invalid permission');
 
       const channel = db.prepare('SELECT * FROM channels WHERE code = ? AND is_dm = 0').get(code);
       if (!channel) return socket.emit('error-msg', 'Channel not found');
 
-      const colName = permission === 'streams' ? 'streams_enabled' : 'music_enabled';
+      const colMap = { streams: 'streams_enabled', music: 'music_enabled', media: 'media_enabled', voice: 'voice_enabled', text: 'text_enabled' };
+      const colName = colMap[permission];
       const current = channel[colName];
       const newVal = current ? 0 : 1;
 
+      // Can't enable streams or music when voice is disabled
+      if ((permission === 'streams' || permission === 'music') && newVal === 1 && channel.voice_enabled === 0) {
+        return socket.emit('error-msg', 'Enable voice first — streams and music require voice');
+      }
+
       try {
         db.prepare(`UPDATE channels SET ${colName} = ? WHERE id = ?`).run(newVal, channel.id);
-        const label = permission === 'streams' ? 'Screen sharing' : 'Music sharing';
+
+        // Disabling voice also disables streams and music (they depend on voice)
+        if (permission === 'voice' && newVal === 0) {
+          db.prepare('UPDATE channels SET streams_enabled = 0, music_enabled = 0 WHERE id = ?').run(channel.id);
+        }
+
+        const labelMap = { streams: 'Screen sharing', music: 'Music sharing', media: 'Media uploads', voice: 'Voice chat', text: 'Text chat' };
+        const label = labelMap[permission];
         const state = newVal ? 'enabled' : 'disabled';
 
         // Broadcast updated channel list so all clients see the new state
@@ -4185,17 +6914,40 @@ function setupSocketHandlers(io, db) {
           code, permission, enabled: !!newVal
         });
 
-        socket.emit('error-msg', `${label} ${state} for this channel`);
+        socket.emit('toast', { message: `${label} ${state} for this channel`, type: 'success' });
       } catch (err) {
         console.error('Toggle permission error:', err);
         socket.emit('error-msg', 'Failed to toggle permission');
       }
     });
 
+    // ── Toggle cleanup exemption for a channel ──────────────
+    socket.on('toggle-cleanup-exempt', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!socket.user.isAdmin) return socket.emit('error-msg', 'Only admins can change cleanup exemptions');
+
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+
+      const channel = db.prepare('SELECT * FROM channels WHERE code = ? AND is_dm = 0').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found');
+
+      const newVal = channel.cleanup_exempt ? 0 : 1;
+
+      try {
+        db.prepare('UPDATE channels SET cleanup_exempt = ? WHERE id = ?').run(newVal, channel.id);
+        broadcastChannelLists();
+        socket.emit('toast', { message: newVal ? '🛡️ Channel exempt from auto-cleanup' : 'Cleanup protection removed', type: 'success' });
+      } catch (err) {
+        console.error('Toggle cleanup exempt error:', err);
+        socket.emit('error-msg', 'Failed to toggle cleanup exemption');
+      }
+    });
+
     // ── Set slow mode interval ──────────────────────────────
     socket.on('set-slow-mode', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) return socket.emit('error-msg', 'Only admins can set slow mode');
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) return socket.emit('error-msg', 'You don\'t have permission to set slow mode');
 
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
@@ -4212,7 +6964,7 @@ function setupSocketHandlers(io, db) {
         db.prepare('UPDATE channels SET slow_mode_interval = ? WHERE id = ?').run(interval, channel.id);
         broadcastChannelLists();
         io.to(`channel:${code}`).emit('slow-mode-updated', { code, interval });
-        socket.emit('error-msg', interval > 0 ? `Slow mode set to ${interval}s` : 'Slow mode disabled');
+        socket.emit('toast', { message: interval > 0 ? `Slow mode set to ${interval}s` : 'Slow mode disabled', type: 'success' });
       } catch (err) {
         console.error('Set slow mode error:', err);
         socket.emit('error-msg', 'Failed to set slow mode');
@@ -4222,16 +6974,17 @@ function setupSocketHandlers(io, db) {
     // ── Set sort mode for sub-channels ──────────────────────
     socket.on('set-sort-alphabetical', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) return socket.emit('error-msg', 'Only admins can change sort settings');
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) return socket.emit('error-msg', 'You don\'t have permission to change sort settings');
 
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
 
-      // 0 = manual, 1 = alpha, 2 = created
+      // 0 = manual, 1 = alpha, 2 = created, 3 = oldest, 4 = dynamic
       let sortVal = 0;
       if (data.mode === 'alpha' || data.enabled === true) sortVal = 1;
       else if (data.mode === 'created') sortVal = 2;
       else if (data.mode === 'oldest') sortVal = 3;
+      else if (data.mode === 'dynamic') sortVal = 4;
 
       const channel = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0').get(code);
       if (!channel) return socket.emit('error-msg', 'Channel not found');
@@ -4245,16 +6998,165 @@ function setupSocketHandlers(io, db) {
       }
     });
 
+    // ── Set voice user limit ────────────────────────────────────
+    socket.on('set-voice-user-limit', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) {
+        return socket.emit('error-msg', 'You don\'t have permission to change the voice user limit');
+      }
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+      const limit = typeof data.limit === 'number' ? data.limit : parseInt(data.limit);
+      if (isNaN(limit) || limit < 0 || limit > 99) {
+        return socket.emit('error-msg', 'Voice user limit must be 0 (unlimited) or 2–99');
+      }
+      // Normalize: 1 is not a useful limit; treat it as unlimited
+      const normalizedLimit = (limit === 1) ? 0 : limit;
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found');
+      try {
+        db.prepare('UPDATE channels SET voice_user_limit = ? WHERE id = ?').run(normalizedLimit, channel.id);
+        broadcastChannelLists();
+        socket.emit('toast', { message: normalizedLimit >= 2 ? `👥 Voice limit set to ${normalizedLimit}` : '👥 Voice user limit removed', type: 'success' });
+      } catch (err) {
+        console.error('Set voice user limit error:', err);
+        socket.emit('error-msg', 'Failed to set voice user limit');
+      }
+    });
+
+    // ── Set voice audio bitrate cap ─────────────────────────
+    socket.on('set-voice-bitrate', (data) => {
+      if (!data || typeof data !== 'object') return;
+      // Admin, server mod, or channel mod can change bitrate
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) {
+        return socket.emit('error-msg', 'You don\'t have permission to change voice bitrate');
+      }
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+
+      const bitrate = typeof data.bitrate === 'number' ? data.bitrate : parseInt(data.bitrate);
+      const validBitrates = [0, 32, 64, 96, 128, 256, 512];
+      if (!validBitrates.includes(bitrate)) {
+        return socket.emit('error-msg', 'Invalid bitrate value');
+      }
+
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found');
+
+      try {
+        db.prepare('UPDATE channels SET voice_bitrate = ? WHERE id = ?').run(bitrate, channel.id);
+        broadcastChannelLists();
+        // Notify all voice users so they can adjust their senders in real time
+        io.to(`voice:${code}`).emit('voice-bitrate-updated', { code, bitrate });
+        socket.emit('toast', { message: bitrate > 0 ? `🎙️ Voice bitrate set to ${bitrate} kbps` : '🎙️ Voice bitrate set to auto', type: 'success' });
+      } catch (err) {
+        console.error('Set voice bitrate error:', err);
+        socket.emit('error-msg', 'Failed to set voice bitrate');
+      }
+    });
+
+    // ── Set channel self-destruct timer ─────────────────────────────
+    socket.on('set-channel-expiry', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) {
+        return socket.emit('error-msg', 'You don\'t have permission to set self-destruct timers');
+      }
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found');
+
+      let expiresAt = null;
+      if (data.hours && data.hours > 0) {
+        const hours = Math.max(1, Math.min(720, parseInt(data.hours, 10)));
+        if (isNaN(hours)) return socket.emit('error-msg', 'Invalid duration');
+        expiresAt = new Date(Date.now() + hours * 3600000).toISOString();
+      }
+
+      try {
+        db.prepare('UPDATE channels SET expires_at = ? WHERE id = ?').run(expiresAt, channel.id);
+        broadcastChannelLists();
+        if (expiresAt) {
+          const hours = Math.round((new Date(expiresAt) - Date.now()) / 3600000);
+          socket.emit('toast', { message: `⏱️ Channel will self-destruct in ${hours}h`, type: 'success' });
+        } else {
+          socket.emit('toast', { message: '⏱️ Self-destruct timer removed', type: 'success' });
+        }
+      } catch (err) {
+        console.error('Set channel expiry error:', err);
+        socket.emit('error-msg', 'Failed to set self-destruct timer');
+      }
+    });
+
+    // ── Set channel notification type (default / announcement) ────
+    socket.on('set-notification-type', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) {
+        return socket.emit('error-msg', 'You don\'t have permission to change channel notification type');
+      }
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+      const type = typeof data.type === 'string' ? data.type : '';
+      if (!['default', 'announcement'].includes(type)) return socket.emit('error-msg', 'Invalid notification type');
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found');
+      try {
+        db.prepare('UPDATE channels SET notification_type = ? WHERE id = ?').run(type, channel.id);
+        broadcastChannelLists();
+        const labels = { default: '🔔 Channel notifications reset to default', announcement: '📢 Channel set to announcement mode' };
+        socket.emit('toast', { message: labels[type], type: 'success' });
+      } catch (err) {
+        console.error('Set notification type error:', err);
+        socket.emit('error-msg', 'Failed to set notification type');
+      }
+    });
+
+    // ── Per-channel AFK sub-channel setting ──────────────────
+    socket.on('set-channel-afk', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) {
+        return socket.emit('error-msg', 'You don\'t have permission to change AFK settings');
+      }
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+      const subCode = typeof data.subCode === 'string' ? data.subCode.trim() : '';
+      const timeout = parseInt(data.timeout);
+      if (!Number.isFinite(timeout) || timeout < 0 || timeout > 1440) return;
+      // Validate the parent channel exists and is not a sub-channel itself
+      const channel = db.prepare('SELECT id FROM channels WHERE code = ? AND is_dm = 0 AND parent_channel_id IS NULL').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found or is a sub-channel');
+      // If subCode is set, validate it's actually a sub-channel of this parent
+      if (subCode) {
+        if (!/^[a-f0-9]{8}$/i.test(subCode)) return;
+        const sub = db.prepare('SELECT id FROM channels WHERE code = ? AND parent_channel_id = ?').get(subCode, channel.id);
+        if (!sub) return socket.emit('error-msg', 'Sub-channel not found or does not belong to this channel');
+      }
+      try {
+        db.prepare('UPDATE channels SET afk_sub_code = ?, afk_timeout_minutes = ? WHERE id = ?')
+          .run(subCode || null, timeout, channel.id);
+        broadcastChannelLists();
+        if (subCode && timeout > 0) {
+          socket.emit('toast', { message: `💤 AFK sub-channel set (${timeout}min timeout)`, type: 'success' });
+        } else {
+          socket.emit('toast', { message: '💤 AFK sub-channel disabled', type: 'success' });
+        }
+      } catch (err) {
+        console.error('Set channel AFK error:', err);
+        socket.emit('error-msg', 'Failed to set AFK settings');
+      }
+    });
+
     // ═══════════════════════════════════════════════════════════
     // CHANNEL REORDERING
     // ═══════════════════════════════════════════════════════════
 
     socket.on('reorder-channels', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) return socket.emit('error-msg', 'Only admins can reorder channels');
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) return socket.emit('error-msg', 'You don\'t have permission to reorder channels');
 
       const order = data.order; // Array of { code, position }
-      if (!Array.isArray(order)) return;
+      if (!Array.isArray(order) || order.length > 500) return; // cap to prevent DoS
 
       try {
         const update = db.prepare('UPDATE channels SET position = ? WHERE code = ?');
@@ -4276,7 +7178,7 @@ function setupSocketHandlers(io, db) {
     // ── Move channel up/down (simpler reorder for one channel) ──
     socket.on('move-channel', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) return socket.emit('error-msg', 'Only admins can reorder channels');
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) return socket.emit('error-msg', 'You don\'t have permission to reorder channels');
 
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
@@ -4324,12 +7226,90 @@ function setupSocketHandlers(io, db) {
     });
 
     // ═══════════════════════════════════════════════════════════
+    // CHANNEL RE-PARENTING (promote / demote / move between parents)
+    // ═══════════════════════════════════════════════════════════
+
+    socket.on('reparent-channel', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) return socket.emit('error-msg', 'You don\'t have permission to move channels');
+
+      const code = typeof data.code === 'string' ? data.code.trim() : '';
+      if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
+      const newParentCode = data.newParentCode; // null = promote to top-level, string = move under parent
+
+      const channel = db.prepare('SELECT * FROM channels WHERE code = ? AND is_dm = 0').get(code);
+      if (!channel) return socket.emit('error-msg', 'Channel not found');
+
+      try {
+        if (newParentCode === null || newParentCode === undefined) {
+          // Promote to top-level
+          if (!channel.parent_channel_id) {
+            return socket.emit('error-msg', 'Channel is already top-level');
+          }
+
+          const maxPos = db.prepare(
+            'SELECT MAX(position) as mp FROM channels WHERE parent_channel_id IS NULL AND is_dm = 0'
+          ).get();
+          const position = (maxPos && maxPos.mp != null) ? maxPos.mp + 1 : 0;
+
+          db.prepare('UPDATE channels SET parent_channel_id = NULL, position = ?, category = NULL WHERE id = ?')
+            .run(position, channel.id);
+
+          broadcastChannelLists();
+          socket.emit('error-msg', `"${channel.name}" promoted to top-level channel`);
+        } else {
+          // Move under a new parent
+          const parentCode = typeof newParentCode === 'string' ? newParentCode.trim() : '';
+          if (!parentCode || !/^[a-f0-9]{8}$/i.test(parentCode)) return;
+
+          const newParent = db.prepare('SELECT * FROM channels WHERE code = ? AND is_dm = 0').get(parentCode);
+          if (!newParent) return socket.emit('error-msg', 'Target parent not found');
+
+          // Can't nest under a sub-channel (max 1 level)
+          if (newParent.parent_channel_id) {
+            return socket.emit('error-msg', 'Cannot nest channels more than one level deep');
+          }
+
+          // Can't move under itself
+          if (channel.id === newParent.id) {
+            return socket.emit('error-msg', 'Cannot move a channel under itself');
+          }
+
+          // Can't demote a parent that has sub-channels (would create nested subs)
+          const subCount = db.prepare('SELECT COUNT(*) as cnt FROM channels WHERE parent_channel_id = ?').get(channel.id);
+          if (subCount && subCount.cnt > 0) {
+            return socket.emit('error-msg', 'Cannot make a channel with sub-channels into a sub-channel. Move or remove its sub-channels first.');
+          }
+
+          // Already under this parent?
+          if (channel.parent_channel_id === newParent.id) {
+            return socket.emit('error-msg', 'Channel is already under that parent');
+          }
+
+          const maxPos = db.prepare(
+            'SELECT MAX(position) as mp FROM channels WHERE parent_channel_id = ?'
+          ).get(newParent.id);
+          const position = (maxPos && maxPos.mp != null) ? maxPos.mp + 1 : 0;
+
+          db.prepare('UPDATE channels SET parent_channel_id = ?, position = ?, category = NULL WHERE id = ?')
+            .run(newParent.id, position, channel.id);
+
+          broadcastChannelLists();
+          socket.emit('error-msg', `"${channel.name}" moved under "${newParent.name}"`);
+        }
+      } catch (err) {
+        console.error('Reparent channel error:', err);
+        socket.emit('error-msg', 'Failed to move channel');
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════
     // CHANNEL CATEGORIES
     // ═══════════════════════════════════════════════════════════
 
     socket.on('set-channel-category', (data) => {
       if (!data || typeof data !== 'object') return;
-      if (!socket.user.isAdmin) return socket.emit('error-msg', 'Only admins can set categories');
+      if (!socket.user.isAdmin && !userHasPermission(socket.user.id, 'create_channel')) return socket.emit('error-msg', 'You don\'t have permission to set categories');
 
       const code = typeof data.code === 'string' ? data.code.trim() : '';
       if (!code || !/^[a-f0-9]{8}$/i.test(code)) return;
@@ -4404,7 +7384,7 @@ function setupSocketHandlers(io, db) {
       if (!channel) return;
 
       const webhooks = db.prepare(
-        'SELECT id, channel_id, name, token, avatar_url, is_active, created_at FROM webhooks WHERE channel_id = ? ORDER BY created_at DESC'
+        'SELECT id, channel_id, name, token, avatar_url, is_active, created_at, callback_url, callback_secret FROM webhooks WHERE channel_id = ? ORDER BY created_at DESC'
       ).all(channel.id);
 
       socket.emit('webhooks-list', { channelCode, webhooks });
@@ -4458,7 +7438,14 @@ function setupSocketHandlers(io, db) {
         afk:       () => ({ content: `💤 ${username} is away from keyboard` }),
         me:        () => arg ? ({ content: `_${username} ${arg}_` }) : null,
         spoiler:   () => arg ? ({ content: `||${arg}||` }) : null,
-        tts:       () => arg ? ({ content: arg, tts: true }) : null,
+        tts:       () => {
+          if (!arg) return null;
+          // Check use_tts permission
+          if (!userHasPermission(socket.user.id, 'use_tts')) return { content: '_You do not have permission to use TTS._' };
+          // Cap TTS content length to prevent abuse
+          const ttsContent = arg.length > 500 ? arg.slice(0, 500) + '…' : arg;
+          return { content: ttsContent, tts: true };
+        },
         flip:      () => ({ content: `🪙 ${username} flipped a coin: **${Math.random() < 0.5 ? 'Heads' : 'Tails'}**!` }),
         roll:      () => {
           const m = (arg || '1d6').match(/^(\d{1,2})?d(\d{1,4})$/i);
@@ -4480,4 +7467,4 @@ function setupSocketHandlers(io, db) {
   });
 }
 
-module.exports = { setupSocketHandlers };
+module.exports = { setupSocketHandlers, sanitizeText };

@@ -1,11 +1,8 @@
-
-
-
 # ⬡ HAVEN — Private Chat That Lives On Your Machine
 
 > **Your server. Your rules. No cloud. No accounts with Big Tech. No one reading your messages.**
 
-![Version](https://img.shields.io/badge/version-2.2.0-blue)
+![Version](https://img.shields.io/badge/version-2.9.4-blue)
 ![License](https://img.shields.io/badge/license-MIT--NC-green)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
@@ -13,6 +10,56 @@
 Haven is a self-hosted Discord alternative. Run it on your machine. Invite friends with a code. No cloud. No email signup. No tracking. Free forever.
 
 <img width="1917" height="948" alt="Screenshot 2026-02-14 102013" src="https://github.com/user-attachments/assets/0c85ca6c-f811-43db-a26b-9b66c418830e" />
+
+---
+
+## 🖥️ NEW — Haven Desktop (Beta)
+
+> **Want a native desktop experience?** Haven Desktop is a standalone app that connects to any Haven server — with features that go beyond the browser.
+
+**[Haven Desktop](https://github.com/ancsemi/Haven-Desktop)** is now available as a public beta. Download the installer and connect to your server in seconds.
+
+- **Per-Application Audio** — share audio from a single app during screen share, just like Discord. Powered by native WASAPI (Windows) and PulseAudio (Linux) hooks.
+- **Audio Device Switching** — change your mic and speaker mid-call without leaving voice chat
+- **Native Desktop Notifications** — OS-level notifications via the system tray
+- **Minimize to Tray** — keeps running quietly in the background
+- **One-Click Install** — NSIS installer (Windows), AppImage / .deb (Linux). Download, run, done.
+
+> **⚠️ This is a beta release.** Bugs are expected. Your feedback is what makes it better — please [open an issue](https://github.com/ancsemi/Haven-Desktop/issues) if something breaks or feels off.
+>
+> **You still need a Haven server.** The desktop app is a client — it connects to a Haven server. Download and run [Haven](https://github.com/ancsemi/Haven) first if you haven't already.
+
+📥 **[Download Haven Desktop →](https://github.com/ancsemi/Haven-Desktop/releases/latest)**
+
+---
+
+## 📱 Amni-Haven Android — Now on Google Play!
+
+> **Want Haven on your phone?** Amni-Haven Android is a native Android app built from the ground up by Amnibro, now available on Google Play.
+
+**Amni-Haven Android** features full chat and voice support, push notifications, and a true mobile-native experience.
+
+- **Native Android** — built from scratch specifically for Haven, not a web wrapper
+- **Push Notifications** — real-time notifications via Google Play services
+- **Full Chat & Voice** — all the features you love, in your pocket
+
+> **You still need a Haven server.** The Android app is a client — it connects to a Haven server. Download and run [Haven](https://github.com/ancsemi/Haven) first if you haven't already.
+
+*Built with ❤️ by **Amnibro** — huge thanks for his incredible work building the Amni-Haven Android app from the ground up.*
+
+📲 **[Get it on Google Play →](https://play.google.com/store/apps/details?id=com.havenapp.mobile&gl=US)**
+
+---
+
+## 🌐 Try Haven — No Download Required
+
+> **Want to see what Haven looks like before hosting your own?** Jump into the community server and explore — chat, voice, themes, the works.
+
+🔗 **[Join the Community Server →](https://haven.moviethingy.xyz/)**
+
+After signing up, enter this channel code to join: **`da0b9be7`**
+
+*Volunteer-hosted community server — thanks MutantRabbit!*
 
 ---
 
@@ -34,22 +81,45 @@ Your entire Discord history, now on a server you own. No one can delete it, no o
 
 ## Quick Start — Docker (Recommended)
 
-**Option A — Pre-built image** (fastest):
+**Option A — Pre-built image** (fastest, easiest updates):
 ```bash
 docker pull ghcr.io/ancsemi/haven:latest
 docker run -d -p 3000:3000 -v haven_data:/data ghcr.io/ancsemi/haven:latest
 ```
 
-**Option B — Build from source**:
+Or with Docker Compose (recommended):
 ```bash
 git clone https://github.com/ancsemi/Haven.git
 cd Haven
+docker compose up -d
+```
+The shipped `docker-compose.yml` uses the pre-built image by default.
+
+**Option B — Build from source** (only if you need to modify the code):
+```bash
+git clone https://github.com/ancsemi/Haven.git
+cd Haven
+```
+Uncomment `build: .` in `docker-compose.yml`, then:
+```bash
 docker compose up -d
 ```
 
 Open `https://localhost:3000` → Register with username `admin` → Create a channel → Share the code with friends. Done.
 
 > Certificate warning is normal — click **Advanced → Proceed**. Haven uses a self-signed cert for encryption.
+
+**Updating** — if using the pre-built image (default):
+```bash
+docker compose pull
+docker compose up -d --force-recreate
+```
+
+**Check your version**: visit `https://localhost:3000/api/version` in your browser.
+
+**Option C — One-click cloud deploy** (Zeabur):
+
+[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates?repoURL=https://github.com/ancsemi/Haven)
 
 ---
 
@@ -84,7 +154,6 @@ Or manually: `npm install && node server.js`
 
 ---
 
-
 <img width="1918" height="945" alt="Screenshot 2026-02-13 174344" src="https://github.com/user-attachments/assets/a1925091-46de-4fa6-bb8d-788985c974be" />
 
 
@@ -97,7 +166,7 @@ Or manually: `npm install && node server.js`
 | **Your data** | Stored by Discord Inc. | Never leaves your server |
 | **Cost** | Nitro upsells, boosts | Free forever |
 | **Telemetry** | Analytics, tracking | Zero telemetry |
-| **Source code** | Closed | Open (MIT-NC) |
+| **Source code** | Closed | Open (AGPL-3.0) |
 
 ---
 
@@ -128,12 +197,51 @@ Or manually: `npm install && node server.js`
 | **E2E Encryption** | ECDH P-256 + AES-256-GCM encrypted DMs — private keys never leave the browser |
 | **Discord Import** | Import your entire Discord server history — channels, threads, forums, reactions, pins, avatars — directly from Haven's UI or via file upload |
 | **Game** | Shippy Container — Drew's shipment got hung up. Server-wide leaderboard. |
+| **Translations** | 6 languages out of the box (English, French, German, Spanish, Russian, Chinese). Community-contributed. |
 
 
 <img width="1917" height="911" alt="Screenshot 2026-02-16 013038" src="https://github.com/user-attachments/assets/79b62980-0822-4e9d-b346-c5a93de95862" />
 
 
 ---
+
+## 🌐 Translations (i18n)
+
+Haven supports multiple languages. Users can switch languages from **Settings → Language** or the login page. The choice is saved per-browser.
+
+| Language | Code | Status |
+|----------|------|--------|
+| English | `en` | ✅ Complete (reference) |
+| Français | `fr` | 🟡 AI-generated, needs review |
+| Deutsch | `de` | 🟡 AI-generated, needs review |
+| Español | `es` | 🟡 AI-generated, needs review |
+| Русский | `ru` | 🟡 AI-generated, needs review |
+| 中文 | `zh` | 🟡 AI-generated, needs review |
+
+### ⚠️ Translation Quality
+
+Non-English translations were initially generated with AI assistance and **have not been fully reviewed by native speakers**. They may contain awkward phrasing, incorrect terminology, or outright errors. If you speak one of these languages, corrections are hugely appreciated.
+
+### Contributing a Translation
+
+**Improve an existing language:**
+1. Open `public/locales/{code}.json` (e.g. `fr.json`)
+2. Fix any incorrect or awkward translations
+3. Submit a PR
+
+**Add a new language:**
+1. Copy `public/locales/en.json` to `public/locales/{code}.json`
+2. Translate all values (keep the keys unchanged)
+3. Fill in the `_meta` block with your language name and flag
+4. Add the code to the `SUPPORTED` array in `public/js/i18n.js`
+5. Add a `<option>` to both language selectors in `public/index.html` and `public/app.html`
+6. Submit a PR
+
+### Maintenance Reality
+
+Translations are a community effort. As new features are added to Haven, new English strings appear, and other languages will fall behind until someone updates them. **Missing keys gracefully fall back to the English text**, so nothing breaks — you'll just see some English mixed in until someone contributes the translation.
+
+If you'd like to "own" a language and keep it current, reach out via an issue. Long-term language maintainers are welcome and appreciated.
 
 ## Letting Friends Connect Over the Internet
 
@@ -283,7 +391,7 @@ Haven **automatically generates self-signed SSL certificates** on first launch �
 - Everything works fine for local use — just use `http://localhost:3000`
 - Voice chat will only work on localhost, not for remote friends
 - To enable HTTPS:
-  1. Install OpenSSL: [slproweb.com/products/Win32OpenSSL.html](https://slproweb.com/products/Win32OpenSSL.html) (the "Light" version)
+  1. Install OpenSSL: [slproweb.com/products/Win32OpenSSL.html](https://www.slproweb.com/products/Win32OpenSSL.html) (the "Light" version)
   2. During install, choose "Copy OpenSSL DLLs to the Windows system directory"
   3. Restart your PC
   4. Delete `%APPDATA%\Haven\certs` and re-launch `Start Haven.bat`
@@ -365,7 +473,11 @@ Planned features — roughly in priority order:
 | **Webhook / Bot support** | ✅ Done | Incoming webhooks and a lightweight bot API for external integrations |
 | **Thread replies** | 📋 Planned | Threaded conversations that branch off a message |
 | **End-to-end encryption** | ✅ Done | ECDH P-256 + AES-256-GCM encryption for DMs — private keys stay in the browser |
-| **Android App** | 🚧 In Progress! | https://github.com/ancsemi/Haven-App |
+| **Multi-factor authentication** | 📋 Planned | U2F/FIDO key and TOTP support, with optional admin MFA requirement |
+| **Session invalidation on password change** | 📋 Planned | All active sessions are forcibly logged out when a user changes their password |
+| **Recovery-key password reset** | 📋 Planned | Generate a 24-word recovery phrase from settings — used to reset your password without losing E2E DM history. Existing users get a one-time prompt to generate theirs. No admin involvement, no email required. |
+| **Android App** | ✅ Released! | [Get it on Google Play](https://play.google.com/store/apps/details?id=com.havenapp.mobile&gl=US) |
+| **Desktop App** | ✅ Beta! | https://github.com/ancsemi/Haven-Desktop |
 
 > Want something else? Open an issue — PRs are always welcome.
 
@@ -373,7 +485,7 @@ Planned features — roughly in priority order:
 
 ## License
 
-MIT-NC — free to use, modify, and share. **Not for resale.** See [LICENSE](LICENSE).
+AGPL-3.0 — free to use, modify, and share. Any modified version you deploy as a network service must release its source code. See [LICENSE](LICENSE).
 
 Original project: [github.com/ancsemi/Haven](https://github.com/ancsemi/Haven)
 

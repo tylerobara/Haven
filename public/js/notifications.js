@@ -12,9 +12,11 @@ class NotificationManager {
     this.mentionVolume = this._loadPref('haven_notif_mention_volume', 0.8);
     this.sounds = {
       message: this._loadPref('haven_notif_msg_sound', 'ping'),
+      sent: this._loadPref('haven_notif_sent_sound', 'swoosh'),
       mention: this._loadPref('haven_notif_mention_sound', 'bell'),
       join: this._loadPref('haven_notif_join_sound', 'chime'),
       leave: this._loadPref('haven_notif_leave_sound', 'drop'),
+      announcement: this._loadPref('haven_notif_announcement_sound', 'announcement'),
     };
     this._audioCache = {}; // cache Audio objects for custom sounds
   }
@@ -78,6 +80,8 @@ class NotificationManager {
   bell()  { this._playTone([1047, 1319, 1568], [0.15, 0.15, 0.25], 'sine'); }
   alert() { this._playTone([880, 1100, 880, 1100], [0.08, 0.08, 0.08, 0.12], 'sine'); }
   chord() { this._playTone([523, 659, 784, 1047], [0.1, 0.08, 0.08, 0.2], 'sine'); }
+  swoosh(){ this._playTone([400, 600, 800], [0.04, 0.04, 0.06], 'sine'); }  // soft ascending — "sent"
+  announcement() { this._playTone([523, 659, 784, 1047], [0.12, 0.1, 0.1, 0.25], 'sine'); } // bright ascending chord — announcement
 
   // ── Voice action cues (always play at current volume) ───
   mute_on()  { this._playTone([600, 400], [0.06, 0.08], 'sine'); }
@@ -108,12 +112,23 @@ class NotificationManager {
   speak(text) {
     if (!this.enabled) return;
     try {
-      const utter = new SpeechSynthesisUtterance(text);
+      // Cancel any ongoing speech first to prevent overlap/queuing
+      speechSynthesis.cancel();
+      // Cap TTS length to prevent long messages from speaking forever
+      const maxLen = 500;
+      let cleaned = text.length > maxLen ? text.slice(0, maxLen) + '... message truncated' : text;
+      // Strip @mentions so TTS doesn't read "at username"
+      cleaned = cleaned.replace(/@(\w+)/g, '$1');
+      const utter = new SpeechSynthesisUtterance(cleaned);
       utter.volume = Math.max(0, Math.min(1, this.volume));
       utter.rate = 1;
       utter.pitch = 1;
       speechSynthesis.speak(utter);
     } catch { /* speech synthesis not available */ }
+  }
+
+  stopTTS() {
+    try { speechSynthesis.cancel(); } catch { /* not available */ }
   }
 
   // ── Public API ──────────────────────────────────────────
@@ -131,14 +146,21 @@ class NotificationManager {
     // Custom uploaded sound (format: "custom:soundname")
     if (sound.startsWith('custom:')) {
       const name = sound.substring(7);
-      // Look up URL from custom sounds select options
-      const sel = document.getElementById('notif-msg-sound') || document.getElementById('notif-mention-sound');
-      if (sel) {
+      // Look up URL from any notification select, or from app's custom sounds cache
+      let url = null;
+      const selIds = ['notif-msg-sound', 'notif-sent-sound', 'notif-mention-sound', 'notif-join-sound', 'notif-leave-sound'];
+      for (const id of selIds) {
+        const sel = document.getElementById(id);
+        if (!sel) continue;
         const opt = sel.querySelector(`option[value="${CSS.escape(sound)}"]`);
-        if (opt && opt.dataset.url) {
-          this._playFile(opt.dataset.url);
-        }
+        if (opt && opt.dataset.url) { url = opt.dataset.url; break; }
       }
+      // Fallback: try app's customSounds array
+      if (!url && window.app?.customSounds) {
+        const cs = window.app.customSounds.find(s => s.name === name);
+        if (cs) url = cs.url;
+      }
+      if (url) this._playFile(url);
       this.volume = origVol;
       return;
     }

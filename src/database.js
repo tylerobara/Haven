@@ -4,16 +4,55 @@ const { DB_PATH } = require('./paths');
 
 let db;
 
+// ── Prepared-statement cache ──────────────────────────────
+// Every `db.prepare(sql)` allocates a native sqlite3_stmt.  In
+// socketHandlers.js the same queries are prepared on every socket event,
+// creating hundreds of native objects that only get freed when V8 GC
+// collects the JS wrapper.  Under load, GC can't keep up and Oilpan
+// hits a fatal "large allocation" error.
+//
+// This cache wraps db.prepare() so duplicate SQL strings reuse the same
+// Statement object.  Node.js is single-threaded, so concurrent access is
+// not a concern.  Dynamic SQL (e.g. `IN (?,?,?)`) still works — each
+// unique SQL string just gets its own cache entry.
+const _stmtCache = new Map();
+const MAX_STMT_CACHE = 500;   // safety cap — shouldn't be hit in practice
+
 function initDatabase() {
   db = new Database(DB_PATH);
 
-  // Performance settings
+  // ── Performance settings (memory-conscious) ────────────
+  // These were originally set much higher (64 MB cache, 256 MB mmap) which
+  // combined to reserve ~320 MB of native memory for SQLite alone.  On the
+  // Haven Desktop machine that also runs Electron + a renderer, that left
+  // too little headroom and caused the Oilpan OOM crash.
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');       // safe with WAL, 2-3x faster writes
-  db.pragma('cache_size = -64000');         // 64 MB page cache (default ~2 MB)
+  db.pragma('cache_size = -8000');          // 8 MB page cache (was 64 MB — overkill for a chat app)
   db.pragma('busy_timeout = 5000');         // wait up to 5 s on lock contention
   db.pragma('temp_store = MEMORY');         // keep temp tables in RAM
+  db.pragma('mmap_size = 33554432');        // 32 MB memory-mapped I/O (was 256 MB)
+
+  // Hard-cap SQLite's own heap usage so it can never run away
+  db.pragma('soft_heap_limit = 33554432');  // 32 MB soft limit — SQLite tries to stay under
+  db.pragma('hard_heap_limit = 67108864');  // 64 MB hard ceiling
+
+  // ── Statement cache — intercept db.prepare() ──────────
+  const _origPrepare = db.prepare.bind(db);
+  db.prepare = function cachedPrepare(sql) {
+    let stmt = _stmtCache.get(sql);
+    if (stmt) return stmt;
+    // Safety cap: if cache grows too large (dynamic SQL), clear older entries
+    if (_stmtCache.size >= MAX_STMT_CACHE) {
+      // Remove oldest ~half of entries
+      const keys = [..._stmtCache.keys()];
+      for (let i = 0; i < keys.length / 2; i++) _stmtCache.delete(keys[i]);
+    }
+    stmt = _origPrepare(sql);
+    _stmtCache.set(sql, stmt);
+    return stmt;
+  };
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -106,6 +145,8 @@ function initDatabase() {
       ON bans(user_id);
     CREATE INDEX IF NOT EXISTS idx_mutes_user
       ON mutes(user_id, expires_at);
+    CREATE INDEX IF NOT EXISTS idx_messages_channel_id
+      ON messages(channel_id, id DESC);
   `);
 
   // ── Safe schema migration for existing databases ──────
@@ -163,7 +204,11 @@ function initDatabase() {
   insertSetting.run('permission_thresholds', '{"create_channel":50}');    // JSON: { permission: minLevel } — auto-grant perms at level
   insertSetting.run('server_code', '');                // server-wide invite code (joins all channels)
   insertSetting.run('max_upload_mb', '25');             // max file upload size in MB
+  insertSetting.run('max_poll_options', '10');            // max poll answer options (2–25)
+  insertSetting.run('max_sound_kb', '1024');              // max soundboard file size in KB (256–10240)
+  insertSetting.run('max_emoji_kb', '256');               // max emoji file size in KB (64–1024)
   insertSetting.run('setup_wizard_complete', 'false');   // first-time admin setup wizard
+  insertSetting.run('update_banner_admin_only', 'false'); // hide update banner from non-admins
 
   // ── Migration: pinned_messages table ──────────────────
   db.exec(`
@@ -310,6 +355,20 @@ function initDatabase() {
     db.exec("ALTER TABLE channels ADD COLUMN is_private INTEGER DEFAULT 0");
   }
 
+  // ── Migration: temporary channel expiry ─────────────────
+  try {
+    db.prepare("SELECT expires_at FROM channels LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE channels ADD COLUMN expires_at DATETIME DEFAULT NULL");
+  }
+
+  // ── Migration: temporary voice channel flag (#163) ──────
+  try {
+    db.prepare("SELECT is_temp_voice FROM channels LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE channels ADD COLUMN is_temp_voice INTEGER DEFAULT 0");
+  }
+
   // ── Migration: webhook message tracking ─────────────────
   try {
     db.prepare("SELECT is_webhook FROM messages LIMIT 0").get();
@@ -330,6 +389,7 @@ function initDatabase() {
       level INTEGER NOT NULL DEFAULT 0,
       scope TEXT NOT NULL DEFAULT 'server',
       color TEXT DEFAULT NULL,
+      auto_assign INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -366,7 +426,8 @@ function initDatabase() {
       'kick_user', 'mute_user', 'delete_message', 'pin_message',
       'set_channel_topic', 'manage_sub_channels', 'rename_channel',
       'rename_sub_channel', 'delete_lower_messages', 'manage_webhooks',
-      'upload_files', 'use_voice', 'view_history',
+      'upload_files', 'use_voice', 'view_history', 'view_all_members',
+      'manage_music_queue',
       'delete_own_messages', 'edit_own_messages'
     ];
     serverModPerms.forEach(p => insertPerm.run(serverMod.lastInsertRowid, p));
@@ -376,28 +437,38 @@ function initDatabase() {
     const channelModPerms = [
       'kick_user', 'mute_user', 'delete_message', 'pin_message',
       'manage_sub_channels', 'rename_sub_channel', 'delete_lower_messages',
-      'upload_files', 'use_voice', 'view_history',
+      'upload_files', 'use_voice', 'view_history', 'view_channel_members', 'manage_music_queue',
       'delete_own_messages', 'edit_own_messages'
     ];
     channelModPerms.forEach(p => insertPerm.run(channelMod.lastInsertRowid, p));
 
-    // User — level 1 (default role for all new users)
+    // User — level 1 (default role for all new users, auto-assigned)
     const userRole = insertRole.run('User', 1, 'server', '#95a5a6');
+    db.prepare('UPDATE roles SET auto_assign = 1 WHERE id = ?').run(userRole.lastInsertRowid);
     const userPerms = [
       'delete_own_messages', 'edit_own_messages', 'upload_files',
-      'use_voice', 'view_history'
+      'use_voice', 'view_history', 'use_tts'
     ];
     userPerms.forEach(p => insertPerm.run(userRole.lastInsertRowid, p));
   }
 
-  // ── Migration: auto-assign "User" role to all existing users who lack any role ──
-  const userRole = db.prepare("SELECT id FROM roles WHERE name = 'User' AND level = 1 AND scope = 'server'").get();
-  if (userRole) {
+  // ── Migration: add auto_assign column to roles if missing ──
+  try {
+    db.prepare('SELECT auto_assign FROM roles LIMIT 0').get();
+  } catch {
+    db.exec('ALTER TABLE roles ADD COLUMN auto_assign INTEGER NOT NULL DEFAULT 0');
+    // Mark the existing "User" role as auto-assign for backwards compat
+    db.prepare("UPDATE roles SET auto_assign = 1 WHERE name = 'User' AND level = 1 AND scope = 'server'").run();
+  }
+
+  // ── Migration: auto-assign flagged roles to all existing users who lack any server role ──
+  const autoRoles = db.prepare('SELECT id FROM roles WHERE auto_assign = 1 AND scope = ?').all('server');
+  for (const ar of autoRoles) {
     db.prepare(`
       INSERT OR IGNORE INTO user_roles (user_id, role_id, channel_id, granted_by)
       SELECT u.id, ?, NULL, NULL FROM users u
       WHERE u.id NOT IN (SELECT DISTINCT user_id FROM user_roles WHERE channel_id IS NULL)
-    `).run(userRole.id);
+    `).run(ar.id);
   }
 
   // ── Cleanup: remove duplicate user_roles (NULL channel_id duplicates) ──
@@ -408,6 +479,31 @@ function initDatabase() {
       GROUP BY user_id, role_id, COALESCE(channel_id, -1)
     )
   `);
+
+  // ── Prevent future NULL-duplicate inserts with a functional unique index ──
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_user_roles_no_dupes ON user_roles(user_id, role_id, COALESCE(channel_id, -1))');
+
+  // ── Migration: custom_level column on user_roles for per-assignment level overrides ──
+  try {
+    db.prepare('SELECT custom_level FROM user_roles LIMIT 0').get();
+  } catch {
+    db.exec('ALTER TABLE user_roles ADD COLUMN custom_level INTEGER DEFAULT NULL');
+  }
+
+  // ── Migration: per-user permission overrides table ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_role_perms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+      channel_id INTEGER DEFAULT NULL REFERENCES channels(id) ON DELETE CASCADE,
+      permission TEXT NOT NULL,
+      allowed INTEGER NOT NULL DEFAULT 1
+    )
+  `);
+  try {
+    db.prepare('SELECT 1 FROM user_role_perms LIMIT 0').get();
+  } catch { /* table just created */ }
 
   // ── Migration: push notification subscriptions ──────────
   db.exec(`
@@ -439,6 +535,15 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_webhooks_channel ON webhooks(channel_id);
   `);
 
+  // ── Migration: webhook callback URL + secret for two-way bot integration ──
+  const webhookCallbackCols = [
+    { name: 'callback_url',    sql: "ALTER TABLE webhooks ADD COLUMN callback_url TEXT DEFAULT NULL" },
+    { name: 'callback_secret', sql: "ALTER TABLE webhooks ADD COLUMN callback_secret TEXT DEFAULT NULL" },
+  ];
+  for (const col of webhookCallbackCols) {
+    try { db.prepare(`SELECT ${col.name} FROM webhooks LIMIT 0`).get(); } catch { db.exec(col.sql); }
+  }
+
   // ── Migration: mobile FCM push tokens ───────────────────
   db.exec(`
     CREATE TABLE IF NOT EXISTS fcm_tokens (
@@ -458,10 +563,31 @@ function initDatabase() {
     { name: 'slow_mode_interval', sql: "ALTER TABLE channels ADD COLUMN slow_mode_interval INTEGER DEFAULT 0" },
     { name: 'category',           sql: "ALTER TABLE channels ADD COLUMN category TEXT DEFAULT NULL" },
     { name: 'sort_alphabetical',  sql: "ALTER TABLE channels ADD COLUMN sort_alphabetical INTEGER DEFAULT 0" },
+    { name: 'cleanup_exempt',     sql: "ALTER TABLE channels ADD COLUMN cleanup_exempt INTEGER DEFAULT 0" },
+    { name: 'channel_type',       sql: "ALTER TABLE channels ADD COLUMN channel_type TEXT DEFAULT 'standard'" },
+    { name: 'voice_user_limit',   sql: "ALTER TABLE channels ADD COLUMN voice_user_limit INTEGER DEFAULT 0" },
+    { name: 'media_enabled',      sql: "ALTER TABLE channels ADD COLUMN media_enabled INTEGER DEFAULT 1" },
+    { name: 'notification_type',  sql: "ALTER TABLE channels ADD COLUMN notification_type TEXT DEFAULT 'default'" },
+    { name: 'voice_enabled',     sql: "ALTER TABLE channels ADD COLUMN voice_enabled INTEGER DEFAULT 1" },
+    { name: 'text_enabled',      sql: "ALTER TABLE channels ADD COLUMN text_enabled INTEGER DEFAULT 1" },
   ];
   for (const col of channelQolCols) {
     try { db.prepare(`SELECT ${col.name} FROM channels LIMIT 0`).get(); } catch { db.exec(col.sql); }
   }
+
+  // ── Migration: convert legacy channel_type to individual toggles ──
+  try {
+    const textOnlyChannels = db.prepare("SELECT id FROM channels WHERE channel_type = 'text'").all();
+    if (textOnlyChannels.length > 0) {
+      const update = db.prepare("UPDATE channels SET voice_enabled = 0, channel_type = 'standard' WHERE id = ?");
+      for (const ch of textOnlyChannels) update.run(ch.id);
+    }
+    const voiceOnlyChannels = db.prepare("SELECT id FROM channels WHERE channel_type = 'voice'").all();
+    if (voiceOnlyChannels.length > 0) {
+      const update = db.prepare("UPDATE channels SET text_enabled = 0, channel_type = 'standard' WHERE id = ?");
+      for (const ch of voiceOnlyChannels) update.run(ch.id);
+    }
+  } catch { /* channel_type column may not exist yet on first run */ }
 
   // ── Migration: E2E public key on users ──────────────────
   try {
@@ -514,6 +640,133 @@ function initDatabase() {
   } catch {
     db.exec("ALTER TABLE messages ADD COLUMN webhook_avatar TEXT DEFAULT NULL");
   }
+
+  // ── Migration: archived / protected messages ────────────
+  try {
+    db.prepare("SELECT is_archived FROM messages LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE messages ADD COLUMN is_archived INTEGER DEFAULT 0");
+  }
+
+  // ── Migration: password_version for session invalidation ──
+  try {
+    db.prepare("SELECT password_version FROM users LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE users ADD COLUMN password_version INTEGER DEFAULT 1");
+  }
+
+  // ── Migration: role-based channel access ────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS role_channel_access (
+      role_id    INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+      channel_id INTEGER NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+      grant_on_promote  INTEGER NOT NULL DEFAULT 0,
+      revoke_on_demote  INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (role_id, channel_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_rca_role ON role_channel_access(role_id);
+    CREATE INDEX IF NOT EXISTS idx_rca_channel ON role_channel_access(channel_id);
+  `);
+
+  // ── Migration: link_channel_access flag on roles ────────
+  try {
+    db.prepare("SELECT link_channel_access FROM roles LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE roles ADD COLUMN link_channel_access INTEGER NOT NULL DEFAULT 0");
+  }
+
+  // ── Migration: TOTP 2FA columns on users ────────────────
+  try {
+    db.prepare("SELECT totp_secret FROM users LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT DEFAULT NULL");
+  }
+  try {
+    db.prepare("SELECT totp_enabled FROM users LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0");
+  }
+
+  // ── Migration: TOTP backup codes table ──────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS totp_backup_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_totp_backup_user ON totp_backup_codes(user_id);
+  `);
+
+  // ── Migration: account recovery codes ──────────────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS account_recovery_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_recovery_codes_user ON account_recovery_codes(user_id);
+  `);
+
+  // ── Migration: polls support ─────────────────────────
+  try {
+    db.exec("ALTER TABLE messages ADD COLUMN poll_data TEXT DEFAULT NULL");
+  } catch (e) { /* column already exists */ }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poll_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      option_index INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(message_id, user_id, option_index)
+    );
+    CREATE INDEX IF NOT EXISTS idx_poll_votes_msg ON poll_votes(message_id);
+  `);
+
+  // ── Migration: deleted_users log (audit trail for admin deletions) ──
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS deleted_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      display_name TEXT DEFAULT NULL,
+      reason TEXT DEFAULT '',
+      deleted_by INTEGER REFERENCES users(id),
+      deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // ── Migration: per-channel voice bitrate cap ────────────
+  try {
+    db.prepare("SELECT voice_bitrate FROM channels LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE channels ADD COLUMN voice_bitrate INTEGER DEFAULT 0");
+  }
+
+  // ── Migration: per-channel AFK sub-channel ────────────
+  try {
+    db.prepare("SELECT afk_sub_code FROM channels LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE channels ADD COLUMN afk_sub_code TEXT DEFAULT NULL");
+  }
+  try {
+    db.prepare("SELECT afk_timeout_minutes FROM channels LIMIT 0").get();
+  } catch {
+    db.exec("ALTER TABLE channels ADD COLUMN afk_timeout_minutes INTEGER DEFAULT 0");
+  }
+
+  // ── Migration: grant use_tts to all auto-assign roles (default ON) ──
+  try {
+    const autoAssignRoles = db.prepare('SELECT id FROM roles WHERE auto_assign = 1').all();
+    const insertPerm = db.prepare('INSERT OR IGNORE INTO role_permissions (role_id, permission, allowed) VALUES (?, ?, 1)');
+    for (const r of autoAssignRoles) {
+      insertPerm.run(r.id, 'use_tts');
+    }
+  } catch { /* non-critical */ }
 
   return db;
 }

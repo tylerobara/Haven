@@ -58,6 +58,13 @@ Replace the `haven_data:/data` line in `docker-compose.yml`.
 
 ### Updating
 
+**Option A — Pre-built image** (default, recommended):
+```bash
+docker compose pull
+docker compose up -d --force-recreate
+```
+
+**Option B — Built from source** (only if you uncommented `build: .`):
 ```bash
 git pull
 docker compose build --no-cache
@@ -65,6 +72,49 @@ docker compose up -d
 ```
 
 Your data is safe — it lives in the volume, not the container.
+
+### Checking Your Version
+
+Open this URL in your browser (replace with your domain/IP if needed):
+```
+https://localhost:3000/api/version
+```
+
+Or from inside the container:
+```bash
+docker compose exec haven cat /app/package.json | grep '"version"'
+```
+
+### Linux Prerequisites
+
+If you're on Linux (Ubuntu, Mint, Debian, etc.), make sure you have Docker's official packages installed — the default `docker.io` package from some distros may be missing Compose V2.
+
+**1. Install Docker Engine + Compose plugin:**
+
+```bash
+sudo apt update
+sudo apt install ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$UBUNTU_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt update
+sudo apt install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+```
+
+**2. Add your user to the `docker` group** (so you don't need `sudo` for every command):
+
+```bash
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+After that, `docker compose up -d` should work without errors.
 
 ---
 

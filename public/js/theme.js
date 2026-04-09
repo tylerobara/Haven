@@ -63,11 +63,23 @@ function generateCustomPalette(h, s, v, vibrancy) {
 }
 
 // ── Apply / clear custom theme CSS variables ────────────
+// Sets each CSS custom property directly on :root's inline style.
+// Multiple setProperty calls in one script execution are batched by
+// Chromium into a single style-invalidation pass — no intermediate
+// recalculations.  This avoids the CSSOM node creation/destruction
+// that happens when writing a <style> element's textContent 20×/s,
+// which was causing progressive Blink Oilpan GC pressure.
+let _themeStyleEl = null;   // kept for clearCustomVars cleanup safety
 function applyCustomVars(palette) {
-  const el = document.documentElement;
-  Object.entries(palette).forEach(([k, v]) => el.style.setProperty(k, v));
+  // Direct inline-style setProperty on :root.  All 23 vars are set in
+  // one synchronous loop; Chromium defers the style recalculation to
+  // the next frame, treating them as a single batched invalidation.
+  const root = document.documentElement.style;
+  for (const [k, v] of Object.entries(palette)) root.setProperty(k, v);
 }
 function clearCustomVars() {
+  if (_themeStyleEl) { _themeStyleEl.textContent = ''; }
+  // Also remove any leftover inline custom properties (legacy path)
   const keys = ['--accent','--accent-hover','--accent-dim','--accent-glow',
     '--bg-primary','--bg-secondary','--bg-tertiary','--bg-hover','--bg-active',
     '--bg-input','--bg-card','--text-primary','--text-secondary','--text-muted',
@@ -79,8 +91,30 @@ function clearCustomVars() {
 // ═══════════════════════════════════════════════════════════
 // RGB CYCLING THEME
 // ═══════════════════════════════════════════════════════════
-let _rgbInterval = null;
+let _rgbRAF = null;
 let _rgbHue = 0;
+let _rgbLastTick = 0;
+let _rgbLastHueInt = -1;
+let _rgbPaletteLut = null;
+let _rgbPaletteLutVibrancy = -1;
+
+function _rebuildRgbPaletteLut(vibrancy) {
+  const vib = Math.max(10, Math.min(100, Math.round(vibrancy)));
+  _rgbPaletteLut = new Array(360);
+  for (let h = 0; h < 360; h += 1) {
+    _rgbPaletteLut[h] = generateCustomPalette(h, 0.75, 0.95, vib / 100);
+  }
+  _rgbPaletteLutVibrancy = vib;
+}
+
+function _getRgbPalette(hue, vibrancy) {
+  const h = Math.round(((hue % 360) + 360) % 360);
+  const vib = Math.max(10, Math.min(100, Math.round(vibrancy)));
+  if (!_rgbPaletteLut || _rgbPaletteLutVibrancy !== vib) {
+    _rebuildRgbPaletteLut(vib);
+  }
+  return { h, palette: _rgbPaletteLut[h] };
+}
 
 function startRgbCycle() {
   stopRgbCycle();
@@ -88,17 +122,56 @@ function startRgbCycle() {
   let speed    = saved ? saved.speed    : 30;   // 1-100
   let vibrancy = saved ? saved.vibrancy : 75;   // 10-100
 
-  // Fixed 16ms tick (~60 fps). Speed controls hue step per tick:
-  // speed 1 → 0.8°/tick (50°/sec), speed 100 → 4.0°/tick (250°/sec)
-  const TICK = 16;
+  // Full-UI RGB remains intact, but updates are quantized and adaptive.
+  // Under frame pressure we increase update spacing to prevent renderer
+  // starvation, then ramp back up when the frame budget recovers.
+  const BASE_TICK_MS = 80;
+  const MIN_TICK_MS = 70;
+  const MAX_TICK_MS = 220;
+  let adaptiveTickMs = BASE_TICK_MS;
+  let lastFrameTs = 0;
   function getStep() { return 0.8 + (speed / 100) * 3.2; }
 
-  _rgbInterval = setInterval(() => {
-    _rgbHue = (_rgbHue + getStep()) % 360;
-    const vib = vibrancy / 100;
-    const palette = generateCustomPalette(_rgbHue, 0.75, 0.95, vib);
-    applyCustomVars(palette);
-  }, TICK);
+  // Use rAF instead of setInterval to sync with the browser paint cycle
+  // and automatically pause when the tab/window is hidden.
+  const initial = _getRgbPalette(_rgbHue, vibrancy);
+  _rgbLastHueInt = initial.h;
+  applyCustomVars(initial.palette);
+
+  function tick(now) {
+    _rgbRAF = requestAnimationFrame(tick);
+    if (document.hidden) {
+      _rgbLastTick = now;
+      lastFrameTs = now;
+      return;
+    }
+
+    if (lastFrameTs > 0) {
+      const frameDt = now - lastFrameTs;
+      if (frameDt > 34) adaptiveTickMs = Math.min(MAX_TICK_MS, adaptiveTickMs + 10);
+      else if (frameDt < 20) adaptiveTickMs = Math.max(MIN_TICK_MS, adaptiveTickMs - 2);
+    }
+    lastFrameTs = now;
+
+    const elapsed = now - _rgbLastTick;
+    if (elapsed < adaptiveTickMs) return;
+    _rgbLastTick = now;
+
+    // Keep user-selected speed visually consistent even when throttled.
+    const speedScale = Math.min(3, elapsed / BASE_TICK_MS);
+    _rgbHue = (_rgbHue + getStep() * speedScale) % 360;
+    const next = _getRgbPalette(_rgbHue, vibrancy);
+    if (next.h === _rgbLastHueInt) return;
+    _rgbLastHueInt = next.h;
+    applyCustomVars(next.palette);
+  }
+  _rgbRAF = requestAnimationFrame(tick);
+
+  // Mark the document so CSS can suppress transitions during RGB cycling.
+  // Without this, every CSS-variable change starts/interrupts background
+  // transitions on hundreds of elements, creating a compounding compositor
+  // workload that freezes the renderer within minutes.
+  document.documentElement.classList.add('rgb-cycling');
 
   // Expose updaters so sliders can adjust live (no restart needed — step recalcs each tick)
   startRgbCycle._setSpeed = (v) => {
@@ -107,12 +180,20 @@ function startRgbCycle() {
   };
   startRgbCycle._setVibrancy = (v) => {
     vibrancy = v;
+    const next = _getRgbPalette(_rgbHue, vibrancy);
+    _rgbLastHueInt = next.h;
+    applyCustomVars(next.palette);
     localStorage.setItem('haven_rgb_settings', JSON.stringify({ speed, vibrancy }));
   };
 }
 
 function stopRgbCycle() {
-  if (_rgbInterval) { clearInterval(_rgbInterval); _rgbInterval = null; }
+  if (_rgbRAF) { cancelAnimationFrame(_rgbRAF); _rgbRAF = null; }
+  _rgbLastTick = 0;
+  _rgbLastHueInt = -1;
+  _rgbPaletteLut = null;
+  _rgbPaletteLutVibrancy = -1;
+  document.documentElement.classList.remove('rgb-cycling');
   startRgbCycle._setSpeed = null;
   startRgbCycle._setVibrancy = null;
 }
@@ -193,8 +274,9 @@ function _rebuildEffectSpeedSliders() {
   // Clear existing sliders
   editor.innerHTML = '';
 
-  // Get active dynamic effects
-  const active = [..._activeFx].filter(fx => DYNAMIC_THEMES.includes(fx));
+  // Get active dynamic effects — exclude CRT and Cyberpunk which have dedicated editors
+  const DEDICATED_EDITORS = ['crt', 'cyberpunk'];
+  const active = [..._activeFx].filter(fx => DYNAMIC_THEMES.includes(fx) && !DEDICATED_EDITORS.includes(fx));
   if (active.length === 0) return;
 
   active.forEach(fx => {
@@ -226,11 +308,6 @@ function _rebuildEffectSpeedSliders() {
     // Apply initial speed to CSS layers
     if (_fxSpeedMap[fx] !== undefined) {
       _applyFxSpeedToLayers(fx, 2.15 - _fxSpeedMap[fx]);
-    }
-
-    // Inject CRT vignette & scanline sliders right after the CRT speed slider
-    if (fx === 'crt') {
-      _injectCrtSliders(editor);
     }
   });
 }
@@ -268,7 +345,8 @@ function _applyFxSpeedToLayers(effectName, cssMult) {
 function showEffectEditorIfDynamic(theme) {
   const editor = document.getElementById('effect-speed-editor');
   if (!editor) return;
-  const hasDynamic = [..._activeFx].some(fx => DYNAMIC_THEMES.includes(fx));
+  const DEDICATED_EDITOR_FX = ['crt', 'cyberpunk'];
+  const hasDynamic = [..._activeFx].some(fx => DYNAMIC_THEMES.includes(fx) && !DEDICATED_EDITOR_FX.includes(fx));
   if (hasDynamic) {
     _rebuildEffectSpeedSliders();
     if (editor._show) editor._show();
@@ -781,7 +859,11 @@ function _startMatrixRain() {
   }
   initDrops();
 
-  function draw() {
+  let _matrixLastFrame = 0;
+  function draw(now) {
+    _matrixRAF = requestAnimationFrame(draw);
+    if (now - _matrixLastFrame < 33 || document.hidden) return;
+    _matrixLastFrame = now;
     _matrixCtx.fillStyle = 'rgba(0, 0, 0, 0.03)';
     _matrixCtx.fillRect(0, 0, canvas.width, canvas.height);
     _matrixCtx.font = fontSize + 'px monospace';
@@ -809,9 +891,8 @@ function _startMatrixRain() {
       const speedM = _getFxSpeed('matrix');
       _matrixDrops[i] += (0.4 + Math.random() * 0.6) * speedM;
     }
-    _matrixRAF = requestAnimationFrame(draw);
   }
-  draw();
+  _matrixRAF = requestAnimationFrame(draw);
 
   canvas._resizeHandler = () => { resize(); initDrops(); };
   window.addEventListener('resize', canvas._resizeHandler);
@@ -869,7 +950,11 @@ function _startEmbers() {
     });
   }
 
-  function draw() {
+  let _emberLastFrame = 0;
+  function draw(now) {
+    _emberRAF = requestAnimationFrame(draw);
+    if (now - _emberLastFrame < 33 || document.hidden) return;
+    _emberLastFrame = now;
     _emberCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Spawn fewer embers, concentrated in center
@@ -912,9 +997,8 @@ function _startEmbers() {
       _emberCtx.restore();
     }
     _emberCtx.globalAlpha = 1;
-    _emberRAF = requestAnimationFrame(draw);
   }
-  draw();
+  _emberRAF = requestAnimationFrame(draw);
 
   canvas._resizeHandler = resize;
   window.addEventListener('resize', canvas._resizeHandler);
@@ -987,7 +1071,11 @@ function _startGraceEmbers() {
     ctx.restore();
   }
 
-  function draw() {
+  let _graceLastFrame = 0;
+  function draw(now) {
+    _graceRAF = requestAnimationFrame(draw);
+    if (now - _graceLastFrame < 33 || document.hidden) return;
+    _graceLastFrame = now;
     _graceCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     const speedM = _getFxSpeed('eldenring');
@@ -1026,9 +1114,8 @@ function _startGraceEmbers() {
       _graceCtx.restore();
     }
     _graceCtx.globalAlpha = 1;
-    _graceRAF = requestAnimationFrame(draw);
   }
-  draw();
+  _graceRAF = requestAnimationFrame(draw);
 
   canvas._resizeHandler = resize;
   window.addEventListener('resize', canvas._resizeHandler);
@@ -1079,7 +1166,11 @@ function _startNordSnow() {
     });
   }
 
-  function draw() {
+  let _snowLastFrame = 0;
+  function draw(now) {
+    _snowRAF = requestAnimationFrame(draw);
+    if (now - _snowLastFrame < 33 || document.hidden) return;
+    _snowLastFrame = now;
     _snowCtx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Spawn snowflakes at random intervals — density scales with width
@@ -1126,9 +1217,8 @@ function _startNordSnow() {
       _snowCtx.fill();
     }
     _snowCtx.globalAlpha = 1;
-    _snowRAF = requestAnimationFrame(draw);
   }
-  draw();
+  _snowRAF = requestAnimationFrame(draw);
 
   canvas._resizeHandler = resize;
   window.addEventListener('resize', canvas._resizeHandler);

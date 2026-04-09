@@ -11,6 +11,666 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Haven uses [Sema
 
 ---
 
+## [2.9.7] — 2026-04-09
+
+### Changed
+- **Removed Google STUN dependency** — voice/WebRTC now defaults to open-source public STUN servers (`stun.stunprotocol.org` and `stun.nextcloud.com`) instead of Google's. No functional change for end users, just removes the Google dependency for a project built around self-hosting.
+
+### Added
+- **`STUN_URLS` environment variable** — server admins can now override the default STUN servers with their own (e.g., a self-hosted coturn instance) for fully self-contained voice with zero external dependencies. Comma-separated list of STUN URIs.
+
+---
+
+## [2.9.6] — 2026-04-07
+
+### Added
+- **Custom Terms of Service** — admins can now add custom terms that appear above the default Haven ToS on the login page. Set via a new textarea in Admin Settings. Supports plain text with paragraph breaks, max 50,000 characters. Leave empty to show only the default ToS. (#5229)
+
+### Fixed
+- **Unpin message visual bug** — unpinning a message while viewing the pinned messages panel no longer leaves the pin border on the message. The pinned panel item is also removed in real time and the count updates. (#5228)
+- **Android app popup "Don't show this again"** — the checkbox now persists correctly across sessions. Previously the v3 migration flag used sessionStorage, causing dismissals to reset on every new session.
+- **Android app popup layout** — moved the "NOW AVAILABLE" badge above the title instead of inline, and centered the title text.
+
+---
+
+## [2.9.5] — 2026-04-07
+
+### Changed
+- **License changed to AGPL-3.0** — Haven is now licensed under the GNU Affero General Public License v3, a widely recognized open-source license. This replaces the previous custom MIT-NC license. The AGPL ensures that anyone who forks and deploys Haven as a network service must release their source code under the same license, protecting the project from commercial exploitation while being a proper OSI-approved open-source license. Self-hosting, forking, and contributing remain fully encouraged. (#5227, #70)
+
+---
+
+## [2.9.4] — 2026-04-05
+
+### Added
+- **Two-way bot webhook callbacks** — bots can now have a Callback URL and optional Callback Secret in the bot settings panel. When a user sends a message in a channel where the bot lives, Haven fires a POST to that URL with event data (message content, author info, channel, timestamp). If a secret is set, the payload is signed with HMAC-SHA256 via an `X-Haven-Signature` header. Webhook messages from the bot itself won't trigger callbacks, preventing loops. (#194)
+- **Community server** — added a "Try Haven" link to the website, README, and nav bar pointing to the volunteer-hosted community server at haven.moviethingy.xyz (hosted by MutantRabbit).
+
+---
+
+## [2.9.3] — 2026-04-05
+
+### Changed
+- **Android app popup updated for full release** — the in-app Android promotion has been refreshed to reflect that Amni-Haven Android is now a full release on Google Play (no longer a closed beta). The popup links directly to the Play Store listing. Existing users who dismissed the old beta popup will see the new announcement once.
+- **Fixed Desktop app naming in README** — the Desktop app is "Haven Desktop", not "Amni-Haven Desktop". Corrected all references. Only the Android app carries the Amni branding (built by Amnibro).
+- **Updated donor lists** — added c0urier (sponsor + donor) and deNully (donor).
+
+---
+
+## [2.9.2] — 2026-04-05
+
+### Fixed
+- **Per-app audio CSP fix** — Haven's Content Security Policy was missing `blob:` in `script-src`, which caused the Desktop app's AudioWorklet processor to be blocked by the browser on every session. The per-app audio pipeline was silently falling through to the deprecated ScriptProcessor fallback (and still producing no audio for many users). AudioWorklet now loads correctly. (#165)
+
+---
+
+## [2.9.1] — 2026-04-04
+
+### Fixed
+- **Sidebar "View All Members" button bypassed permissions** — the 👥 button in the sidebar was visible to all users regardless of the `view_all_members` permission. It's now hidden unless the user is an admin, moderator, or has the `view_all_members` permission. The server also rejects the request outright for unpermissioned users. (#220)
+
+---
+
+## [2.9.0] — 2026-04-02
+
+### Added
+- **Temporary voice channels** — users with the new "Create Temporary Channels" permission can create temp voice channels from the sidebar. Everyone on the server sees and can join them. When the last person leaves voice, the channel auto-deletes. There's also a 24-hour safety-net expiry on the off chance nobody ever leaves cleanly. The permission is off by default for all roles. (#163)
+
+### Fixed
+- **Voice permission lost when assigning a channel-scoped role server-wide** — assigning a role like Channel Mod across the whole server was wiping the user's existing server-scoped User role, which took away their voice access. The role replace now only removes roles of the same scope, so server roles and channel roles no longer clobber each other. (#195)
+- **AFK idle skip reverted** — the previous fix that prevented the idle timer from firing while in voice was too broad. Staying in voice while idle should still count as idle (the AFK auto-move depends on it). The mic speech detection already resets idle status when you're actually talking, so active speakers are unaffected. (#217)
+
+---
+
+## [2.8.9] — 2026-04-01
+
+### Fixed
+- **Channel organize button now visible to all users** — the 📋 organize button was incorrectly gated behind admin-only. Any user can now open the organize modal to set their own personal channel sort preference. Admin-only controls (move up/down, tags) are hidden for non-admin users at the server level.
+- **Collapsed parent badge no longer clears on click** — clicking a collapsed parent channel (whose badge shows aggregated unread counts from hidden sub-channels) no longer wipes the bubble badge. The badge only goes away once you expand and read the actual sub-channels. (#151)
+- **Presence stays green while in voice** — the idle timer no longer fires "away" while you're connected to a voice channel. Whether you're talking or just listening, your presence stays online. The server's AFK auto-move system still handles truly inactive voice users separately.
+- **Voice activity pings now also reset away presence** — if the idle timer had already fired before you started talking, speaking into your mic now immediately resets your status back to online for other users.
+
+---
+
+## [2.8.8] — 2026-03-31
+
+### Fixed
+- **Voice AFK moves during active speech** — speaking now resets the idle timer and sends voice-activity pings to the server, so you won't get moved to the AFK channel or show as "away" while actively talking. Pings also fire every 15s instead of 30s for better overlap with the server's AFK check interval.
+- **Desktop app status bar visibility** — restored display fallback logic, `data-desktop-app` reinforcement, and inline `!important` override to ensure the status bar renders correctly in Electron across all DPI scales.
+
+### Added
+- **Video thumbnails** — uploaded videos now auto-generate a poster thumbnail from the first visible frame, so you can see a preview without having to hit play. Thumbnails are generated client-side, cached per URL, and capped at 480p JPEG.
+
+---
+
+## [2.8.7] — 2026-03-30
+
+### Changed
+- **Updated donor & sponsor lists** — added HoppyGamers, corrected sponsor/donor categorization, fixed chronological ordering.
+
+---
+
+## [2.8.6] — 2026-03-29
+
+### Fixed
+- **Heart/donate button position** — moved the ❤️ button to the right side of the sidebar bottom bar where it was in older versions, after the flex spacer alongside the voice controls.
+
+---
+
+## [2.8.5] — 2026-03-29
+
+### Fixed
+- **Noise gate lost on device switch** (#212) — switching microphones mid-call rebuilt the audio chain but forgot to restore the saved noise gate sensitivity, leaving the gate wide open. AI suppression mode was already re-applied; the gate and off modes now are too.
+- **Screen share broken after reload** (#213) — when any participant reloaded the page, the `voice-rejoin` path did not tell active screen sharers or webcam users to renegotiate with the reconnected peer, so the rejoined user never received screen share video or audio tracks. The rejoin handler now mirrors the full join flow.
+- **Start scripts ignore custom PORT** (#214) — `Start Haven.bat` and `start.sh` hardcoded port 3000 for kill, wait-loop, and display. Both now read `PORT=` from the `.env` file and use it throughout.
+- **SSL cert errors hidden** (#214) — all three setup scripts (`Start Haven.bat`, `start.sh`, `Install Haven.ps1`) suppressed OpenSSL stderr, making it impossible to diagnose certificate generation failures. Errors are now shown.
+
+## [2.8.4] — 2026-03-28
+
+### Changed
+- **AFK voice channel reworked** (#210) — AFK is now a per-channel setting instead of a server-wide admin option. Right-click any parent channel → ⚙️ Channel Functions → 💤 AFK Sub to designate a sub-channel as the AFK room. Each channel can have its own AFK sub and timeout, keeping groups segregated. The old admin-level AFK setting has been removed.
+
+### Fixed
+- **Video embed fullscreen** — fullscreened uploaded videos are now properly centered with visible controls and seek bar. Previously the video could appear off-center with controls clipped off-screen, and exiting fullscreen could break the window layout.
+
+---
+
+## [2.8.3] — 2026-03-27
+
+### Added
+- **Bulk emoji upload** (#202) — new "Bulk Upload" button in the Emoji Management modal lets admins select multiple image files at once. Names are auto-generated from filenames (lowercase, stripped of special characters). Skips files that exceed the server's max emoji size.
+- **TTS permission** (#192) — new `use_tts` role permission (default ON for all users via the User role). Admins can revoke it per-role to prevent specific users from using `/tts`. Existing servers get the permission auto-granted on startup.
+- **`/tts:stop` command** (#192) — instantly cancels any in-progress text-to-speech playback. Client-side only, no message sent.
+
+### Fixed
+- **Shippy Container popout** — the "Pop Out" button on the game iframe now checks if the popup window actually opened before closing the inline game. If the browser blocks the popup, the game stays in the iframe and a toast explains the issue instead of silently closing the game.
+
+---
+
+## [2.8.2] — 2026-03-24
+
+### Added
+- **Camera device selector** (#189) — users can now select their preferred camera from Settings → Voice & Video.
+
+### Fixed
+- **TTS looping** — `/tts` messages are now capped at 500 characters (server + client), and any in-progress speech is cancelled before a new one starts, preventing the infinite loop from very long messages.
+- **TTS `@` mentions** — `@username` in TTS messages is now read as just the name instead of "at username".
+- **`/spoiler` in E2E-encrypted DMs** — slash commands like `/spoiler` now work correctly in end-to-end encrypted DMs (they were previously sent as raw command text).
+- **Channel sort mode sync** — channel sort order is now stored server-side and synced to all clients; admin changes broadcast to everyone in real time. Non-admins can still override locally.
+- **Status bar in Desktop windowed mode** (#190) — the bottom status bar now displays correctly when the Desktop app is not maximized.
+
+---
+
+## [2.8.1] — 2026-03-21
+
+### Added
+- **Mute/deafen state sync** — mute and deafen status now broadcasts to all clients in real time, so users in one channel can see the mic/deafen state of anyone in a different channel.
+- **Deafen implies mute** — deafening now auto-mutes your microphone. Undeafening restores your previous mute state (so manually muting first is remembered).
+- **Graceful shutdown** — the server now handles SIGTERM and SIGINT cleanly, closing Socket.IO and HTTP connections before exiting. Fixes forced-kill behavior in Docker and process managers.
+- **Opt-in: Hide Voice Panel** — new toggle in Settings → Sounds. Hides the right-sidebar voice users panel on desktop; voice users are still visible in the inline channel indicators.
+- **Opt-in: Sidebar Voice Controls** — new toggle in Settings → Sounds. Moves the mute/deafen buttons from the voice panel header to the bottom sidebar bar.
+
+### Fixed
+- **Mute/deafen state lost on reconnect** — mute and deafen state is now re-broadcast to the server after a socket reconnect or tab refocus.
+
+---
+
+## [2.8.0] — 2026-03-18
+
+### Added
+- **Expanded permissions system** — three new delegatable permissions: `manage_roles` (edit/assign roles), `manage_server` (branding, whitelist, invite, cleanup, upload limit, tunneling), and `delete_channel`. Non-admins with these permissions can manage the server without full admin access. Includes server-side escalation guard preventing users from granting permissions they don't have. Based on community contribution by @Jaymus3 (#150).
+- **Deleted users list** (#180) — admins can now view a list of deleted accounts in the admin panel.
+- **Configurable voice bitrate** (#179) — voice chat bitrate is now adjustable in settings.
+
+### Fixed
+- **Clipboard copy buttons silent failure in Desktop app** (#182) — `navigator.clipboard.writeText()` fails silently in Electron BrowserView. All copy buttons (channel code, server code, webhook URL, wizard code, E2E safety code, tunnel URL, bot manager) now fall back to `execCommand('copy')` when the Clipboard API is unavailable.
+
+---
+
+## [2.7.9] — 2026-03-17
+
+### Added
+- **Custom login title** — admins can now set a custom title displayed on the login screen below the Haven logo. Configurable under Settings > Admin > Branding > Login Title (up to 40 characters).
+- **Reset roles to default** — new "Reset to Default" button in the Roles settings panel. Wipes all current roles and re-creates the factory defaults (Server Mod, Channel Mod, User) with their original permissions and auto-assignments.
+
+### Fixed
+- **Desktop: push notification settings hidden** — the web push notification section in Settings is now hidden when running inside Haven Desktop, since the desktop app already provides native OS notifications. The section was non-functional in that context and showed a confusing "Registration failed" error.
+
+---
+
+## [2.7.8] — 2026-03-16
+
+### Added
+- **File upload progress bar** — a progress bar now appears above the message input during file and image uploads showing the real-time upload percentage.
+- **View All Members permission** — new `view_all_members` permission that lets roles see all server members in the sidebar and member list, regardless of shared channels. Granted to Server Mod by default. Configurable per-role in admin settings.
+
+### Fixed
+- **Desktop notification click not navigating** — clicking a native OS notification in the Haven Desktop app now opens the app and switches to the correct channel or DM.
+- **Stream close button now allows reopening** — the ✕ button on stream tiles now hides and mutes the stream instead of permanently removing it. Hidden streams can be restored via the "🖥 N streams hidden" bar, the ⋯ menu on the streamer's name, or by clicking their 🔴 LIVE badge.
+- **Docker update instructions** — `docker-compose.yml` now defaults to the pre-built image (`ghcr.io/ancsemi/haven:latest`), fixing the issue where `docker compose up -d` would rebuild from source rather than use the pulled image. Update instructions updated throughout.
+
+---
+
+## [2.7.7] — 2026-03-16
+
+### Added
+- **Temporary channels** — admins can now create channels with an auto-delete timer (1 hour to 30 days). Temporary channels show a ⏱️ icon and tooltip with the expiry time, and are automatically cleaned up when their time is up.
+- **Linux Docker prerequisites** — added a Linux Prerequisites section to the setup guide covering Docker Engine + Compose V2 installation and docker group setup.
+
+### Fixed
+- **Members list privacy** — the All Members list now only shows users who share at least one channel with you. Admins and mods still see everyone.
+- **@ symbol in URLs breaking chat links** — URLs containing @ (like YouTube channel links) were being mangled by the mention highlighter. Links now use placeholder tokens during rendering so mentions can't match inside URLs.
+
+---
+
+## [2.7.6] — 2026-03-15
+
+### Added
+- **Per-feature channel toggles** — replaced the old "text only" / "voice only" channel modes with individual toggles for each feature: Voice, Text, Streams, Music, and Media. Admins can now mix and match any combination (e.g. media-only channels, voice + media but no text, etc.). Streams and Music automatically depend on Voice — disabling voice will disable both, and they can't be re-enabled until voice is turned back on.
+- **Sideways popout menu for Channel Functions** — the channel functions panel now pops out to the side of the context menu instead of expanding vertically inline, keeping the menu compact.
+
+### Fixed
+- **Legacy channel type migration** — existing channels that were set to "text only" or "voice only" are automatically migrated to the new individual toggle system on server startup.
+
+---
+
+## [2.7.5] — 2026-03-14
+
+### Added
+- **Keyboard navigation shortcuts** — Alt+Up/Down to navigate channels, Alt+Shift+Up/Down to jump between unread channels, Ctrl+K for quick channel switcher.
+- **Dynamic channel sort** — channels can be sorted dynamically in the sidebar.
+- **Server notification dots (Desktop)** — server bar icons in Haven Desktop now show notification dots for cross-server unreads.
+
+### Fixed
+- **Scroll jumping when browsing history** — major overhaul of the infinite-scroll system. Removed `content-visibility: auto` from messages (root cause of unstable `scrollHeight`). Image load handlers were unconditionally yanking the viewport to the bottom even when the user had scrolled up; they now respect the coupling state. Backward pagination (loading older messages) uses element-based anchor pinning with async correction for images and embeds. Forward pagination (loading newer messages) now compensates `scrollTop` when trimming older messages from the top. Trim is centered around the viewport so the scrollbar lands mid-track with room to scroll either direction.
+- **False re-coupling at artificial scroll bottom** — after trimming newer messages during history browsing, reaching the DOM "bottom" would falsely re-couple to the latest messages. Coupling now only engages when the DOM contains the actual latest messages.
+- **Sub-channel creation permissions** — users with the `create_channel` permission could not create sub-channels (which required `manage_sub_channels`). Either permission now works.
+- **E2E key reset blocked** — resetting encryption keys was blocked when encryption couldn't initialize. Now handled gracefully.
+
+---
+
+## [2.7.4] — 2026-03-11
+
+### Added
+- **Account recovery codes** — users can generate a set of one-time recovery codes in Settings (🔑 Recovery). If you ever forget your password, you can use one of these codes from the login screen to reset it without needing admin help or email. Recovery codes also work as an offline backup in case TOTP access is lost.
+
+### Fixed
+- **Admin panel member list showed extra role badges** — admin users appeared with both their DB-assigned roles (e.g. User, Jester) and the Admin badge in the All Members list. Now only the Admin badge is shown.
+- **Admin Recovery button on login screen was broken** — inline event handler had a string escape bug that silently prevented the recovery form from toggling. Rewritten as a proper static handler.
+- **E2E backup re-upload after account recovery** — when a user recovered their account on a device that still had E2E keys cached in IndexedDB, the server-side backup (public key) remained NULL, breaking encrypted sessions for other users. The client now detects this mismatch on connect and automatically re-uploads the backup.
+
+---
+
+## [2.7.3] — 2026-03-11
+
+### Added
+- **Fullscreen buttons on stream & webcam tiles** — inline screen-share and webcam tiles now have a dedicated fullscreen button (⛶) that appears on hover, alongside the existing pop-out button.
+- **Fullscreen on stream/webcam PiP overlays** — the floating PiP overlay windows for screen share and webcam streams now include a fullscreen button (⤢) in the controls bar.
+
+### Fixed
+- **Video fullscreen in Desktop** — the native video controls' fullscreen button and the `...` menu fullscreen option now actually work inside Haven Desktop. Previously all fullscreen calls were silently ignored by Electron's BrowserView layer.
+- **Uploaded video PiP seek bar** — entering PiP on an uploaded video now properly exposes a seek bar via MediaSession metadata, and wires up play/pause actions so the PiP controls are fully functional.
+- **Sub-channel creation by mods** — mods with the `create_channel` permission were unable to create sub-channels (which required `manage_sub_channels`). Either permission now grants sub-channel create/delete access.
+
+---
+
+## [2.7.2] — 2026-03-10
+
+### Fixed
+- **Scroll-to-bottom cut off on new root messages** — root messages (new sender or reply) have `content-visibility: auto` applied for performance, which causes the browser to estimate their off-screen height at 64 px instead of the real ~80–120 px. `_scrollToBottom` was reading `scrollHeight` with the underestimate and landing short. Fix: newly appended root messages are forced to `content-visibility: visible` before the scroll so the real height is used immediately.
+- **Channel / DM switch landing at wrong scroll position** — switching channels rendered up to 100 messages with `content-visibility` height estimates, then fired a single `requestAnimationFrame` correction. The correction was too early — height estimates kept resolving across subsequent frames, shifting `scrollHeight` after the correction had already fired. Fix: the last 15 messages in the rendered batch are forced visible before the initial scroll, and `_scrollToBottom` now loops up to 8 animation frames, re-scrolling until `scrollHeight` stabilises.
+
+---
+
+## [2.7.1] — 2026-03-09
+
+### Added
+- **Media toggle** — new 🖼️ Media setting in the Channel Functions panel lets admins disable image, video, and file uploads per channel. Enforced server-side on both the upload endpoint and message send (admins bypass). DB migration adds `media_enabled INTEGER DEFAULT 1` with a safe no-op on existing installs.
+- **Channel Functions tooltips** — all seven rows in the Channel Functions panel now have descriptive `title` tooltip text explaining each setting.
+
+### Fixed
+- **Voice user limit permanently stuck at ∞** — a missing `const badge` declaration after a prior refactor caused the voice-limit row handler to silently crash, leaving the limit permanently at "unlimited". Fixed.
+- **Text-only channels allow voice join** — all four voice-join entry points (header button, mobile button, channel double-click, and `_joinVoice()` itself) now check for `channel_type === 'text'` and block the join. Previously the guard was missing from all four paths.
+- **Streams/music not restored when disabling text-only** — toggling a channel out of text-only mode now restores `streams_enabled` and `music_enabled` to 1 on both the server and the client panel.
+- **Channel Functions menu cut off near bottom of screen** — the context menu's position clamp now re-runs after the Channel Functions panel expands, preventing it from being hidden off-screen when the channel is near the bottom of the sidebar.
+
+### Improved
+- **Channel Functions disabled-row style** — disabled cfn-rows now render their label with strikethrough text and reduced opacity, making it immediately clear when a feature is turned off.
+- **Voice panel buttons respect channel settings** — screen share, camera, and listen-together buttons are greyed (disabled, grayscale, not-allowed cursor) on voice join when the channel has those features turned off. They are re-enabled on leave to not bleed into other channels.
+
+---
+
+## [2.7.0] — 2026-03-08
+
+### Added
+- **Collapsible right sidebar** — a toggle button on the right sidebar (voice/users panel) lets you collapse it to zero width for more message area space. The state persists across page reloads. The Join and Create sections in the sidebar also have their own collapsible headers now.
+- **Automatic performance diagnostics** — a silent background FPS sampler starts 30 seconds after page load and evaluates every 15 seconds. It logs warnings at two severity levels (avg FPS < 30, avg FPS < 12) with full diagnostic snapshots including heap usage, DOM count, theme state, and RGB cycling status. A manual performance HUD is available via `app._perfHUD(true)` for real-time monitoring.
+
+### Fixed
+- **Progressive UI freeze with RGB theme** — the RGB cycling theme caused a devastating progressive freeze, degrading from 60 FPS to ~1 FPS over 5 minutes. Multiple layered root causes were identified and fixed:
+  - CSS `transition: 0s` still caused Chromium/Oilpan to allocate zero-duration transition records on every tick, eventually overwhelming garbage collection. Fixed with `transition: none !important` and `animation: none !important` on all elements during RGB cycling.
+  - `applyCustomVars()` was rewriting a `<style>` element's `textContent` 20×/s, churning CSSOM nodes inside Blink. Switched to `document.documentElement.style.setProperty()` which batches into a single style invalidation.
+  - RGB cycle ran at 60 fps via `setInterval(16ms)` with ~5000 DOM nodes. Switched to `requestAnimationFrame` with adaptive throttling (70–220 ms) that skips ticks when the tab is hidden.
+  - DOM message cap lowered from 200 to 100, cutting style recalculations in half.
+  - Messages now use `content-visibility: auto` so Chromium skips style recalc for off-screen messages. Hidden modals use `content-visibility: hidden`.
+  - Canvas particle effects (matrix rain, embers, snow) capped at ~30 fps instead of uncapped 60 fps.
+  - Message hover transitions and box-shadows moved to `:hover` only instead of resting state.
+- **Reflow storm when loading messages** — loading a channel's message history appended each message individually, causing hundreds of reflows. Messages are now built in a `DocumentFragment` and inserted in a single append.
+- **Mobile message toolbar** — removed the broken double-tap and long-press methods for opening the message action toolbar on mobile. The ⋯ (three dots) button on each message is now the sole method and works reliably.
+
+### Improved
+- **App modularization** — the monolithic 17,000-line `app.js` has been split into 11 focused modules (`app-ui`, `app-messages`, `app-socket`, `app-voice`, `app-channels`, `app-admin`, `app-context`, `app-media`, `app-platform`, `app-users`, `app-utilities`), improving maintainability and load performance.
+- **Server-side caching** — static assets now use 7-day cache headers with `immutable` and `etag` for faster repeat loads.
+- **Server stability** — added a global `uncaughtException` handler to prevent the server process from crashing on unexpected errors.
+
+---
+
+## [2.6.0] — 2026-03-06
+
+### Added
+- **Haven Android beta sign-up** — a new green "Android Beta" pill button in the top bar opens a sign-up popup directing users to [amni-scient.com/amni-haven.html](https://amni-scient.com/amni-haven.html) to request access to the Haven Android closed beta on Google Play. The popup appears automatically for first-time visitors (after the desktop promo, if applicable) and can be permanently dismissed via "Don't show this again".
+- **Android beta on the website** — the [Haven website](https://ancsemi.github.io/Haven/) now features a dedicated Android banner section with sign-up link, plus a download card in the download section.
+- **Android beta in the README** — the repo README now includes a full Android beta section with sign-up link and feature highlights.
+
+### Donors
+- Added **Amnibro** to the sponsors list — a huge thank you for building the Haven Android app from the ground up. Incredible work.
+
+---
+
+## [2.5.8] — 2026-03-06
+
+### Added
+- **Auto-accept streams setting** — a new toggle in Settings → Sounds lets users opt out of automatically opening screen shares when someone starts streaming. When disabled, a toast notification with a **Join** button appears instead, letting you decide whether to open the stream tile. Auto-accept is on by default; the preference is persisted to `localStorage`.
+
+---
+
+## [2.5.7] — 2026-03-05
+
+### Fixed
+- **Right-click → Invite to Channel submenu now opens correctly** — the parent context menu had `overflow-y: auto` set, which trapped the absolutely-positioned submenu inside the scroll container instead of letting it fly out to the side. Removed that overflow constraint and replaced the static post-render flip logic with a live `mouseenter` handler that measures the trigger's position at hover time and opens the submenu left or right accordingly.
+- **Email addresses no longer render as @mentions** — the `@mention` highlight regex matched any `@word` pattern, including the domain part of email addresses (e.g. `user@example.com` would tag `@example`). Added a negative lookbehind `(?<!\w)` so only mentions that appear after whitespace or punctuation are styled.
+
+---
+
+## [2.5.6] — 2026-03-04
+
+### Added
+- **Channel re-parenting** — admins (and users with the `create_channel` permission) can now restructure the channel tree without deleting and recreating channels. Two new right-click context menu actions:
+  - **Move to…** — opens a picker listing all top-level parent channels so a channel can be nested as a sub-channel, or moved from one parent to another. If the channel is already a sub-channel, a "Promote to top-level" shortcut appears at the top of the list.
+  - **Promote to Channel** — one-click converts any sub-channel back into a stand-alone top-level channel.
+- **Resizable/expandable modals** — all modals can now be resized by dragging the bottom-right corner, and each modal header has an ⛶ expand button that toggles it to near-fullscreen (96 vw × 92 vh).
+- **Organize drill-down** — in the server-level channel organize modal, double-clicking a parent channel that has sub-channels opens the sub-channel organizer for that parent in-place. A ← Back button returns to the top-level view.
+
+### Fixed
+- **Mobile message toolbar appears instantly on tap** — on Android (Chrome/Brave), CSS `:hover` fires on touch events, causing the emoji/pin/protect toolbar to show immediately instead of after a long-press. Hover-triggered display is now guarded by `@media (hover: hover)` so it only activates on devices with a real pointer, and a belt-and-suspenders `display: none !important` rule in the touch media query ensures the toolbar stays hidden until the long-press timer fires.
+- **Mobile message toolbar pushes content sideways** — the toolbar had `position: static` in the phone (`max-width: 480px`) media query, making it render inline and shifting message text. Restored `position: absolute` for all viewport sizes.
+- **Font size inconsistency between messages** — compact (continuation) messages were intentionally assigned a slightly smaller font-size in per-density overrides, making them visually smaller than the first message in a group. The compact-specific overrides are removed so all messages share the same font size.
+- **Compact message timestamp overlaps text on mobile** — the inline timestamp shown on continuation messages was triggering via `:hover` on touch devices, overlapping the message content. It is now hidden with `display: none !important` on touch devices.
+
+### Donors
+- Added **john doe** to the one-time donors list — thank you!
+
+---
+
+## [2.5.5] — 2026-03-03
+
+### Fixed
+- **Settings layout broken after v2.5.4** — the commit that added Desktop Shortcuts dropped the opening `<div>` for the Layout Density section, causing every settings section below it to render as a horizontal row instead of a scrollable vertical list.
+- **TOTP copy button silent failure in Desktop app** — `navigator.clipboard.writeText()` fails silently in Electron. Both the setup secret and backup codes copy buttons now fall back to `execCommand('copy')` when the Clipboard API is unavailable.
+- **Settings modal closed by accidental backdrop click during TOTP setup** — clicking outside the modal while the TOTP setup form or backup codes view was visible would close the modal and lose setup progress. Backdrop clicks are now ignored while the TOTP flow is active.
+- **Active sessions not invalidated when enabling 2FA** — enabling TOTP now bumps `password_version` and force-disconnects all other active sessions, matching the behavior of password changes. The activating session receives a fresh token and stays logged in.
+
+---
+
+## [2.5.4] — 2026-03-03
+
+### Fixed
+- **Link preview HTML entity decoding** — image URLs containing `&amp;` or other HTML entities (common in Reddit and other sites) were being served with raw entities, causing broken images in previews. All OG-scraped values are now entity-decoded before being sent to the client.
+- **Reddit link previews** — Reddit doesn't serve OG tags to unknown bots, so previews showed no content for reddit.com links. The server now uses Reddit's JSON API (`.json` endpoint) to fetch rich post data directly, including title, subreddit, author, images, and gallery support (up to 4 images).
+- **Twitter/X link previews with images** — when the Twitter oEmbed API returned title and description but no image, the image fallback was scraping the original twitter.com URL which serves a JS-only page. The fallback now proxies through fxtwitter.com, which serves bot-friendly OG-enriched HTML. Additionally, native twitter.com/x.com links where oEmbed fails now also try fxtwitter as a full preview source.
+
+---
+
+## [2.5.3] — 2026-03-03
+
+### Added
+- **Built-in AOL sounds** — five classic AOL audio cues are now bundled with Haven and appear in every server's soundboard and notification dropdowns automatically, with no upload required: *Door Open*, *Door Close*, *You've Got Mail*, *Message*, and *Files Done*. The files live in `public/sounds/` and are served as static assets; they appear at the top of the sound list with a 🔒 indicator and cannot be deleted or renamed.
+
+---
+
+## [2.5.2] — 2026-03-03
+
+### Added
+- **manage_soundboard permission** — new role permission allowing non-admin users to upload, rename, and delete custom soundboard sounds. Admins can grant it to any role via the role editor.
+
+### Fixed / Improved
+- **fxtwitter / vxtwitter embeds** — fixed a URL normalization bug where the Twitter oEmbed endpoint was being called with the proxy domain instead of a native twitter.com URL, causing embed data to come back empty for those links.
+- **Pixiv link previews** — added a dedicated Pixiv oEmbed handler. Pixiv blocks generic HTML scrapers but exposes an oEmbed API, so artworks now generate proper previews with title, author, and thumbnail.
+- **oEmbed autodiscovery** — the generic link scraper now detects `<link type="application/json+oembed">` tags in page HTML and falls back to that endpoint when OG tags are absent. This future-proofs embed support for any oEmbed-compatible site without needing per-site handlers.
+
+---
+
+## [2.5.1] — 2026-03-02
+
+### Fixed
+- **Image uploaded to wrong channel** — switching channels while an upload was in progress caused the image to be sent to the newly active channel instead of the one it was uploaded from. The target channel is now captured before the async upload begins.
+- **Encrypted DM reply previews showed raw ciphertext** — the reply banner inside an encrypted DM showed garbled ciphertext instead of the decrypted message. The decrypt pass now also covers `replyContext.content`.
+- **Voice chat unusable after mobile screen timeout / app backgrounding** — losing network focus removed the user from voice on the server side but left stale state on the client, so the leave button appeared but neither leaving nor rejoining worked without a full page reload. The socket disconnect handler now resets local voice state so the UI clears correctly and auto-rejoin on reconnect works as expected.
+- **Custom emoji upload / delete restricted to admin only** — added a `manage_emojis` role permission. Admins can grant it to any role, giving those users the ability to upload and delete custom emojis and access the Emojis settings tab without needing full server admin.
+
+---
+
+## [2.5.0] — 2026-03-01
+
+### Added
+- **One-click installer** — new bootstrap installers for every platform: `Install Haven.bat` (Windows), `install.sh` (Linux/macOS), and `website/install.sh` / `website/Install Haven.bat` for download-and-run convenience. All download Haven, install Node.js if needed, and launch a local web-based setup wizard (`installer/server.js` + `installer/index.html`) that walks through server name, port, admin account, SSL, and push notification config.
+- **FCM mobile push notifications** — `src/fcm.js` adds Firebase Cloud Messaging support. Three automatic modes: *direct* (place a Firebase service account JSON in the data directory), *custom relay* (set `FCM_RELAY_URL` + `FCM_PUSH_KEY` in `.env`), or *global relay* (no config needed — uses the Haven community relay automatically). Uses the existing `jsonwebtoken` dependency — no firebase-admin SDK required. Mobile tokens are stored in the `fcm_tokens` table and auto-cleaned on delivery failure. Contributed by @anmire (#109).
+- **Push relay** — `haven-push-relay/` contains a standalone Express relay server and a Firebase Cloud Function for self-hosted FCM relay deployments.
+- **Admin-only update banner** — new admin setting (Settings › Members) to hide the "update available" banner from regular members. When enabled, the banner is shown only to admin-role users. Contributed fix for #108.
+- **Windows Inno Setup installer scripts** — `setup.iss` and `master-setup.iss` for building a native Windows `.exe` installer via Inno Setup.
+
+### Fixed
+- **Settings modal not loading 2FA status or roles** — the TOTP status check and roles list were only fetched when navigating to their respective nav items, so opening the modal via shortcuts landed on a blank page. Both are now loaded eagerly whenever the modal opens. Fixes #110.
+- **Desktop app crashed when a friend sent an external server link** — the Electron `handleWindowOpen` handler was loading any URL with an `/app.html` path in-app (including links to friends' servers), and `did-fail-load` always reset to the welcome screen. Fixed: only registered servers load in-app; external servers open in the system browser; load failures on peer servers are handled silently without resetting the UI.
+
+---
+
+## [2.4.0] — 2026-03-01
+
+### Added
+- **Emoji upload crop/zoom editor** — a canvas-based crop/zoom editor now opens when you upload a custom emoji. Drag to reposition, scroll wheel or the slider to zoom. GIFs are passed through as-is (no re-encoding). Output is a 128×128 PNG.
+- **Jumbo emoji for emoji-only messages** — when a message contains only emoji (Unicode or custom, up to 27), the emoji render at 2× size, Discord-style.
+- **Ezmana added to donors list**
+
+### Changed
+- **Donors modal redesign** — tier titles (Sponsors / Donors) are now styled as full-width section dividers with ruled lines flanking the label, sitting above their respective card. The donor chip lists live in card-style containers with a thin scrollbar for when the list grows.
+
+### Fixed
+- **Editing a message now preserves markdown** — the edit box was populated from the rendered HTML (`textContent`), stripping all formatting. It now reads from a `data-rawContent` attribute that stores the original markdown source. Fixes #106.
+- **"(edited)" no longer stacks on repeated edits** — the stale "(edited)" text was included in the edit-box content via `textContent`, causing it to be re-submitted and duplicated. Also fixed by the `data-rawContent` change. Fixes #106.
+
+---
+
+## [2.3.9] — 2026-03-01
+
+### Added
+- **Two-Factor Authentication (TOTP)** — users can protect their account with a TOTP authenticator app (Google Authenticator, Authy, etc.). Enable from Settings > Two-Factor. Includes QR code setup, manual secret entry, and 8 single-use backup codes. Login prompts for verification when 2FA is enabled. Admin recovery intentionally bypasses TOTP.
+- **Native OS notifications for new messages** — when the Haven tab or window is not visible, new messages now fire a native OS notification toast (browser Notification API or Electron native notification). Desktop app always uses native notifications; browser falls back to the Notification API when push notifications aren't active.
+
+### Fixed
+- **2FA setup QR code and secret not displaying** — the server response field names didn't match what the client expected, resulting in a blank QR code and empty secret text.
+- **Backup code rejected by browser validation** — switching to backup code mode left an empty `pattern` attribute on the input, causing the browser to reject valid alphanumeric backup codes.
+- **Backup codes had no copy button** — added a clipboard copy button to the backup codes display in settings.
+
+---
+
+## [2.3.8] — 2026-02-28
+
+### Fixed
+- **Private channel code is now actually hidden from members** — previously, `code_visibility` (admin setting) and `is_private` (requires code to join) were independent flags. A member of a private channel could still see the real invite code in the channel header and share it freely. Now, any channel marked `is_private` automatically hides its code from regular members — only the channel creator, admins, and mod-level users can see it. The same applies when a channel has `code_visibility` set to private.
+
+---
+
+## [2.3.7] — 2026-02-27
+
+### Fixed
+- **Private channels are now actually private** — any member of a private channel could previously invite anyone to it via the right-click menu, bypassing the code requirement entirely. Regular members can no longer invite others to private channels. Only the channel creator, admins, and moderators (users with a `kick_user`-level permission in that channel) can invite. Private channels are also hidden from the invite submenu for non-admin users.
+
+### Changed
+- **Channel creator auto-gets mod role** — when a user creates a new top-level channel, they are automatically assigned the highest channel-scoped role (e.g. Channel Mod) for that channel. Previously the creator was just added as a regular member. This means channel creators can manage their own channel (rename, moderate, create sub-channels) without an admin needing to manually assign them a role.
+
+---
+
+## [2.3.6] — 2026-02-27
+
+### Fixed
+- **Docker healthcheck respects FORCE_HTTP** — the container healthcheck now uses HTTP when `FORCE_HTTP=true` is set, so reverse-proxy setups (Traefik, nginx, etc.) no longer mark the container as unhealthy. Previously the check always used HTTPS, which caused unhealthy status and missing routes.
+- **Non-ASCII filenames in file transfer** — filenames containing Chinese characters (and other non-ASCII text) are no longer garbled when files are uploaded. The server now correctly re-encodes the filename from the raw multipart bytes to UTF-8.
+
+---
+
+## [2.3.5] — 2026-02-26
+
+### Added
+- **Donor list externalized** — sponsors and donors are now loaded from `donors.json` at the server root, so the list can be updated without editing HTML. The Thank You modal fetches `/api/donors` on open.
+
+### Fixed
+- **Password change redirect loop** — changing your password no longer kicks your own session into an infinite redirect. The server now sends the fresh token before disconnecting sockets, and the client guards against self-eviction during password changes.
+- **Plugin loader scope** — the plugin loader now passes `globalThis` into the plugin sandbox as `_win`, so plugins can register classes that the loader can discover. Previously `new Function()` ran in a strict scope where `window` was inaccessible, breaking all plugins including the built-in MessageTimestamps.
+- **MessageTimestamps plugin** — updated to register via `_win` so it loads correctly with the fixed plugin loader.
+
+---
+
+## [2.3.4] — 2026-02-26
+
+### Added
+- **Right-click voice users** — right-clicking a player name in the voice channel now opens the same volume/mute/deafen menu as the ⋯ button.
+- **Donor tier background boxes** — each donor tier section in the Thank You modal now has a styled background card for better visual organization.
+
+### Fixed
+- **Duplicate theme effect sliders** — CRT and Glitch no longer show redundant speed sliders in the effect panel. Each effect now only appears in its dedicated editor section.
+- **Hover profile card stuck open** — the translucent bio/profile popup that appears on hover now reliably closes when the mouse moves away, using a global mousemove safety net that tracks distance from both the trigger and the popup.
+- **Profile card missing channel roles** — the profile popup now correctly shows channel-specific roles (e.g. Channel Mod) instead of only server-wide roles. Previously a user with a Channel Mod role would still display as just "User" in their profile card.
+
+---
+
+## [2.3.3] — 2026-02-25
+
+### Added
+- **DM & Nickname in member list** — the All Members panel now shows 💬 Message and 🏷️ Set Nickname buttons on every user row, so you can DM or nickname anyone without leaving the list.
+- **Sidebar Members button** — new 👥 button in the sidebar gives all users quick access to the full member list (previously admin-only).
+- **Remove from Channel** — admins and moderators can now remove users from specific channels via the member list.
+- **Admin recovery endpoint** — new `/api/admin-recover` route lets the server owner reclaim admin access using their `.env` credentials if they get locked out.
+
+### Fixed
+- **Member list popup z-index** — action modals (Assign Role, Add/Remove Channel, Ban, Set Nickname) triggered from the All Members panel now correctly appear above the list instead of hiding behind it.
+- **Profile hover popup stuck open** — the translucent bio/profile preview that appears on username hover now reliably fades away when the mouse moves off, using a global mousemove fallback to catch edge cases the old mouseout approach missed.
+- **Role level enforcement on kick/ban/mute** — moderators can no longer kick, ban, or mute users with equal or higher role levels. Admins are always protected from non-admin actions.
+- **Case-insensitive username registration** — usernames are now checked case-insensitively during signup to prevent duplicate accounts with different casing.
+- **Role channel access on signup** — auto-assigned roles now correctly grant linked channel access when a new user registers.
+
+---
+
+## [2.3.2] — 2026-02-25
+
+### Added
+- **Sound Manager popout** — new 3-tab Sound Manager (Soundboard, Assign to Events, Manage) with hotkey binding, rename/delete, and event assignment for all 5 notification types.
+- **Soundboard hotkey UX** — sounds now show a clear "Set hotkey" link or a visible "×" remove button instead of an unintuitive confirm dialog.
+
+### Fixed
+- **Kick now permanently revokes channel access** — kicking a user removes them from `channel_members` (and sub-channels), preventing them from simply reconnecting. The kicked user's socket rooms and channel list are also refreshed immediately.
+- **Role auto-assign grants linked channel access** — auto-assigned roles now call `applyRoleChannelAccess()` so that roles with linked channels actually add users to those channels on join/invite.
+- **Font size scaling in sub-menus** — added missing `[data-fontsize]` CSS overrides for settings hints, toggle rows, select rows, inputs, context menus, status bar, and settings nav items across all font size tiers.
+- **Custom sounds populate all notification selects** — all 5 event selects (message, sent, mention, join, leave) now include uploaded custom sounds, not just 2 of them.
+- **Notification sound fallback** — `notifications.js` now searches all selects and the custom sounds array for playback URLs.
+
+---
+
+## [2.3.1] — 2026-02-25
+
+### Fixed
+- **Plugin CSP error** — added `'unsafe-eval'` to Content Security Policy `scriptSrc` so plugins using `new Function()` (like MessageTimestamps) can load without EvalError.
+- **Health check 404 spam** — multi-server sidebar health checks now extract the origin from stored server URLs before appending `/api/health`, fixing 404s when the URL contained a path (e.g. `/app`).
+
+---
+
+## [2.3.0] — 2026-02-24
+
+### Added
+- **Webcam video in voice channels** — new camera button in the voice panel lets users broadcast their webcam to all voice participants. Includes start/stop, device picker, late-joiner renegotiation, and per-user video tiles in a dedicated webcam grid.
+- **Webcam grid UI** — resizable, collapsible webcam container with layout picker (Auto grid, Vertical stack, Side-by-side, 2×2), size slider, minimize/close controls, double-click focus mode, and Picture-in-Picture pop-out per tile.
+- **Plugin & Theme system** — full hot-loadable plugin architecture with `HavenApi` (DOM helpers, data/localStorage, toasts, confirm dialogs). Server-side `/api/plugins` and `/api/themes` endpoints scan directories and parse JSDoc metadata. New Settings UI section with toggle switches and refresh. Includes example plugin: `MessageTimestamps.plugin.js`.
+- **Two new light themes** — "Daylight" (warm/amber) and "Cloudy" (cool/blue-grey) with full CSS variable sets.
+- **Font size picker** — Small (13px), Normal (15px), Large (17px), and Extra Large (20px) options in settings, persisted to localStorage.
+- **Invite user to channel** — right-click any online user to invite them to a channel. Server validates membership, avoids duplicates, auto-joins sub-channels, auto-assigns roles, and notifies the invited user.
+- **Admin "View All Members" panel** — admin modal showing every registered user with search, filters (All/Online/Offline/New/Banned), role badges, avatar, online status, join date, and channel count.
+- **Profile hover popups** — hovering over a username or avatar shows a translucent profile preview with delay and auto-dismiss.
+- **Haven Desktop beta** — standalone Electron desktop app now available at [github.com/ancsemi/Haven-Desktop](https://github.com/ancsemi/Haven-Desktop). Per-app audio, native notifications, system tray, one-click install.
+- **Password version / session invalidation** — changing your password now force-disconnects all other active sessions via `force-logout` event. JWT includes `pwv` (password version) claim.
+- **Server-sent toast events** — new `toast` socket event for server-to-client toast notifications.
+- **Google Fonts CSP support** — added `fonts.googleapis.com` and `fonts.gstatic.com` to Content Security Policy.
+
+### Fixed
+- **Double-encoding of special characters** — server-side `sanitizeText()` no longer entity-encodes characters; client handles escaping, preventing double-encoding on display.
+- **Flood-gate false disconnects on WebRTC signaling** — high-frequency WebRTC events now bypass the global event rate limiter.
+- **Incomplete user deletion cleanup** — admin delete-user and self-delete now also purge `user_roles`, `read_positions`, `push_subscriptions`, and `fcm_tokens`.
+- **Silent audio track leak** — silent audio track is now cached and reused; `AudioContext` properly closed on voice disconnect.
+- **Auto-cleanup chunking** — large message deletions are now chunked (1,000 at a time) to avoid SQL timeouts.
+- **Orphaned import temp file cleanup** — cleanup now also runs at startup, not just on the 15-minute interval.
+- **Admin transfer atomicity** — admin transfer is now wrapped in a SQLite transaction.
+- **Password minimum length** — registration now requires 8 characters (up from 6).
+
+### Changed
+- **Server-side `sanitizeText()` rewritten** — simplified to focused dangerous-tag removals plus event-handler and `javascript:` URI stripping.
+- Website & docs updated to v2.3.0 with Haven Desktop beta links.
+
+---
+
+## [2.2.5] — 2026-02-23
+
+### Security
+- **Webhook avatar_url validation** — webhook POST `avatar_url` field now requires `http://` or `https://` protocol, blocking `data:` URIs and other non-HTTP schemes that could be used for IP tracking.
+
+### Fixed
+- **Missing express-rate-limit import** — the webhook rate limiter referenced `rateLimit` without a require, causing a crash on server startup.
+
+### Removed
+- **Desktop app code removed from server** — the `desktop/` directory, `build-desktop.bat`, desktop API routes (`/api/desktop/*`), desktop promotion popup, and all desktop-related UI elements have been surgically removed. The desktop app will be rebuilt as a separate project in its own repository.
+
+### Changed
+- Website & docs updated to v2.2.5.
+
+---
+
+## [2.2.4] — 2026-02-22
+
+### Security
+- **SSRF bypass in link previews** — link preview endpoint now uses `redirect: 'manual'` with manual redirect following (max 5 hops), re-validating each redirect target against private IP / DNS checks to prevent `evil.com` → 302 → `http://169.254.169.254/` style attacks.
+- **JWT admin claim trust** — all 13 REST API admin endpoints now verify `is_admin` from the database instead of trusting the JWT claim, preventing demoted admins from using stale tokens.
+- **Path traversal in avatar/icon uploads** — `set-avatar` and `server_icon` settings now validate paths with a strict regex (`/^\/uploads\/[\w\-.]+$/`) instead of a prefix check, blocking `../` traversal payloads like `/uploads/../../etc/passwd`.
+- **mark-read missing membership check** — the `mark-read` socket event now verifies channel membership before allowing read-position writes, preventing any user from inserting read positions for channels they don't belong to.
+- **transfer-admin race condition** — added a mutex flag and post-`await` DB re-check around the async `bcrypt.compare()` call, preventing concurrent transfer requests from racing past the admin verification.
+- **Server-side content sanitization** — added `sanitizeText()` defense-in-depth filter that strips `<script>`, `<iframe>`, `<object>`, `<embed>`, `<style>`, `<meta>`, `<form>`, `<link>` tags, event handler attributes, and `javascript:` URIs. Applied to messages, edits, bios, and channel topics.
+- **Dependency vulnerabilities** — patched all 6 npm audit findings (qs, bn.js, axios) via `npm audit fix` and `overrides` in package.json. Audit now reports **0 vulnerabilities**.
+
+### Fixed
+- **broadcastChannelLists DoS** — added 150 ms debounce to batch rapid channel mutations, preventing O(N × queries) storms when channels are reordered.
+- **reorder-channels unbounded input** — capped the channel reorder array to 500 items to prevent excessive DB writes from a single socket event.
+
+### Changed
+- Documented intentional `rejectUnauthorized: false` usage in port-check (self-connection to own public IP only).
+- Website & docs updated to v2.2.4.
+
+---
+
+## [2.2.3] — 2026-02-21
+
+### Fixed
+- **Screen share black screen on own view** — video elements were assigned their source while the container was still hidden (`display: none`), causing browsers to skip frame decoding. The container is now shown before setting `srcObject`, with a forced layout reflow so the first frame renders immediately.
+- **Role save button buried in scroll** — the Save button was inside the scrollable permissions list, making it easy to miss. Moved it to the always-visible modal footer next to the Close button.
+- **Role save confirmation too subtle** — replaced the brief in-button text flash with a proper green toast notification ("Role saved") that appears at the top of the screen.
+- **Screen share quality controls (mid-stream)** — resolution and framerate changes now apply instantly to an active share via `applyConstraints()` and bitrate re-capping, without needing to stop and restart.
+- **Screen share black screen on re-share** — `stopScreenShare` now fully awaits renegotiation before allowing a new share, and the `onunmute` handler no longer references a stale stream closure.
+- **Auto-assign default role not persisting** — the auto-assign flag update is now wrapped in a database transaction, and the server returns fresh role data directly in the callback to avoid race conditions.
+
+### Changed
+- Website & docs updated to v2.2.3.
+
+---
+
+## [2.2.2] — 2026-02-21
+
+### Added
+- **FORCE_HTTP mode** — set `FORCE_HTTP=true` in `.env` to skip built-in SSL entirely, making reverse proxy setups (Caddy, nginx, Traefik) painless. Startup scripts also skip cert generation when enabled.
+- **Auto-assign default roles** — roles can now be flagged as auto-assign in the admin panel. Flagged roles are automatically given to new users on registration and when joining a channel.
+
+### Fixed
+- **Docker ARM build failing** — replaced QEMU-based cross-compilation with native ARM runners (`ubuntu-24.04-arm64`) and a manifest merge step so the multi-arch image builds reliably.
+- **HSTS header sent in HTTP mode** — Strict-Transport-Security is now disabled when FORCE_HTTP is active.
+- **window.app not exposed globally** — the main app instance is now assigned to `window.app`, fixing integration hooks.
+
+### Changed
+- Website & docs updated to v2.2.2.
+
+---
+
+## [2.2.1] — 2026-02-21
+
+### Fixed
+- **Channel code hidden on mobile** — the channel code tag is now visible on tablet and phone with compact sizing instead of being hidden entirely.
+- **Logout icon broken on Android** — replaced the Unicode power symbol (⏻) with an inline SVG that renders on all devices.
+- **Mobile menu buttons missing on first load** — added an early media query so hamburger / users sidebar buttons render immediately instead of waiting for later CSS to load.
+- **Status picker clipped on mobile** — switched from `position: absolute` (clipped by sidebar overflow) to `position: fixed` with JS-based placement.
+- **Status change fails while disconnected** — status updates are now queued and applied automatically on reconnect, with a toast notification.
+- **TURN credentials never fetched** — fixed localStorage key mismatch (`haven_token` → `token`) so voice chat works across networks, not just LAN.
+- **File upload type restrictions removed** — server no longer blocks uploads by MIME type; a client-side warning is shown for risky file extensions instead.
+- **Server branding not persisting** — added error handling for branding save failures.
+
+### Changed
+- Website & docs updated to v2.2.1 with download links and version history.
+
+---
+
 ## [2.2.0] — 2026-02-20
 
 ### Added

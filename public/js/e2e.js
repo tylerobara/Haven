@@ -72,6 +72,20 @@ class HavenE2E {
       /* 1. Fast path — local IndexedDB */
       this._keyPair = await this._loadLocal();
 
+      /* 1b. If loaded from IndexedDB but server backup is gone (e.g. after
+       *     account recovery), re-upload so cross-device sync and the public
+       *     key endpoint stay valid. Uses the current wrapping key. */
+      if (this._keyPair && socket && wrappingKey) {
+        const backup = await this._fetchBackup(socket);
+        if (backup) {
+          this._serverBackupExists = true;
+        } else {
+          // Server backup was cleared — re-upload with the current wrapping key
+          try { await this._uploadBackup(socket, wrappingKey); }
+          catch (err) { console.warn('[E2E] Re-upload after recovery failed:', err.message); }
+        }
+      }
+
       /* 2. Cross-device — try server backup (only if we have a wrapping key) */
       if (!this._keyPair && socket && wrappingKey) {
         this._keyPair = await this._restoreFromServer(socket, wrappingKey);
@@ -178,6 +192,26 @@ class HavenE2E {
       iv: this._toB64(iv),
       ct: this._toB64(new Uint8Array(ct))
     });
+  }
+
+  /** Encrypt raw bytes (e.g. image data). Returns Uint8Array: [12-byte IV][ciphertext]. */
+  async encryptBytes(arrayBuffer, partnerId, partnerJwk) {
+    if (!this._ready) throw new Error('E2E not ready');
+    const key = await this._deriveShared(partnerId, partnerJwk);
+    const iv  = crypto.getRandomValues(new Uint8Array(12));
+    const ct  = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, arrayBuffer);
+    const out = new Uint8Array(12 + ct.byteLength);
+    out.set(iv, 0);
+    out.set(new Uint8Array(ct), 12);
+    return out;
+  }
+
+  /** Decrypt raw bytes produced by encryptBytes. Returns ArrayBuffer. */
+  async decryptBytes(encData, partnerId, partnerJwk) {
+    const key = await this._deriveShared(partnerId, partnerJwk);
+    const iv  = encData.slice(0, 12);
+    const ct  = encData.slice(12);
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
   }
 
   async decrypt(json, partnerId, partnerJwk) {
